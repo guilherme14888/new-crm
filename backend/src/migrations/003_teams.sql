@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS teams (
+  id          VARCHAR(36) NOT NULL,
+  name        VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT NULL,
+  color       VARCHAR(7) NOT NULL DEFAULT '#3b82f6',
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS team_members (
+  id          VARCHAR(36) NOT NULL,
+  team_id     VARCHAR(36) NOT NULL,
+  user_id     VARCHAR(36) NOT NULL,
+  role        VARCHAR(50) NOT NULL DEFAULT 'member',
+  joined_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_team_user (team_id, user_id),
+  INDEX idx_tm_team (team_id),
+  CONSTRAINT fk_tm_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tm_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
