@@ -5,6 +5,7 @@ const auth    = require('../middleware/auth');
 const { resolveScope, requireRole, buildCompanyFilter, canAssignRole } = require('../middleware/acl');
 const { audit } = require('../services/auditLog');
 
+/** Serializa uma linha de usuário do banco para o formato JSON exposto na API. */
 function fmt(row) {
   if (!row) return null;
   return {
@@ -68,7 +69,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/users/:id
+// GET /api/users/:id — retorna um usuário, respeitando o escopo de acesso do solicitante
 router.get('/:id', auth, resolveScope, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
@@ -112,7 +113,7 @@ router.post('/', auth, resolveScope, requireRole('admin', 'manager'), async (req
   }
 });
 
-// PATCH /api/users/:id
+// PATCH /api/users/:id — atualiza um usuário com validações de escopo e bloqueio de escalonamento de papel
 router.patch('/:id', auth, resolveScope, async (req, res) => {
   const { scope } = req;
   const isSelf = scope.userId === req.params.id;

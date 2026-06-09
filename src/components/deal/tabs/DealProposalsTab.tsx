@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS, FONTS, SPACING } from '../../../constants/theme';
 
+/** Aba de propostas da negociação: tela de "em breve" para geração de propostas em PDF. */
 export function DealProposalsTab() {
   return (
     <View style={styles.container}>

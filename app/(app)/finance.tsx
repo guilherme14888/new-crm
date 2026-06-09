@@ -7,15 +7,18 @@ import {
 } from '../../src/stores/financeStore';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 
+/** Formata um valor em centavos como moeda brasileira (R$). */
 function formatCents(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+/** Retorna o rótulo e a cor de status da empresa (bloqueada ou em dia). */
 function dueStatus(c: FinanceCompany): { label: string; color: string } {
   if (c.isBlocked) return { label: 'Bloqueada', color: COLORS.danger };
   return { label: 'Em dia', color: COLORS.success };
 }
 
+/** Tela financeira (admin): KPIs, lista de empresas tenants com licenças/cobranças e modal de detalhe. */
 export default function FinanceScreen() {
   const user = useAuthStore((s) => s.user);
   const { companies, isLoading, loadCompanies } = useFinanceStore();
@@ -143,6 +146,7 @@ export default function FinanceScreen() {
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 
+/** Modal de detalhe da empresa: configuração de cobrança, gestão de faturas e compras de licenças, e bloqueio/desbloqueio. */
 function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onClose: () => void }) {
   const {
     detail, loadDetail, updateBilling, block, unblock,
@@ -175,6 +179,7 @@ function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onC
     }
   }, [d?.company.id, d?.company.licensePriceCents, d?.company.purchasedLicenses, d?.company.billingDay, d?.company.blockGraceDays]);
 
+  /** Persiste a configuração de cobrança (vencimento, tolerância, preço e licenças contratadas). */
   const saveBilling = async () => {
     await updateBilling(company.id, {
       billingDay: parseInt(billingDay, 10) || 5,
@@ -184,6 +189,7 @@ function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onC
     });
   };
 
+  /** Exibe uma confirmação (web/nativo) e executa a ação assíncrona se confirmada. */
   const confirmThenRun = (msg: string, fn: () => Promise<void>) => {
     if (Platform.OS === 'web') { if (window.confirm(msg)) fn(); return; }
     Alert.alert('Confirmar', msg, [
@@ -192,6 +198,7 @@ function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onC
     ]);
   };
 
+  /** Valida período/vencimento e cria uma nova fatura para a empresa, limpando o formulário. */
   const handleCreateInvoice = async () => {
     if (!invoiceForm.periodStart || !invoiceForm.periodEnd || !invoiceForm.dueDate) {
       if (Platform.OS === 'web') window.alert('Preencha período e vencimento');
@@ -207,6 +214,7 @@ function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onC
     setInvoiceForm({ periodStart: '', periodEnd: '', dueDate: '', licenses: '', notes: '' });
   };
 
+  /** Valida quantidade/preço e cria um pedido pendente de compra de licenças extras. */
   const handleCreatePurchase = async () => {
     const q = parseInt(purchaseForm.quantity, 10);
     const p = Math.round((parseFloat(purchaseForm.price.replace(',', '.')) || 0) * 100);
@@ -374,6 +382,7 @@ function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onC
   );
 }
 
+/** Linha de uma fatura: período, valores, status e ações de pagar/cancelar quando aplicável. */
 function InvoiceRow({ invoice, onPay, onCancel }: { invoice: CompanyInvoice; onPay: () => void; onCancel: () => void }) {
   const colorByStatus: Record<CompanyInvoice['status'], string> = {
     open: COLORS.gray[500], paid: COLORS.success, overdue: COLORS.danger, canceled: COLORS.gray[400],
@@ -406,6 +415,7 @@ function InvoiceRow({ invoice, onPay, onCancel }: { invoice: CompanyInvoice; onP
   );
 }
 
+/** Linha de uma compra de licenças: quantidade, valores, status e ação de confirmar pagamento se pendente. */
 function LicensePurchaseRow({ purchase, onConfirm }: { purchase: LicensePurchase; onConfirm: () => void }) {
   const colorByStatus: Record<LicensePurchase['status'], string> = {
     pending: COLORS.gray[500], paid: COLORS.success, failed: COLORS.danger, canceled: COLORS.gray[400],

@@ -9,6 +9,7 @@ interface Props {
   dealsByStage: DashboardMetrics['dealsByStage'];
 }
 
+/** Mini gráfico de barras do pipeline que mostra, por estágio (exceto perdidos), uma barra proporcional ao valor e a contagem de negócios. */
 export function MiniPipelineChart({ dealsByStage }: Props) {
   const activeStages = PIPELINE_STAGES.filter(
     (s) => s.key !== 'closed_lost'

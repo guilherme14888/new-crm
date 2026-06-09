@@ -1,0 +1,36 @@
+# dependências (reinstaladas dentro da imagem)
+**/node_modules
+
+# git / CI
+.git
+.github
+.gitignore
+
+# build artifacts
+dist
+web-build
+.expo
+*.tsbuildinfo
+
+# segredos — NUNCA entram na imagem
+**/.env
+.env
+.env.*
+backend/.env
+
+# infra / docs (não precisam no build context)
+Dockerfile
+.dockerignore
+stack.yml
+DEPLOY.md
+CHANGELOG.md
+
+# logs e temporários
+*.log
+npm-debug.*
+expo-err.log
+
+# editores / SO
+.vscode
+.idea
+.DS_Store

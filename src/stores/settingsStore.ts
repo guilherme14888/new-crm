@@ -14,6 +14,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   coolingThresholds: { warningDays: 15, dangerDays: 30 },
   isLoading: false,
 
+  /** Carrega as configurações da API; mantém os padrões silenciosamente em caso de erro. */
   loadSettings: async () => {
     set({ isLoading: true });
     try {
@@ -28,6 +29,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     }
   },
 
+  /** Salva os limiares de esfriamento de negociações na API e atualiza o estado. */
   updateCoolingThresholds: async (thresholds) => {
     try {
       await apiFetch('/api/settings/cooling_thresholds', {

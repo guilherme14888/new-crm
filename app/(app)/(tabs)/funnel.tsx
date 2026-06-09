@@ -9,6 +9,7 @@ import { FunnelSummaryBar } from '../../../src/components/funnel/FunnelSummaryBa
 import { PIPELINE_STAGES } from '../../../src/constants/pipeline';
 import { COLORS, FONTS, SPACING } from '../../../src/constants/theme';
 
+/** Tela do funil de vendas: carrega negócios/contatos e renderiza as etapas em rolagem horizontal com barra-resumo e botão flutuante de novo negócio. */
 export default function FunnelScreen() {
   const loadDeals = useDealStore((s) => s.loadDeals);
   const loadContacts = useContactStore((s) => s.loadContacts);

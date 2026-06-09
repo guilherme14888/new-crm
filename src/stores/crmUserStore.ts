@@ -18,6 +18,7 @@ export const useCRMUserStore = create<CRMUserState>((set) => ({
   users: [],
   isLoading: false,
 
+  /** Carrega os usuários do CRM via API (web) ou repositório local (nativo). */
   loadUsers: async () => {
     set({ isLoading: true });
     try {
@@ -36,6 +37,7 @@ export const useCRMUserStore = create<CRMUserState>((set) => ({
     }
   },
 
+  /** Cria um usuário (web ou local) e o adiciona ao estado; relança o erro em caso de falha. */
   createUser: async (data) => {
     try {
       if (Platform.OS === 'web') {
@@ -52,6 +54,7 @@ export const useCRMUserStore = create<CRMUserState>((set) => ({
     }
   },
 
+  /** Atualiza um usuário (web ou local) e aplica o patch ao estado; relança o erro em caso de falha. */
   updateUser: async (id, patch) => {
     try {
       if (Platform.OS === 'web') {
@@ -67,6 +70,7 @@ export const useCRMUserStore = create<CRMUserState>((set) => ({
     }
   },
 
+  /** Remove um usuário: desativa via API (web) ou exclui no repositório local (nativo), tirando-o do estado. */
   deleteUser: async (id) => {
     try {
       if (Platform.OS === 'web') {

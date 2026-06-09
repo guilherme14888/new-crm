@@ -8,6 +8,7 @@ import { useActivityStore } from '../stores/activityStore';
 let syncInterval: ReturnType<typeof setInterval> | null = null;
 let isSyncing = false;
 
+/** Executa um ciclo de sincronização (evitando concorrência), recarrega as stores e atualiza o indicador de sync na UI. */
 export async function runSync(): Promise<void> {
   if (isSyncing) return;
   isSyncing = true;
@@ -29,6 +30,7 @@ export async function runSync(): Promise<void> {
   }
 }
 
+/** Inicia a sincronização periódica (a cada 30s) e ao voltar o app ao primeiro plano. */
 export function startBackgroundSync(): void {
   stopBackgroundSync();
   syncInterval = setInterval(() => { runSync(); }, 30_000);
@@ -36,6 +38,7 @@ export function startBackgroundSync(): void {
   runSync();
 }
 
+/** Interrompe o intervalo de sincronização em segundo plano. */
 export function stopBackgroundSync(): void {
   if (syncInterval) {
     clearInterval(syncInterval);
@@ -43,6 +46,7 @@ export function stopBackgroundSync(): void {
   }
 }
 
+/** Dispara uma sincronização quando o app volta ao estado ativo. */
 function handleAppStateChange(state: AppStateStatus): void {
   if (state === 'active') runSync();
 }

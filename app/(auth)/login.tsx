@@ -11,12 +11,14 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 const { width } = Dimensions.get('window');
 const isWide = Platform.OS === 'web' && width >= 768;
 
+/** Tela de login: renderiza o formulário de e-mail/senha (layout amplo com painel de marca na web ou layout mobile) e autentica o usuário. */
 export default function LoginScreen() {
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const { isLoading, error }    = useAuthStore();
 
+  // Faz login com e-mail/senha e, em caso de sucesso, redireciona para o dashboard
   const handleLogin = async () => {
     try {
       await signIn(email, password);

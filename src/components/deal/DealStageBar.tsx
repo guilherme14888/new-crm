@@ -9,6 +9,7 @@ interface Props {
   deal: Deal;
 }
 
+/** Barra horizontal com as etapas do funil da negociação, destacando a atual e as anteriores e permitindo mudar de etapa ao tocar. */
 export function DealStageBar({ deal }: Props) {
   const funnels = useFunnelStore((s) => s.funnels);
   const moveDeal = useDealStore((s) => s.moveDeal);
@@ -17,6 +18,7 @@ export function DealStageBar({ deal }: Props) {
   const stages = funnel?.stages ?? [];
   const currentIdx = stages.findIndex((s) => s.id === deal.stageId);
 
+  // Move a negociação para a etapa tocada, ignorando se já for a etapa atual.
   const handleStagePress = async (stageId: string, idx: number) => {
     if (stageId === deal.stageId) return;
     await moveDeal(deal.id, deal.stage, idx, deal.contactId, stageId);

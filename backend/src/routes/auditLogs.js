@@ -7,6 +7,7 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { resolveScope, requireRole } = require('../middleware/acl');
 
+// GET /api/audit — consulta paginada de logs de auditoria com filtros opcionais (admin/manager)
 router.get('/', auth, resolveScope, requireRole('admin', 'manager'), async (req, res) => {
   const { resource, userId, from, to, limit = 50, offset = 0 } = req.query;
   const { scope } = req;

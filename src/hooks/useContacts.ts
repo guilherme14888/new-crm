@@ -1,5 +1,6 @@
 import { useContactStore } from '../stores/contactStore';
 
+/** Hook que expõe a lista de contatos filtrada e as actions do contactStore (carregar, criar, atualizar, excluir, buscar e filtrar) */
 export function useContacts() {
   const store = useContactStore();
   return {

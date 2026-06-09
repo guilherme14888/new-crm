@@ -4,6 +4,7 @@ const auth   = require('../middleware/auth');
 const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
 const { v4: uuidv4 } = require('uuid');
 
+/** Formata um registro de campo customizado para o objeto de API (faz parse das options JSON). */
 function fmtField(r) {
   return {
     id: r.id, entityType: r.entity_type, name: r.name,
@@ -13,11 +14,12 @@ function fmtField(r) {
   };
 }
 
+/** Formata um valor de campo customizado de um deal para o objeto de API. */
 function fmtValue(r) {
   return { id: r.id, dealId: r.deal_id, fieldId: r.field_id, value: r.value ?? null };
 }
 
-// GET /api/custom-fields
+// GET /api/custom-fields — lista os campos customizados ativos da empresa por tipo de entidade (default: deal)
 router.get('/', auth, resolveScope, async (req, res) => {
   try {
     const { entityType = 'deal' } = req.query;
@@ -30,7 +32,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/custom-fields
+// POST /api/custom-fields — cria um campo customizado (ordem calculada a partir da contagem existente)
 router.post('/', auth, resolveScope, async (req, res) => {
   const { name, fieldType, entityType = 'deal', options, isRequired = false } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
@@ -51,7 +53,7 @@ router.post('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/custom-fields/:id
+// PATCH /api/custom-fields/:id — atualiza campos parciais de um campo customizado (valida acesso à empresa)
 router.patch('/:id', auth, resolveScope, async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM custom_fields WHERE id = ?', [req.params.id]);
@@ -72,7 +74,7 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/custom-fields/:id  (deactivate)
+// DELETE /api/custom-fields/:id — desativa o campo customizado (is_active = 0), exclusão lógica
 router.delete('/:id', auth, resolveScope, async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM custom_fields WHERE id = ?', [req.params.id]);
@@ -85,7 +87,7 @@ router.delete('/:id', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/custom-fields/values/:dealId
+// GET /api/custom-fields/values/:dealId — lista os valores de campos customizados de um deal
 router.get('/values/:dealId', auth, async (req, res) => {
   try {
     const [rows] = await db.query(`SELECT * FROM deal_custom_values WHERE deal_id = ?`, [req.params.dealId]);

@@ -11,6 +11,7 @@ interface ButtonProps {
   style?: ViewStyle;
 }
 
+/** Botão pressionável com variantes (primary/secondary/danger/ghost), estados de loading e disabled, exibindo spinner ou rótulo. */
 export function Button({ label, onPress, variant = 'primary', loading, disabled, style }: ButtonProps) {
   const bg = {
     primary: COLORS.primary,

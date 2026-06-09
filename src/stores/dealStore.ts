@@ -23,7 +23,7 @@ interface DealState {
   metrics: () => DashboardMetrics;
 
   loadDeals: () => Promise<void>;
-  createDeal: (data: Omit<Deal, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'deletedAt' | 'stageOrder'>) => Promise<Deal>;
+  createDeal: (data: Omit<Deal, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'deletedAt' | 'stageOrder' | 'stageChangedAt'>) => Promise<Deal>;
   updateDeal: (id: string, patch: Partial<Deal>) => Promise<void>;
   moveDeal: (id: string, newStage: DealStage, newOrder: number, contactId: string, newStageId?: string) => Promise<void>;
   deleteDeal: (id: string) => Promise<void>;

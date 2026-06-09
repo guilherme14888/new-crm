@@ -19,6 +19,8 @@ import { useCitiesStore } from '../../src/stores/citiesStore';
 import { signOut, switchCompany } from '../../src/services/authService';
 import { apiFetch } from '../../src/services/api';
 import { Card } from '../../src/components/ui/Card';
+import { ApiExternaModal } from '../../src/components/settings/ApiExternaModal';
+import { PalavrasChaveModal } from '../../src/components/settings/PalavrasChaveModal';
 import { Button } from '../../src/components/ui/Button';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { Funnel, FunnelStage, CustomField, CustomFieldType, Product, CRMUser, UserRole, WinLossReason } from '../../src/types/models';
@@ -27,10 +29,12 @@ import { formatCurrency } from '../../src/utils/currency';
 // ─── City autocomplete ────────────────────────────────────────────────────────
 // Strip combining diacritics so "guarulhos" matches "Guarulhos" and "sao paulo" matches "São Paulo".
 const DIACRITIC_RE = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036F) + ']', 'g');
+/** Remove acentos e converte para minúsculas, permitindo busca de cidade sem distinção de acentuação. */
 function normalize(str: string) {
   return str.normalize('NFD').replace(DIACRITIC_RE, '').toLowerCase();
 }
 
+/** Campo de autocompletar cidade: filtra a lista de cidades por texto e devolve cidade/UF selecionada (ou texto livre "Cidade/UF"). */
 function CityAutocomplete({
   value, uf, cities, loading, onSelect,
 }: {
@@ -53,6 +57,7 @@ function CityAutocomplete({
     })
     .slice(0, 30);
 
+  // Ao perder o foco, fecha a lista e interpreta o texto como cidade selecionada ou livre ("Cidade/UF").
   const handleBlur = () => {
     // Give the user a chance to click an item before we close
     setTimeout(() => {
@@ -121,6 +126,7 @@ const ca = StyleSheet.create({
 });
 
 // ─── Generic attr dropdown (single/multi) with inline "+ Novo" ────────────────
+/** Dropdown genérico de atributo (seleção única ou múltipla) com busca e opção de cadastrar novo item inline ("+ Novo"). */
 function AttrPicker({
   options, value, multiple, onChange, onCreate, placeholder, zIndex,
 }: {
@@ -160,6 +166,7 @@ function AttrPicker({
     : baseList;
   const exact = options.find((o) => o.name.toLowerCase() === draft.trim().toLowerCase());
 
+  // Seleciona um item: em multi-seleção adiciona à lista; em seleção única define/desmarca e fecha.
   const pick = (id: string) => {
     if (multiple) {
       // Add to selection; keep dropdown open and clear search so the next item
@@ -172,11 +179,13 @@ function AttrPicker({
     }
   };
 
+  // Remove um item da seleção (em seleção única limpa o valor).
   const removeOne = (id: string) => {
     if (!multiple) { onChange(null); return; }
     onChange(selectedIds.filter((x) => x !== id));
   };
 
+  // Cadastra um novo item a partir do texto digitado (via onCreate) e o adiciona/seleciona.
   const handleCreate = async () => {
     const name = draft.trim();
     if (!name || !onCreate || busy) return;
@@ -302,6 +311,7 @@ const ap = StyleSheet.create({
 });
 
 // ─── Animated counter badge ────────────────────────────────────────────────────
+/** Badge numérico que faz uma animação de "pulo" (escala) sempre que o valor de count muda. */
 function AnimatedCounter({ count }: { count: number }) {
   const scale = useRef(new Animated.Value(1)).current;
   const prev  = useRef(count);
@@ -325,6 +335,7 @@ const ac = StyleSheet.create({
 });
 
 // ─── Animated member chip ──────────────────────────────────────────────────────
+/** Linha animada de um membro de equipe: avatar, nome/e-mail, botão para alternar papel (líder/membro) e remover. */
 function MemberChip({ member, onRemove, onRoleToggle }: {
   member: TeamMember;
   onRemove: () => void;
@@ -376,6 +387,7 @@ const TEAM_PRESET_COLORS = [
   '#d946ef','#14b8a6','#84cc16','#78716c','#64748b',
 ];
 
+/** Modal de gestão de uma equipe: edita nome/cor, lista membros atuais e usuários disponíveis para adicionar/remover. */
 function TeamMembersModal({ team, users, onClose }: { team: Team; users: CRMUser[]; onClose: () => void }) {
   const { teamMembers, loadMembers, addMember, removeMember, updateMemberRole, updateTeam } = useTeamStore();
   const members = teamMembers[team.id] ?? [];
@@ -388,19 +400,23 @@ function TeamMembersModal({ team, users, onClose }: { team: Team; users: CRMUser
 
   const nonMembers = users.filter((u) => u.isActive && !members.some((m) => m.userId === u.id));
 
+  // Adiciona um usuário à equipe.
   const handleAdd = async (userId: string) => {
     await addMember(team.id, userId);
   };
 
+  // Remove um usuário da equipe.
   const handleRemove = async (userId: string) => {
     await removeMember(team.id, userId);
   };
 
+  // Alterna o papel do membro entre líder e membro.
   const handleRoleToggle = async (m: TeamMember) => {
     const newRole = m.role === 'leader' ? 'member' : 'leader';
     await updateMemberRole(team.id, m.userId, newRole);
   };
 
+  // Salva o novo nome da equipe (se alterado) ao sair da edição inline.
   const handleSaveName = async () => {
     setIsEditingName(false);
     const trimmed = editName.trim();
@@ -411,6 +427,7 @@ function TeamMembersModal({ team, users, onClose }: { team: Team; users: CRMUser
     }
   };
 
+  // Aplica a cor escolhida à equipe (se diferente da atual) e fecha o seletor de cor.
   const handleColorSelect = async (color: string) => {
     setShowColorPicker(false);
     setCustomColor('');
@@ -419,6 +436,7 @@ function TeamMembersModal({ team, users, onClose }: { team: Team; users: CRMUser
     }
   };
 
+  // Valida o hexadecimal digitado pelo usuário e o aplica como cor personalizada da equipe.
   const handleCustomColorSubmit = () => {
     const hex = customColor.startsWith('#') ? customColor : `#${customColor}`;
     if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
@@ -583,6 +601,7 @@ const PRESET_COLORS = ['#94a3b8','#3b82f6','#8b5cf6','#f59e0b','#f97316','#ef444
 type StageType = 'active' | 'won' | 'lost';
 
 // ─── Funnel Modal ──────────────────────────────────────────────────────────────
+/** Modal de criar/editar um funil (nome e descrição); chama onCreate ou onUpdate conforme estiver editando. */
 function FunnelModal({
   visible, editing, onClose, onCreate, onUpdate,
 }: {
@@ -600,6 +619,7 @@ function FunnelModal({
     setDesc(editing?.description ?? '');
   }, [editing?.id, visible]);
 
+  // Valida o nome e cria ou atualiza o funil, fechando o modal em seguida.
   const handleSave = () => {
     if (!name.trim()) return;
     if (editing) onUpdate(editing.id, name.trim(), desc.trim());
@@ -629,6 +649,7 @@ function FunnelModal({
 }
 
 // ─── Stage Modal ───────────────────────────────────────────────────────────────
+/** Modal de criar/editar uma etapa do funil (nome, cor, probabilidade, tipo e dias para "podre"). */
 function StageModal({
   visible, funnelId, editing, onClose, onCreate, onUpdate,
 }: {
@@ -653,6 +674,7 @@ function StageModal({
     setRottenDays(editing?.rottenDays ? String(editing.rottenDays) : '');
   }, [editing?.id, visible]);
 
+  // Valida e monta os dados da etapa (com probabilidade limitada a 0–100) e chama criar/atualizar.
   const handleSave = () => {
     if (!name.trim()) return;
     const data = {
@@ -713,6 +735,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   admin: '#7c3aed', manager: '#0891b2', supervisor: '#0284c7', consultant: '#4b5563', agent: '#4b5563',
 };
 
+/** Painel de usuários (dentro do modal): busca, lista com perfil ACL/status e formulário de criar/editar usuário. */
 function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; companies: Company[]; aclProfiles: ACLProfile[] }) {
   const { createUser, updateUser } = useCRMUserStore();
   const currentUser = useAuthStore((s) => s.user);
@@ -729,6 +752,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
     password: '', passwordConfirm: '', companyId: currentUser?.companyId ?? '',
   });
 
+  // Retorna o perfil ACL do usuário (por id, ou pelo nome equivalente ao seu papel) ou null.
   const getProfile = (u: CRMUser) => aclProfiles.find((p) => p.id === u.aclProfileId) ?? aclProfiles.find((p) => p.name.toLowerCase() === ROLE_LABELS[u.role]?.toLowerCase()) ?? null;
   const sortedProfiles = [...aclProfiles].sort((a, b) => a.level - b.level);
 
@@ -737,6 +761,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Abre o formulário em branco para cadastrar um novo usuário.
   const openCreate = () => {
     setEditing(null);
     setFormError('');
@@ -745,6 +770,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
     setForm({ email: '', displayName: '', role: 'consultant', aclProfileId: defaultProfile?.id ?? '', password: '', passwordConfirm: '', companyId: currentUser?.companyId ?? '' });
     setShowForm(true);
   };
+  // Abre o formulário preenchido com os dados de um usuário existente para edição.
   const openEdit = (u: CRMUser) => {
     setEditing(u);
     setFormError('');
@@ -754,6 +780,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
     setShowForm(true);
   };
 
+  // Valida o formulário e cria ou atualiza o usuário via store, exibindo erro em caso de falha.
   const handleSave = async () => {
     setFormError('');
     if (!form.email.trim())       { setFormError('E-mail é obrigatório'); return; }
@@ -790,6 +817,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
     }
   };
 
+  // Resolve o nome da empresa a partir do id (ou devolve o próprio id se não encontrada).
   const companyName = (id: string) => companies.find((c) => c.id === id)?.name ?? id;
 
   return (
@@ -1010,6 +1038,7 @@ const lr = StyleSheet.create({
 });
 
 // ─── Reorderable stage list ───────────────────────────────────────────────────
+/** Lista de etapas de um funil com reordenação por setas (cima/baixo) e ações de editar, excluir e adicionar etapa. */
 function DraggableStageList({ funnel, onReorder, onEditStage, onDeleteStage, onAddStage }: {
   funnel: Funnel;
   onReorder: (orderedIds: string[]) => void;
@@ -1020,6 +1049,7 @@ function DraggableStageList({ funnel, onReorder, onEditStage, onDeleteStage, onA
   const [localStages, setLocalStages] = useState(funnel.stages);
   useEffect(() => { setLocalStages(funnel.stages); }, [funnel.stages]);
 
+  // Move uma etapa da posição fromIdx para toIdx, atualiza o estado local e notifica a nova ordem.
   const moveStage = (fromIdx: number, toIdx: number) => {
     if (toIdx < 0 || toIdx >= localStages.length) return;
     const reordered = [...localStages];
@@ -1105,6 +1135,7 @@ const acl = StyleSheet.create({
 });
 
 // ─── Main settings screen ──────────────────────────────────────────────────────
+/** Tela principal de Configurações: lista cartões de gestão (funis, campos, produtos, usuários, equipes, empresas, ACL, etc.) e hospeda todos os modais correspondentes. */
 export default function SettingsScreen() {
   const user = useAuthStore((s) => s.user);
   const syncIndicator = useUIStore((s) => s.syncIndicator);
@@ -1128,6 +1159,8 @@ export default function SettingsScreen() {
   const [productsManagerVisible, setProductsManagerVisible] = useState(false);
   const [teamsManagerVisible, setTeamsManagerVisible] = useState(false);
   const [aclProfilesManagerVisible, setAclProfilesManagerVisible] = useState(false);
+  const [apiExternaVisible, setApiExternaVisible] = useState(false);
+  const [palavrasChaveVisible, setPalavrasChaveVisible] = useState(false);
   const [funnelModal, setFunnelModal] = useState(false);
   const [editingFunnel, setEditingFunnel] = useState<Funnel | null>(null);
   const [stageModal, setStageModal] = useState(false);
@@ -1220,11 +1253,13 @@ export default function SettingsScreen() {
     setDangerDays(String(coolingThresholds.dangerDays));
   }, [coolingThresholds.warningDays, coolingThresholds.dangerDays]);
 
+  // Encerra a sessão e redireciona para a tela de login.
   const handleSignOut = async () => {
     await signOut();
     router.replace('/(auth)/login');
   };
 
+  // Pede confirmação e exclui o funil (ignora funis padrão).
   const confirmDeleteFunnel = (f: Funnel) => {
     if (f.isDefault) return;
     const doDelete = () => deleteFunnel(f.id);
@@ -1238,6 +1273,7 @@ export default function SettingsScreen() {
     }
   };
 
+  // Pede confirmação e exclui uma etapa do funil.
   const confirmDeleteStage = (funnelId: string, st: FunnelStage) => {
     const doDelete = () => deleteStage(funnelId, st.id);
     if (Platform.OS === 'web') {
@@ -1250,12 +1286,14 @@ export default function SettingsScreen() {
     }
   };
 
+  // Abre o modal de etapa em modo de criação para o funil informado.
   const openCreateStage = (funnelId: string) => {
     setStageModalFunnelId(funnelId);
     setEditingStage(null);
     setStageModal(true);
   };
 
+  // Abre o modal de etapa em modo de edição para a etapa informada.
   const openEditStage = (funnelId: string, stage: FunnelStage) => {
     setStageModalFunnelId(funnelId);
     setEditingStage(stage);
@@ -1420,7 +1458,42 @@ export default function SettingsScreen() {
           </Pressable>
         )}
 
+        {/* Palavras-Chave — opens modal (todos os usuários do tenant) */}
+        <Pressable onPress={() => setPalavrasChaveVisible(true)}>
+          <Card style={styles.card}>
+            <View style={styles.menuItem}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Palavras-Chave</Text>
+                <View style={styles.companyBadge}>
+                  <Text style={styles.companyBadgeText}>busca de licitações</Text>
+                </View>
+              </View>
+              <Text style={styles.menuItemChevron}>›</Text>
+            </View>
+          </Card>
+        </Pressable>
+
+        {/* API Externa — opens modal (admin/manager) */}
+        {(user?.role === 'admin' || user?.role === 'manager') && (
+          <Pressable onPress={() => setApiExternaVisible(true)}>
+            <Card style={styles.card}>
+              <View style={styles.menuItem}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+                  <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>API Externa</Text>
+                  <View style={styles.companyBadge}>
+                    <Text style={styles.companyBadgeText}>portais de licitações</Text>
+                  </View>
+                </View>
+                <Text style={styles.menuItemChevron}>›</Text>
+              </View>
+            </Card>
+          </Pressable>
+        )}
+
       </ScrollView>
+
+      <ApiExternaModal visible={apiExternaVisible} onClose={() => setApiExternaVisible(false)} />
+      <PalavrasChaveModal visible={palavrasChaveVisible} onClose={() => setPalavrasChaveVisible(false)} />
 
       {/* Funnels Manager Modal */}
       <Modal
@@ -2615,7 +2688,6 @@ const styles = StyleSheet.create({
   syncRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   dot: { width: 10, height: 10, borderRadius: 5 },
   syncLabel: { fontSize: FONTS.base, color: COLORS.gray[700] },
-  addBtn: { backgroundColor: COLORS.primary + '18', borderRadius: RADIUS.sm, paddingHorizontal: SPACING.md, paddingVertical: 4 },
   addBtnText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: '700' },
   funnelBlock: { borderTopWidth: 1, borderTopColor: COLORS.gray[100], paddingTop: SPACING.sm, marginTop: SPACING.sm },
   funnelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

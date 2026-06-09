@@ -9,6 +9,7 @@ const finance = require('./finance');
 
 const COMPANY_BLOCKED_MSG = 'Existe uma cobrança em aberto, entre em contato com nosso setor financeiro para resolver.';
 
+/** Gera um JWT assinado com os dados do usuário e a empresa ativa informada. */
 function makeToken(user, activeCompanyId) {
   return jwt.sign(
     {
@@ -23,6 +24,7 @@ function makeToken(user, activeCompanyId) {
   );
 }
 
+/** Serializa um usuário para o cliente, expondo apenas campos seguros (sem hash de senha). */
 function safeUser(u, activeCompanyId, companyName = null) {
   return {
     id:          u.id,
@@ -36,7 +38,7 @@ function safeUser(u, activeCompanyId, companyName = null) {
   };
 }
 
-// POST /api/auth/login
+// POST /api/auth/login — autentica por email/senha, valida bloqueio da empresa e retorna token + usuário
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios' });
@@ -76,7 +78,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/me
+// GET /api/auth/me — retorna os dados do usuário autenticado
 router.get('/me', authMw, async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -92,7 +94,7 @@ router.get('/me', authMw, async (req, res) => {
   }
 });
 
-// POST /api/auth/switch-company  { companyId }
+// POST /api/auth/switch-company  { companyId } — troca a empresa ativa e emite novo token
 router.post('/switch-company', authMw, async (req, res) => {
   const { companyId } = req.body;
   if (!companyId) return res.status(400).json({ error: 'companyId obrigatório' });

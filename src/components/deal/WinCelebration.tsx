@@ -16,6 +16,7 @@ interface Props {
   onDone: () => void;
 }
 
+/** Overlay animado de comemoração de venda ganha: foguete, confete e mensagem de parabéns, chamando onDone ao terminar. */
 export function WinCelebration({ visible, dealTitle, onDone }: Props) {
   const overlay    = useRef(new Animated.Value(0)).current;
   const rocketY    = useRef(new Animated.Value(100)).current;

@@ -8,6 +8,7 @@ interface Props {
   totalDeals: number;
 }
 
+/** Barra de resumo do funil que exibe o valor total do pipeline e a quantidade de negócios ativos. */
 export function FunnelSummaryBar({ totalValue, totalDeals }: Props) {
   return (
     <View style={styles.bar}>

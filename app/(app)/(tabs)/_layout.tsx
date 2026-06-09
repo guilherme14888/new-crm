@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { Tabs } from 'expo-router';
 import { COLORS } from '../../../src/constants/theme';
 
+/** Ícone da barra de abas: renderiza um emoji, aumentando o tamanho quando a aba está em foco. */
 function Icon({ emoji, focused }: { emoji: string; focused: boolean }) {
   const { Text } = require('react-native');
   return <Text style={{ fontSize: focused ? 22 : 18 }}>{emoji}</Text>;
@@ -9,6 +10,7 @@ function Icon({ emoji, focused }: { emoji: string; focused: boolean }) {
 
 const isWeb = Platform.OS === 'web';
 
+/** Layout das abas: define as abas visíveis (Dashboard, Órgãos, Licitações) e oculta as rotas legadas de funil e kanban. */
 export default function TabsLayout() {
   return (
     <Tabs

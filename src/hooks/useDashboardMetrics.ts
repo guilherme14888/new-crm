@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useDealStore } from '../stores/dealStore';
 import { useContactStore } from '../stores/contactStore';
 
+/** Hook que calcula e memoiza as métricas do dashboard a partir dos deals, incluindo o total de contatos */
 export function useDashboardMetrics() {
   const deals = useDealStore((s) => s.deals);
   const getMetrics = useDealStore((s) => s.metrics);

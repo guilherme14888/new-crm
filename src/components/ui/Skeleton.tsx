@@ -8,6 +8,7 @@ interface SkeletonProps {
   style?: ViewStyle;
 }
 
+/** Placeholder de carregamento animado (efeito de pulsar a opacidade) com largura e altura configuráveis. */
 export function Skeleton({ width = '100%', height = 16, style }: SkeletonProps) {
   const opacity = useRef(new Animated.Value(0.4)).current;
 

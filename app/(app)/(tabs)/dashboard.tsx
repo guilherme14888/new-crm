@@ -12,6 +12,7 @@ import { startOfMonth } from '../../../src/utils/date';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
 
 // ─── Metric card ──────────────────────────────────────────────────────────────
+/** Cartão de métrica: exibe um rótulo, um valor em destaque e um subtítulo opcional, com cor de destaque/fundo configuráveis. */
 function MetricCard({
   label, value, sub, accent = COLORS.primary, bg,
 }: { label: string; value: string; sub?: string; accent?: string; bg?: string }) {
@@ -31,6 +32,7 @@ const mc = StyleSheet.create({
 });
 
 // ─── Pipeline stage bar chart ─────────────────────────────────────────────────
+/** Gráfico de barras do pipeline: para cada etapa ativa mostra uma barra proporcional ao valor, com contagem e total formatado. */
 function PipelineChart({
   stages, dealsByStageId,
 }: {
@@ -82,6 +84,7 @@ const pc = StyleSheet.create({
 });
 
 // ─── Won/Lost summary row ─────────────────────────────────────────────────────
+/** Linha-resumo de ganhos x perdidos: exibe lado a lado a contagem e o valor total de negócios ganhos e perdidos. */
 function WonLostBar({
   wonCount, wonValue, lostCount, lostValue,
 }: { wonCount: number; wonValue: number; lostCount: number; lostValue: number }) {
@@ -113,6 +116,7 @@ const wl = StyleSheet.create({
 });
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
+/** Tela principal do dashboard: carrega negócios/contatos/atividades e renderiza métricas, pipeline por etapa e atividade recente. */
 export default function DashboardScreen() {
   const loadDeals    = useDealStore((s) => s.loadDeals);
   const loadContacts = useContactStore((s) => s.loadContacts);
@@ -129,10 +133,12 @@ export default function DashboardScreen() {
 
   useEffect(() => { loadAll(); }, [companyId]);
 
+  // Carrega em paralelo negócios, contatos, atividades recentes e funis.
   const loadAll = async () => {
     await Promise.all([loadDeals(), loadContacts(), loadRecent(), loadFunnels()]);
   };
 
+  // Recarrega todos os dados ao puxar para atualizar (pull-to-refresh).
   const onRefresh = async () => {
     setRefreshing(true);
     await loadAll();

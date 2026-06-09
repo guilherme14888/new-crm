@@ -23,6 +23,7 @@ export const COLORS = {
 
 /** Tamanhos de fonte em pixels — escala tipográfica baseada em Tailwind */
 export const FONTS = {
+  xs: 10,    // Muito pequeno (badges, dicas)
   sm: 12,    // Pequeno
   base: 14,  // Padrão
   lg: 16,    // Grande
@@ -46,5 +47,6 @@ export const RADIUS = {
   sm: 4,     // Levemente arredondado
   md: 8,     // Arredondado padrão
   lg: 12,    // Muito arredondado
+  xl: 16,    // Extra arredondado (cards/modais)
   full: 9999,// Totalmente circular (para avatares)
 };

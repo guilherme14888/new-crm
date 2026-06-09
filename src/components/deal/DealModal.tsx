@@ -33,17 +33,20 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'proposals', label: 'Propostas' },
 ];
 
+/** Retorna o número de dias inteiros decorridos desde a data informada (0 se vazia). */
 function daysSince(d: string | null | undefined) {
   if (!d) return 0;
   return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
 }
 
+/** Extrai as iniciais (até 2 letras maiúsculas) de um nome para exibir no avatar. */
 function avatarInitials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 
 // ─── InfoField ────────────────────────────────────────────────────────────────
 
+/** Campo de exibição com edição inline: mostra o valor e, ao tocar, vira TextInput que salva via onSave. */
 function InfoField({
   label, value, onSave, multiline,
 }: { label: string; value: string; onSave?: (v: string) => void; multiline?: boolean }) {
@@ -103,6 +106,7 @@ const fi = StyleSheet.create({
   chipTxt: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: '600' },
 });
 
+/** Converte uma string (JSON de array ou lista separada por vírgulas) em array de valores. */
 function parseMultiValue(raw: string): string[] {
   if (!raw) return [];
   try {
@@ -112,6 +116,7 @@ function parseMultiValue(raw: string): string[] {
   return raw.split(',').map((v) => v.trim()).filter(Boolean);
 }
 
+/** Campo de seleção única: abre um flyout com as opções e salva a escolha via onSave. */
 function SelectInfoField({ label, value, options, onSave }: { label: string; value: string; options: string[]; onSave: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -148,6 +153,7 @@ function SelectInfoField({ label, value, options, onSave }: { label: string; val
   );
 }
 
+/** Campo de seleção múltipla: exibe chips dos selecionados e salva o array em JSON via onSave. */
 function MultiSelectInfoField({ label, value, options, onSave }: { label: string; value: string; options: string[]; onSave: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const selected = parseMultiValue(value);
@@ -202,20 +208,24 @@ function MultiSelectInfoField({ label, value, options, onSave }: { label: string
 
 // ─── CurrencyField ────────────────────────────────────────────────────────────
 
+/** Formata um valor em centavos como moeda brasileira (R$). */
 function formatBRL(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+/** Extrai apenas os dígitos de uma string e os converte em valor inteiro de centavos. */
 function parseCents(raw: string): number {
   const digits = raw.replace(/\D/g, '');
   return parseInt(digits || '0', 10);
 }
 
+/** Formata uma string de dígitos como "R$ 0,00" para exibição durante a digitação. */
 function formatCentsDisplay(digits: string): string {
   const n = parseInt(digits || '0', 10);
   return 'R$ ' + (n / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Campo monetário com edição inline: exibe o valor formatado e salva em centavos via onSave. */
 function CurrencyField({ label, valueCents, onSave }: { label: string; valueCents: number; onSave: (cents: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [digits, setDigits] = useState('');
@@ -264,6 +274,7 @@ function CurrencyField({ label, valueCents, onSave }: { label: string; valueCent
 
 const WA_LOGO = { uri: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzI1RDM2NiIgZD0iTTEyIDBDNS4zNzMgMCAwIDUuMzczIDAgMTJjMCAyLjEyNC41NTggNC4xMDkgMS41MjkgNS44MzFMMCAyNGw2LjMzNS0xLjQ5OUExMS45MjYgMTEuOTI2IDAgMDAxMiAyNGM2LjYyNyAwIDEyLTUuMzczIDEyLTEyUzE4LjYyNyAwIDEyIDB6Ii8+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xNy40NzIgMTQuMzgyYy0uMjk3LS4xNDktMS43NTgtLjg2Ny0yLjAzLS45NjctLjI3My0uMDk5LS40NzEtLjE0OC0uNjcuMTUtLjE5Ny4yOTctLjc2Ny45NjYtLjk0IDEuMTY0LS4xNzMuMTk5LS4zNDcuMjIzLS42NDQuMDc1LS4yOTctLjE1LTEuMjU1LS40NjMtMi4zOS0xLjQ3NS0uODgzLS43ODgtMS40OC0xLjc2MS0xLjY1My0yLjA1OS0uMTczLS4yOTctLjAxOC0uNDU4LjEzLS42MDYuMTM0LS4xMzMuMjk4LS4zNDcuNDQ2LS41Mi4xNDktLjE3NC4xOTgtLjI5OC4yOTgtLjQ5Ny4wOTktLjE5OC4wNS0uMzcxLS4wMjUtLjUyLS4wNzUtLjE0OS0uNjY5LTEuNjEyLS45MTYtMi4yMDctLjI0Mi0uNTc5LS40ODctLjUtLjY2OS0uNTEtLjE3My0uMDA4LS4zNzEtLjAxLS41Ny0uMDEtLjE5OCAwLS41Mi4wNzQtLjc5Mi4zNzItLjI3Mi4yOTctMS4wNCAxLjAxNi0xLjA0IDIuNDc5IDAgMS40NjIgMS4wNjUgMi44NzUgMS4yMTMgMy4wNzQuMTQ5LjE5OCAyLjA5NiAzLjIgNS4wNzcgNC40ODcuNzA5LjMwNiAxLjI2Mi40ODkgMS42OTQuNjI1LjcxMi4yMjcgMS4zNi4xOTUgMS44NzEuMTE4LjU3MS0uMDg1IDEuNzU4LS43MTkgMi4wMDYtMS40MTMuMjQ4LS42OTQuMjQ4LTEuMjg5LjE3My0xLjQxMy0uMDc0LS4xMjQtLjI3Mi0uMTk4LS41Ny0uMzQ3eiIvPjwvc3ZnPgo=' };
 
+/** Formata um número de telefone brasileiro (10 ou 11 dígitos) no padrão (DD) NNNNN-NNNN. */
 function formatPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   if (digits.length === 11) {
@@ -274,6 +285,7 @@ function formatPhone(phone: string): string {
   return phone;
 }
 
+/** Copia um texto para a área de transferência (web via navigator, nativo via Clipboard). */
 function copyToClipboard(value: string) {
   if (Platform.OS === 'web') {
     navigator.clipboard?.writeText(value).catch(() => {});
@@ -282,6 +294,7 @@ function copyToClipboard(value: string) {
   }
 }
 
+/** Modal de detalhe da negociação: exibe contato, campos, responsável, etapas e abas (histórico, tarefas, e-mail, produtos, arquivos, propostas), permitindo editar, ganhar, perder, reabrir ou excluir o deal. */
 export function DealModal() {
   const openDealId  = useUIStore((s) => s.openDealId);
   const closeDeal   = useUIStore((s) => s.closeDeal);
@@ -362,6 +375,7 @@ export function DealModal() {
   }, [deal?.id]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
+  // Aplica uma alteração parcial ao deal localmente e persiste via updateDeal.
   const patch = async (p: Partial<Deal>) => {
     if (!deal) return;
     setLocalDeal((prev) => prev ? { ...prev, ...p } : prev);
@@ -370,6 +384,7 @@ export function DealModal() {
 
   const isClosed = deal?.stage === 'closed_won' || deal?.stage === 'closed_lost';
 
+  // Reabre um deal fechado, movendo-o para a primeira etapa ativa do funil (ou status 'qualification').
   const handleReopen = async () => {
     if (!deal) return;
     const firstActiveStage = funnel?.stages.find((st) => st.type === 'active' || !st.type);
@@ -382,6 +397,7 @@ export function DealModal() {
     } catch { /* ignore */ }
   };
 
+  // Marca o deal como ganho (etapa 'won') e exibe a animação de comemoração.
   const handleWon = async () => {
     if (!deal) return;
     // Find a 'won' stage; fall back to last stage in funnel or skip stage move
@@ -398,6 +414,7 @@ export function DealModal() {
     setWinVisible(true);
   };
 
+  // Marca o deal como perdido (etapa 'lost'), grava o motivo informado e fecha o modal.
   const handleLost = async () => {
     if (!deal) return;
     const lostStage = funnel?.stages.find((st) => st.type === 'lost');
@@ -413,6 +430,7 @@ export function DealModal() {
     closeDeal();
   };
 
+  // Exclui o deal (com confirmação na web) e fecha o modal.
   const handleDelete = () => {
     if (!deal) return;
     const doIt = async () => { await deleteDeal(deal.id); closeDeal(); };
@@ -423,11 +441,13 @@ export function DealModal() {
     }
   };
 
+  // Move o deal para a etapa tocada na barra de etapas (ignora se já estiver nela).
   const handleStagePress = (stageId: string, idx: number) => {
     if (!deal || stageId === deal.stageId) return;
     moveDeal(deal.id, deal.stage, idx, deal.contactId, stageId);
   };
 
+  // Salva o título editado se foi alterado e não está vazio, e encerra a edição.
   const saveTitleDraft = () => {
     if (titleDraft.trim() && titleDraft !== deal?.title) patch({ title: titleDraft.trim() });
     setEditingTitle(false);
@@ -439,6 +459,7 @@ export function DealModal() {
   const lostList    = winLossReasons.filter((r) => r.type === 'lost' && r.isActive);
 
   // ── Tab content ────────────────────────────────────────────────────────────
+  // Renderiza o conteúdo da aba ativa (histórico, tarefas, produtos, arquivos, e-mail ou propostas).
   const tabContent = () => {
     if (!deal) return null;
     switch (activeTab) {

@@ -4,6 +4,7 @@ const auth   = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/acl');
 const { v4: uuidv4 } = require('uuid');
 
+/** Serializa uma linha de empresa para o formato JSON da API, incluindo IDs de produtos vinculados. */
 function fmt(r, productIds = []) {
   return {
     id: r.id, name: r.name, slug: r.slug,
@@ -21,6 +22,7 @@ function fmt(r, productIds = []) {
   };
 }
 
+/** Retorna a lista de IDs de produtos vinculados a uma empresa. */
 async function loadProductsFor(companyId) {
   const [rows] = await db.query(
     'SELECT produto_id FROM company_produto_links WHERE company_id = ?',
@@ -29,6 +31,7 @@ async function loadProductsFor(companyId) {
   return rows.map((r) => r.produto_id);
 }
 
+/** Sincroniza os vínculos empresa-produto, substituindo os existentes pela lista informada. */
 async function syncProductLinks(companyId, produtoIds) {
   if (!Array.isArray(produtoIds)) return;
   await db.query('DELETE FROM company_produto_links WHERE company_id = ?', [companyId]);
@@ -66,7 +69,7 @@ async function seedDefaultPipeline(companyId) {
   }
 }
 
-// GET /api/companies
+// GET /api/companies — lista todas as empresas com contagem de usuários e produtos vinculados (admin)
 router.get('/', auth, requireAdmin, async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -91,7 +94,7 @@ router.get('/', auth, requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/companies
+// POST /api/companies — cria uma empresa, vincula produtos e popula o pipeline padrão (admin)
 router.post('/', auth, requireAdmin, async (req, res) => {
   const {
     name, slug, plan = 'starter', cnpj,
@@ -123,7 +126,7 @@ router.post('/', auth, requireAdmin, async (req, res) => {
   }
 });
 
-// PATCH /api/companies/:id
+// PATCH /api/companies/:id — atualiza campos da empresa e ressincroniza produtos vinculados (admin)
 router.patch('/:id', auth, requireAdmin, async (req, res) => {
   const {
     name, slug, plan, cnpj, isActive,
@@ -162,7 +165,7 @@ router.patch('/:id', auth, requireAdmin, async (req, res) => {
   }
 });
 
-// DELETE /api/companies/:id
+// DELETE /api/companies/:id — exclui a empresa (se sem usuários ativos) em cascata com funis e motivos (admin)
 router.delete('/:id', auth, requireAdmin, async (req, res) => {
   try {
     const [users] = await db.query(

@@ -5,6 +5,7 @@ import { Sidebar, HamburgerButton } from '../../src/components/layout/Sidebar';
 import { DealModal } from '../../src/components/deal/DealModal';
 import { COLORS } from '../../src/constants/theme';
 
+/** Barra superior mobile: renderiza o botão hambúrguer apenas em telas estreitas (largura < 768). */
 function MobileTopBar() {
   if (typeof window === 'undefined' || window.innerWidth >= 768) return null;
   return (
@@ -14,6 +15,7 @@ function MobileTopBar() {
   );
 }
 
+/** Layout web da área autenticada: renderiza a sidebar lateral, a barra superior mobile, o conteúdo (Stack) e o modal de negócio. */
 function WebLayout() {
   return (
     <View style={styles.container}>
@@ -29,6 +31,7 @@ function WebLayout() {
   );
 }
 
+/** Layout mobile da área autenticada: define o Stack de navegação com as telas do app e o modal de negócio. */
 function MobileLayout() {
   return (
     <>
@@ -48,6 +51,7 @@ function MobileLayout() {
   );
 }
 
+/** Layout principal protegido: aguarda a restauração da sessão, redireciona ao login se não houver usuário e escolhe entre layout web ou mobile. */
 export default function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);

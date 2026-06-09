@@ -27,6 +27,7 @@ interface DragContextValue {
 
 const DragContext = createContext<DragContextValue | null>(null);
 
+/** Hook que acessa o contexto de drag-and-drop do Kanban; lança erro se usado fora do KanbanDragProvider. */
 export function useDragContext() {
   const ctx = useContext(DragContext);
   if (!ctx) throw new Error('useDragContext must be inside KanbanDragProvider');
@@ -38,6 +39,7 @@ interface Props {
   contactIdForDeal: (dealId: string) => string;
 }
 
+/** Provedor que orquestra o arrastar-e-soltar de cartões entre colunas do Kanban e renderiza o cartão flutuante durante o arraste. */
 export function KanbanDragProvider({ children, contactIdForDeal }: Props) {
   const columns = useRef<ColumnBounds[]>([]);
   const [dragTargetStageId, setDragTargetStageId] = useState<string | null>(null);
@@ -62,12 +64,14 @@ export function KanbanDragProvider({ children, contactIdForDeal }: Props) {
     });
   }, []);
 
+  // Registra ou atualiza os limites de uma coluna usados para detectar o alvo do arraste.
   const registerColumn = useCallback((bounds: ColumnBounds) => {
     const idx = columns.current.findIndex((c) => c.stageId === bounds.stageId);
     if (idx >= 0) columns.current[idx] = bounds;
     else columns.current.push(bounds);
   }, []);
 
+  // Detecta sobre qual etapa (coluna) está a coordenada X atual do arraste.
   const detectStageId = useCallback((x: number): string | null => {
     for (const col of columns.current) {
       const live = col.getLiveBounds?.();
@@ -78,6 +82,7 @@ export function KanbanDragProvider({ children, contactIdForDeal }: Props) {
     return null;
   }, []);
 
+  // Dispara feedback háptico (início do arraste ou sucesso do drop) em plataformas nativas.
   const triggerHaptics = useCallback(async (type: 'start' | 'success') => {
     if (Platform.OS === 'web') return;
     const Haptics = await import('expo-haptics');
@@ -85,6 +90,7 @@ export function KanbanDragProvider({ children, contactIdForDeal }: Props) {
     else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, []);
 
+  // Inicia o arraste: posiciona o cartão flutuante, marca a negociação como em arraste e captura seus dados.
   const onDragStart = useCallback((dealId: string, x: number, y: number, localX: number, localY: number) => {
     dragX.value = x;
     dragY.value = y;
@@ -105,6 +111,7 @@ export function KanbanDragProvider({ children, contactIdForDeal }: Props) {
     }
   }, [detectStageId, setDragging, triggerHaptics, contacts, grabOffsetX, grabOffsetY]);
 
+  // Atualiza a posição do cartão flutuante e a coluna-alvo conforme o movimento do arraste.
   const onDragMove = useCallback((x: number, y: number) => {
     dragX.value = x;
     dragY.value = y;
@@ -112,6 +119,7 @@ export function KanbanDragProvider({ children, contactIdForDeal }: Props) {
     setDragTargetStageId(detectStageId(x));
   }, [detectStageId]);
 
+  // Finaliza o arraste: detecta a coluna de destino e move a negociação para a nova etapa, se mudou.
   const onDragEnd = useCallback(
     async (dealId: string, x: number, _y: number) => {
       // On some platforms gesture-handler reports stale absolute coords on onEnd.
@@ -173,6 +181,7 @@ export function KanbanDragProvider({ children, contactIdForDeal }: Props) {
     };
   });
 
+  // Mede o deslocamento do contêiner na tela para posicionar corretamente o cartão flutuante em plataformas nativas.
   const measureContainer = useCallback(() => {
     containerRef.current?.measure((_x, _y, _w, _h, pageX, pageY) => {
       containerOffset.current = { x: pageX, y: pageY };

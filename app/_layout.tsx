@@ -12,6 +12,7 @@ import { useCRMUserStore } from '../src/stores/crmUserStore';
 import { getDatabase } from '../src/db/migrations';
 import { COLORS, FONTS, SPACING, RADIUS } from '../src/constants/theme';
 
+/** Layout raiz do app: inicializa providers (gestos, safe area, status bar), faz o boot da sessão/SQLite, recarrega dados compartilhados ao logar e renderiza o Stack global com toast. */
 export default function RootLayout() {
   const restoreSession = useAuthStore((s) => s.restoreSession);
   const user = useAuthStore((s) => s.user);

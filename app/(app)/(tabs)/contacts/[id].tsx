@@ -15,6 +15,7 @@ import { formatCurrency } from '../../../../src/utils/currency';
 import { Contact, Activity } from '../../../../src/types/models';
 import { COLORS, FONTS, SPACING } from '../../../../src/constants/theme';
 
+/** Tela de detalhe do contato: mostra cabeçalho, negócios e atividades; permite editar (via ContactForm) e excluir o contato. */
 export default function ContactDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const contacts = useContactStore((s) => s.contacts);
@@ -34,11 +35,13 @@ export default function ContactDetailScreen() {
 
   if (!contact) return null;
 
+  // Persiste as alterações do contato e sai do modo de edição.
   const handleUpdate = async (data: Omit<Contact, 'id'|'createdAt'|'updatedAt'|'syncStatus'|'deletedAt'|'avatarUrl'|'tags'>) => {
     await updateContact(id!, data);
     setEditing(false);
   };
 
+  // Confirma e, se confirmado, exclui o contato e volta para a tela anterior.
   const handleDelete = () => {
     Alert.alert('Delete Contact', `Delete ${contact.firstName} ${contact.lastName}?`, [
       { text: 'Cancel', style: 'cancel' },

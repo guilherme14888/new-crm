@@ -10,6 +10,7 @@ import { generateId } from '../../../src/utils/id';
 
 const PRESET_COLORS = ['#94a3b8','#3b82f6','#8b5cf6','#f59e0b','#f97316','#ef4444','#16a34a','#06b6d4','#ec4899'];
 
+/** Seletor de cor: renderiza os swatches predefinidos e destaca a cor atualmente selecionada. */
 function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
   return (
     <View style={cp.row}>
@@ -35,8 +36,10 @@ interface StageForm {
   rottenDays: string;
 }
 
+/** Retorna um formulário de etapa em branco com valores padrão. */
 const emptyStageForm = (): StageForm => ({ name: '', color: '#3b82f6', probability: '30', type: 'active', rottenDays: '' });
 
+/** Tela de detalhe/edição do funil: edita dados do funil e gerencia (criar/editar/excluir) suas etapas. */
 export default function FunnelDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { funnels, loadFunnels, updateFunnel, createStage, updateStage, deleteStage, reorderStages } = useFunnelStore();
@@ -60,19 +63,23 @@ export default function FunnelDetailScreen() {
     <View style={styles.center}><Text style={styles.empty}>Funil não encontrado.</Text></View>
   );
 
+  /** Persiste as alterações de nome e descrição do funil. */
   const handleSaveFunnel = async () => {
     setSaving(true);
     await updateFunnel(funnel.id, { name: editName.trim(), description: editDesc.trim() || undefined });
     setSaving(false);
   };
 
+  /** Abre o modal de etapa em modo de criação com formulário em branco. */
   const openCreateStage = () => { setEditingStage(null); setStageForm(emptyStageForm()); setShowStageModal(true); };
+  /** Abre o modal de etapa em modo de edição preenchendo o formulário com os dados da etapa. */
   const openEditStage = (s: FunnelStage) => {
     setEditingStage(s);
     setStageForm({ name: s.name, color: s.color, probability: String(s.probability), type: s.type, rottenDays: s.rottenDays ? String(s.rottenDays) : '' });
     setShowStageModal(true);
   };
 
+  /** Normaliza o formulário e cria ou atualiza a etapa, fechando o modal ao final. */
   const handleSaveStage = async () => {
     const data = {
       name: stageForm.name.trim(),
@@ -90,6 +97,7 @@ export default function FunnelDetailScreen() {
     setShowStageModal(false);
   };
 
+  /** Pede confirmação (web/nativo) e exclui a etapa do funil. */
   const confirmDeleteStage = (s: FunnelStage) => {
     const doDelete = () => deleteStage(funnel.id, s.id);
     if (Platform.OS === 'web') {

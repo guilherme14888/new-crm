@@ -16,6 +16,7 @@ const TASK_TYPES: TaskType[] = ['to_do', 'call', 'email', 'meeting', 'visit'];
 
 interface Props { dealId: string; }
 
+/** Aba de tarefas da negociação: lista tarefas pendentes e concluídas e oferece um modal para criar novas. */
 export function DealTasksTab({ dealId }: Props) {
   const { tasks, loadTasks, createTask, completeTask, reopenTask, deleteTask } = useTaskStore();
   const [showForm, setShowForm] = useState(false);
@@ -28,14 +29,17 @@ export function DealTasksTab({ dealId }: Props) {
   const pending = tasks.filter((t) => !t.completedAt);
   const completed = tasks.filter((t) => !!t.completedAt);
 
+  // Cria uma nova tarefa com os dados do formulário e o reseta.
   const handleCreate = async () => {
     if (!title.trim()) return;
     await createTask({ dealId, title: title.trim(), type, dueDate: dueDate || null });
     setTitle(''); setType('to_do'); setDueDate(''); setShowForm(false);
   };
 
+  // Indica se a tarefa está atrasada (tem prazo, não concluída e vencida).
   const isOverdue = (t: Task) => !!t.dueDate && !t.completedAt && new Date(t.dueDate) < new Date();
 
+  // Renderiza uma linha de tarefa com checkbox de concluir/reabrir, ícone, título, prazo e botão de excluir.
   const renderTask = (t: Task) => (
     <View key={t.id} style={[styles.taskRow, isOverdue(t) && styles.taskOverdue]}>
       <Pressable

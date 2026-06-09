@@ -11,6 +11,7 @@ interface Props {
   onUpdate: (patch: Partial<Deal>) => void;
 }
 
+/** Cabeçalho da tela de negociação: título editável, botões de marcar venda/perda e excluir, com modal de motivo da perda. */
 export function DealHeader({ deal, onUpdate }: Props) {
   const [showLostModal, setShowLostModal] = useState(false);
   const [lostReason, setLostReason] = useState('');
@@ -26,12 +27,14 @@ export function DealHeader({ deal, onUpdate }: Props) {
   const wonStage = funnel?.stages.find((s) => s.type === 'won');
   const lostStage = funnel?.stages.find((s) => s.type === 'lost');
 
+  // Move a negociação para a etapa de "ganho" e retorna à tela anterior.
   const handleMarkWon = async () => {
     if (!wonStage) return;
     await moveDeal(deal.id, 'closed_won', 0, deal.contactId, wonStage.id);
     router.back();
   };
 
+  // Move a negociação para a etapa de "perdido", registra o motivo informado e retorna à tela anterior.
   const handleMarkLost = async () => {
     if (!lostStage) return;
     await moveDeal(deal.id, 'closed_lost', 0, deal.contactId, lostStage.id);
@@ -40,6 +43,7 @@ export function DealHeader({ deal, onUpdate }: Props) {
     router.back();
   };
 
+  // Salva o título editado se for válido e diferente do atual, encerrando o modo de edição.
   const handleTitleSave = () => {
     if (titleDraft.trim() && titleDraft !== deal.title) {
       onUpdate({ title: titleDraft.trim() });
@@ -47,6 +51,7 @@ export function DealHeader({ deal, onUpdate }: Props) {
     setEditingTitle(false);
   };
 
+  // Exclui a negociação e retorna à tela anterior.
   const handleDelete = async () => {
     await deleteDeal(deal.id);
     router.back();

@@ -1,5 +1,6 @@
 const mysql = require('mysql2/promise');
 
+/** Pool de conexões MariaDB/MySQL compartilhado por toda a aplicação, configurado em UTC e utf8mb4. */
 const pool = mysql.createPool({
   host:             process.env.DB_HOST     || 'localhost',
   port:             parseInt(process.env.DB_PORT || '3306'),

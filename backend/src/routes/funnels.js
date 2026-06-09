@@ -3,6 +3,7 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
 
+/** Formata uma linha da tabela funnels (snake_case) para o objeto Funnel da API (camelCase). */
 function fmtFunnel(row) {
   if (!row) return null;
   return {
@@ -15,6 +16,7 @@ function fmtFunnel(row) {
   };
 }
 
+/** Formata uma linha da tabela funnel_stages (snake_case) para o objeto Stage da API (camelCase). */
 function fmtStage(row) {
   if (!row) return null;
   return {

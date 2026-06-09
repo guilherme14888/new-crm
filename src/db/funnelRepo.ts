@@ -4,6 +4,7 @@ import { generateId } from '../utils/id';
 import { now } from '../utils/date';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
+/** Converte uma linha do banco em um objeto FunnelStage tipado. */
 function rowToStage(r: Record<string, unknown>): FunnelStage {
   return {
     id: r.id as string,
@@ -19,6 +20,7 @@ function rowToStage(r: Record<string, unknown>): FunnelStage {
   };
 }
 
+/** Converte uma linha do banco em um objeto Funnel tipado, anexando seus estágios. */
 function rowToFunnel(r: Record<string, unknown>, stages: FunnelStage[]): Funnel {
   return {
     id: r.id as string,
@@ -33,6 +35,7 @@ function rowToFunnel(r: Record<string, unknown>, stages: FunnelStage[]): Funnel 
 }
 
 // ─── Funnels ───────────────────────────────────────────────────────────────────
+/** Retorna todos os funis ativos com seus estágios, padrão primeiro. */
 export async function getAllFunnels(): Promise<Funnel[]> {
   const db = await getDatabase();
   const funnelRows = await db.getAllAsync<Record<string, unknown>>(
@@ -46,6 +49,7 @@ export async function getAllFunnels(): Promise<Funnel[]> {
   return result;
 }
 
+/** Busca um funil pelo id com seus estágios, retornando null se não existir. */
 export async function getFunnelById(id: string): Promise<Funnel | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<Record<string, unknown>>(
@@ -56,6 +60,7 @@ export async function getFunnelById(id: string): Promise<Funnel | null> {
   return rowToFunnel(row, stages);
 }
 
+/** Cria um novo funil (não padrão e ativo), gerando id e timestamps. */
 export async function createFunnel(data: { name: string; description?: string }): Promise<Funnel> {
   const db = await getDatabase();
   const id = generateId();
@@ -68,11 +73,12 @@ export async function createFunnel(data: { name: string; description?: string })
   return { id, name: data.name, description: data.description ?? null, isDefault: false, isActive: true, stages: [], createdAt: ts, updatedAt: ts };
 }
 
+/** Atualiza dinamicamente apenas os campos informados do funil. */
 export async function updateFunnel(id: string, patch: Partial<Pick<Funnel, 'name' | 'description' | 'isActive'>>): Promise<void> {
   const db = await getDatabase();
   const ts = now();
   const sets: string[] = ['updated_at = ?'];
-  const vals: unknown[] = [ts];
+  const vals: (string | number | null)[] = [ts];
   if (patch.name !== undefined)        { sets.push('name = ?');        vals.push(patch.name); }
   if (patch.description !== undefined) { sets.push('description = ?'); vals.push(patch.description); }
   if (patch.isActive !== undefined)    { sets.push('is_active = ?');   vals.push(patch.isActive ? 1 : 0); }
@@ -80,11 +86,13 @@ export async function updateFunnel(id: string, patch: Partial<Pick<Funnel, 'name
   await db.runAsync(`UPDATE funnels SET ${sets.join(', ')} WHERE id = ?`, vals);
 }
 
+/** Desativa o funil (exclusão lógica via is_active = 0). */
 export async function deleteFunnel(id: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(`UPDATE funnels SET is_active = 0, updated_at = ? WHERE id = ?`, [now(), id]);
 }
 
+/** Define o funil informado como padrão, removendo o padrão dos demais. */
 export async function setDefaultFunnel(id: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(`UPDATE funnels SET is_default = 0, updated_at = ?`, [now()]);
@@ -92,6 +100,7 @@ export async function setDefaultFunnel(id: string): Promise<void> {
 }
 
 // ─── Funnel Stages ─────────────────────────────────────────────────────────────
+/** Retorna os estágios de um funil ordenados por posição. */
 export async function getStagesByFunnel(funnelId: string): Promise<FunnelStage[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -100,6 +109,7 @@ export async function getStagesByFunnel(funnelId: string): Promise<FunnelStage[]
   return rows.map(rowToStage);
 }
 
+/** Cria um novo estágio em um funil, gerando id e timestamps. */
 export async function createStage(data: Omit<FunnelStage, 'id' | 'createdAt' | 'updatedAt'>): Promise<FunnelStage> {
   const db = await getDatabase();
   const id = generateId();
@@ -112,11 +122,12 @@ export async function createStage(data: Omit<FunnelStage, 'id' | 'createdAt' | '
   return { ...data, id, createdAt: ts, updatedAt: ts };
 }
 
+/** Atualiza dinamicamente apenas os campos informados de um estágio. */
 export async function updateStage(id: string, patch: Partial<Omit<FunnelStage, 'id' | 'funnelId' | 'createdAt' | 'updatedAt'>>): Promise<void> {
   const db = await getDatabase();
   const ts = now();
   const sets: string[] = ['updated_at = ?'];
-  const vals: unknown[] = [ts];
+  const vals: (string | number | null)[] = [ts];
   if (patch.name !== undefined)        { sets.push('name = ?');        vals.push(patch.name); }
   if (patch.color !== undefined)       { sets.push('color = ?');       vals.push(patch.color); }
   if (patch.order !== undefined)       { sets.push('stage_order = ?'); vals.push(patch.order); }
@@ -127,11 +138,13 @@ export async function updateStage(id: string, patch: Partial<Omit<FunnelStage, '
   await db.runAsync(`UPDATE funnel_stages SET ${sets.join(', ')} WHERE id = ?`, vals);
 }
 
+/** Remove definitivamente um estágio do funil. */
 export async function deleteStage(id: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(`DELETE FROM funnel_stages WHERE id = ?`, [id]);
 }
 
+/** Reordena os estágios de um funil conforme a sequência de ids informada. */
 export async function reorderStages(funnelId: string, orderedIds: string[]): Promise<void> {
   const db = await getDatabase();
   const ts = now();
@@ -144,6 +157,7 @@ export async function reorderStages(funnelId: string, orderedIds: string[]): Pro
 }
 
 // ─── Opportunity Rules ─────────────────────────────────────────────────────────
+/** Retorna as regras de oportunidade de um funil, parseando os configs JSON. */
 export async function getRulesByFunnel(funnelId: string): Promise<OpportunityRule[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -163,6 +177,7 @@ export async function getRulesByFunnel(funnelId: string): Promise<OpportunityRul
   }));
 }
 
+/** Cria uma nova regra de oportunidade, serializando os configs em JSON. */
 export async function createRule(data: Omit<OpportunityRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<OpportunityRule> {
   const db = await getDatabase();
   const id = generateId();
@@ -175,11 +190,12 @@ export async function createRule(data: Omit<OpportunityRule, 'id' | 'createdAt' 
   return { ...data, id, createdAt: ts, updatedAt: ts };
 }
 
+/** Atualiza dinamicamente apenas os campos informados de uma regra de oportunidade. */
 export async function updateRule(id: string, patch: Partial<Omit<OpportunityRule, 'id' | 'funnelId' | 'createdAt' | 'updatedAt'>>): Promise<void> {
   const db = await getDatabase();
   const ts = now();
   const sets: string[] = ['updated_at = ?'];
-  const vals: unknown[] = [ts];
+  const vals: (string | number | null)[] = [ts];
   if (patch.name !== undefined)          { sets.push('name = ?');          vals.push(patch.name); }
   if (patch.trigger !== undefined)       { sets.push('trigger = ?');       vals.push(patch.trigger); }
   if (patch.triggerConfig !== undefined) { sets.push('trigger_config = ?'); vals.push(JSON.stringify(patch.triggerConfig)); }
@@ -190,12 +206,14 @@ export async function updateRule(id: string, patch: Partial<Omit<OpportunityRule
   await db.runAsync(`UPDATE opportunity_rules SET ${sets.join(', ')} WHERE id = ?`, vals);
 }
 
+/** Remove definitivamente uma regra de oportunidade. */
 export async function deleteRule(id: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(`DELETE FROM opportunity_rules WHERE id = ?`, [id]);
 }
 
 // ─── Win / Loss Reasons ────────────────────────────────────────────────────────
+/** Retorna os motivos de ganho/perda ativos, opcionalmente filtrados por tipo. */
 export async function getWinLossReasons(type?: 'won' | 'lost'): Promise<WinLossReason[]> {
   const db = await getDatabase();
   const rows = type
@@ -210,6 +228,7 @@ export async function getWinLossReasons(type?: 'won' | 'lost'): Promise<WinLossR
   }));
 }
 
+/** Cria um novo motivo de ganho/perda ativo, gerando id e timestamp. */
 export async function createWinLossReason(data: { type: 'won' | 'lost'; label: string }): Promise<WinLossReason> {
   const db = await getDatabase();
   const id = generateId();
@@ -221,6 +240,7 @@ export async function createWinLossReason(data: { type: 'won' | 'lost'; label: s
   return { id, type: data.type, label: data.label, isActive: true, createdAt: ts };
 }
 
+/** Desativa um motivo de ganho/perda (exclusão lógica via is_active = 0). */
 export async function deleteWinLossReason(id: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(`UPDATE win_loss_reasons SET is_active = 0 WHERE id = ?`, [id]);

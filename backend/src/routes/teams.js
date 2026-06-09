@@ -4,6 +4,7 @@ const auth   = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
 
+// Formata uma linha de equipe do banco no objeto retornado pela API
 function fmtTeam(r) {
   return {
     id: r.id, name: r.name, description: r.description ?? null,
@@ -12,6 +13,7 @@ function fmtTeam(r) {
   };
 }
 
+// Formata uma linha de membro de equipe (com dados do usuário) para a API
 function fmtMember(r) {
   return {
     id: r.id, teamId: r.team_id, userId: r.user_id,
@@ -21,7 +23,7 @@ function fmtMember(r) {
   };
 }
 
-// GET /api/teams
+// GET /api/teams — lista as equipes do escopo da empresa com contagem de membros
 router.get('/', auth, resolveScope, async (req, res) => {
   try {
     const { where, params } = buildCompanyFilter(req.scope);
@@ -38,7 +40,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/teams
+// POST /api/teams — cria uma nova equipe na empresa do escopo
 router.post('/', auth, resolveScope, async (req, res) => {
   const { name, description, color = '#3b82f6' } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
@@ -54,7 +56,7 @@ router.post('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/teams/:id
+// PATCH /api/teams/:id — atualiza nome/descrição/cor de uma equipe
 router.patch('/:id', auth, resolveScope, async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM teams WHERE id = ?', [req.params.id]);
@@ -74,7 +76,7 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/teams/:id
+// DELETE /api/teams/:id — remove uma equipe
 router.delete('/:id', auth, resolveScope, async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM teams WHERE id = ?', [req.params.id]);
@@ -87,7 +89,7 @@ router.delete('/:id', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/teams/:id/members
+// GET /api/teams/:id/members — lista os membros de uma equipe
 router.get('/:id/members', auth, resolveScope, async (req, res) => {
   try {
     if (!req.scope.isAdmin) {
@@ -106,7 +108,7 @@ router.get('/:id/members', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/teams/:id/members  { userId, role }
+// POST /api/teams/:id/members — adiciona um usuário à equipe  { userId, role }
 router.post('/:id/members', auth, resolveScope, async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM teams WHERE id = ?', [req.params.id]);
@@ -128,7 +130,7 @@ router.post('/:id/members', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/teams/:id/members/:userId  { role }
+// PATCH /api/teams/:id/members/:userId — altera o papel de um membro  { role }
 router.patch('/:id/members/:userId', auth, async (req, res) => {
   const { role } = req.body;
   if (!role) return res.status(400).json({ error: 'role required' });
@@ -139,7 +141,7 @@ router.patch('/:id/members/:userId', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/teams/:id/members/:userId
+// DELETE /api/teams/:id/members/:userId — remove um usuário da equipe
 router.delete('/:id/members/:userId', auth, async (req, res) => {
   try {
     await db.query(`DELETE FROM team_members WHERE team_id = ? AND user_id = ?`,

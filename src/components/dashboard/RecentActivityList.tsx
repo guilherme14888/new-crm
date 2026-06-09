@@ -16,6 +16,7 @@ interface Props {
   activities: Activity[];
 }
 
+/** Lista de atividades recentes que mostra ícone por tipo, título e data/hora de cada item, ou um estado vazio quando não há atividades. */
 export function RecentActivityList({ activities }: Props) {
   if (activities.length === 0) {
     return (

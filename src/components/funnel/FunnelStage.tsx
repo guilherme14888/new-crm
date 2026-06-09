@@ -15,6 +15,7 @@ interface Props {
   onDealPress: (dealId: string) => void;
 }
 
+/** Coluna de um estágio do funil que exibe cabeçalho (nome, contagem e valor total) e a lista de cartões de negócios do estágio. */
 export function FunnelStage({ stage, deals, contactNames, onDealPress }: Props) {
   const totalValue = deals.reduce((sum, d) => sum + d.value, 0);
 

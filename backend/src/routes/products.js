@@ -4,6 +4,7 @@ const auth   = require('../middleware/auth');
 const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
 const { v4: uuidv4 } = require('uuid');
 
+/** Formata um registro de produto do catálogo para o objeto de API. */
 function fmtProduct(r) {
   return {
     id: r.id, name: r.name, description: r.description ?? null,
@@ -12,6 +13,7 @@ function fmtProduct(r) {
   };
 }
 
+/** Formata um item produto-do-deal (deal_products) para o objeto de API. */
 function fmtDealProduct(r) {
   return {
     id: r.id, dealId: r.deal_id, productId: r.product_id,
@@ -21,7 +23,7 @@ function fmtDealProduct(r) {
   };
 }
 
-// GET /api/products
+// GET /api/products — lista os produtos ativos do catálogo da empresa do usuário
 router.get('/', auth, resolveScope, async (req, res) => {
   try {
     const { where, params } = buildCompanyFilter(req.scope);
@@ -33,7 +35,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/products
+// POST /api/products — cria um produto no catálogo da empresa (requer name)
 router.post('/', auth, resolveScope, async (req, res) => {
   const { name, description, unitPrice, currency = 'BRL' } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
@@ -49,7 +51,7 @@ router.post('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/products/:id
+// PATCH /api/products/:id — atualiza campos parciais de um produto (valida acesso à empresa)
 router.patch('/:id', auth, resolveScope, async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM products WHERE id = ?', [req.params.id]);
@@ -69,7 +71,7 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/products/:id  (deactivate)
+// DELETE /api/products/:id — desativa o produto (is_active = 0), exclusão lógica
 router.delete('/:id', auth, resolveScope, async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM products WHERE id = ?', [req.params.id]);
@@ -82,7 +84,7 @@ router.delete('/:id', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/products/deal/:dealId
+// GET /api/products/deal/:dealId — lista os produtos vinculados a um deal (com nome do produto)
 router.get('/deal/:dealId', auth, async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -95,7 +97,7 @@ router.get('/deal/:dealId', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/products/deal/:dealId
+// POST /api/products/deal/:dealId — vincula um produto ao deal (usa preço do catálogo se unitPrice não informado)
 router.post('/deal/:dealId', auth, async (req, res) => {
   const { productId, quantity = 1, unitPrice, discount = 0 } = req.body;
   if (!productId) return res.status(400).json({ error: 'productId required' });
@@ -119,7 +121,7 @@ router.post('/deal/:dealId', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/products/deal/:dealId/:id
+// DELETE /api/products/deal/:dealId/:id — remove (hard delete) um produto vinculado ao deal
 router.delete('/deal/:dealId/:id', auth, async (req, res) => {
   try {
     await db.query(`DELETE FROM deal_products WHERE id = ? AND deal_id = ?`, [req.params.id, req.params.dealId]);

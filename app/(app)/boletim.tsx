@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS, FONTS, SPACING } from '../../src/constants/theme';
 
+/** Tela de Boletim (placeholder): exibe estado vazio indicando que o recurso está em desenvolvimento. */
 export default function BoletimScreen() {
   return (
     <View style={styles.screen}>

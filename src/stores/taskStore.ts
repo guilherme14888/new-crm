@@ -18,6 +18,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   tasks: [],
   isLoading: false,
 
+  /** Carrega as tarefas de uma negociação a partir da API. */
   loadTasks: async (dealId) => {
     set({ isLoading: true });
     try {
@@ -30,6 +31,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
   },
 
+  /** Cria uma tarefa, insere-a no topo da lista e a retorna; relança em caso de falha. */
   createTask: async (data) => {
     try {
       const task = await apiFetch<Task>('/api/tasks', { method: 'POST', body: JSON.stringify(data) });
@@ -41,6 +43,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
   },
 
+  /** Atualiza uma tarefa e aplica o patch ao estado. */
   updateTask: async (id, patch) => {
     try {
       await apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
@@ -50,6 +53,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
   },
 
+  /** Marca uma tarefa como concluída, definindo completedAt no estado. */
   completeTask: async (id) => {
     try {
       await apiFetch(`/api/tasks/${id}/complete`, { method: 'PATCH' });
@@ -60,6 +64,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
   },
 
+  /** Reabre uma tarefa concluída, limpando completedAt no estado. */
   reopenTask: async (id) => {
     try {
       await apiFetch(`/api/tasks/${id}/reopen`, { method: 'PATCH' });
@@ -69,6 +74,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
   },
 
+  /** Exclui uma tarefa e a remove do estado. */
   deleteTask: async (id) => {
     try {
       await apiFetch(`/api/tasks/${id}`, { method: 'DELETE' });

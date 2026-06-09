@@ -2,6 +2,7 @@ import { getDatabase } from './migrations';
 import { apiFetch, tokenStorage } from '../services/api';
 import { Contact, Deal } from '../types/models';
 
+/** Lê o timestamp do último pull registrado para uma tabela em sync_meta. */
 async function getLastPulledAt(table: string): Promise<string | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<{ last_pulled_at: string | null }>(
@@ -10,6 +11,7 @@ async function getLastPulledAt(table: string): Promise<string | null> {
   return row?.last_pulled_at ?? null;
 }
 
+/** Grava (upsert) o timestamp do último pull de uma tabela em sync_meta. */
 async function setLastPulledAt(table: string, ts: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
@@ -21,6 +23,7 @@ async function setLastPulledAt(table: string, ts: string): Promise<void> {
 
 // ─── Push pending local rows → API ───────────────────────────────────────────
 
+/** Envia os contatos pendentes (deletados via DELETE, demais via PATCH) e marca-os como sincronizados. */
 async function pushContacts(): Promise<void> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -44,6 +47,7 @@ async function pushContacts(): Promise<void> {
   }
 }
 
+/** Envia os negócios pendentes (deletados via DELETE, demais via PATCH) e marca-os como sincronizados. */
 async function pushDeals(): Promise<void> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -67,6 +71,7 @@ async function pushDeals(): Promise<void> {
   }
 }
 
+/** Marca as atividades pendentes como sincronizadas (são append-only, sem PATCH). */
 async function pushActivities(): Promise<void> {
   const db = await getDatabase();
   // Activities are append-only — no PATCH needed, skip for now
@@ -75,6 +80,7 @@ async function pushActivities(): Promise<void> {
 
 // ─── Pull remote rows → local SQLite ─────────────────────────────────────────
 
+/** Baixa os contatos da API e faz upsert no SQLite local apenas quando a versão remota for mais recente. */
 async function pullContacts(): Promise<void> {
   const db = await getDatabase();
   const syncNow = new Date().toISOString();
@@ -100,6 +106,7 @@ async function pullContacts(): Promise<void> {
   await setLastPulledAt('contacts', syncNow);
 }
 
+/** Baixa os negócios da API e faz upsert no SQLite local apenas quando a versão remota for mais recente. */
 async function pullDeals(): Promise<void> {
   const db = await getDatabase();
   const syncNow = new Date().toISOString();
@@ -130,6 +137,7 @@ async function pullDeals(): Promise<void> {
   await setLastPulledAt('deals', syncNow);
 }
 
+/** Baixa funis e seus estágios da API e faz upsert no SQLite local respeitando o updated_at mais recente. */
 async function pullFunnels(): Promise<void> {
   const db = await getDatabase();
   const syncNow = new Date().toISOString();
@@ -169,6 +177,7 @@ async function pullFunnels(): Promise<void> {
   await setLastPulledAt('funnels', syncNow);
 }
 
+/** Baixa os motivos de ganho/perda da API e faz upsert no SQLite local. */
 async function pullWinLossReasons(): Promise<void> {
   const db = await getDatabase();
   const reasons = await apiFetch<Array<{
@@ -185,6 +194,7 @@ async function pullWinLossReasons(): Promise<void> {
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
+/** Orquestra a sincronização completa: faz push das alterações locais e pull dos dados remotos (requer token). */
 export async function syncAll(): Promise<void> {
   await tokenStorage.init();
   if (!tokenStorage.get()) return;

@@ -47,6 +47,7 @@ export const useCompanyStore = create<CompanyState>((set) => ({
   companies: [],
   isLoading: false,
 
+  /** Carrega a lista de empresas (admin); falha silenciosamente para usuários sem permissão. */
   loadCompanies: async () => {
     set({ isLoading: true });
     try {
@@ -56,6 +57,7 @@ export const useCompanyStore = create<CompanyState>((set) => ({
     finally { set({ isLoading: false }); }
   },
 
+  /** Cria uma empresa e a insere no estado mantendo a ordenação por nome. */
   createCompany: async (data) => {
     const company = await apiFetch<Company>('/api/companies', {
       method: 'POST', body: JSON.stringify(data),
@@ -64,6 +66,7 @@ export const useCompanyStore = create<CompanyState>((set) => ({
     return company;
   },
 
+  /** Atualiza uma empresa e substitui sua entrada no estado pelo registro retornado. */
   updateCompany: async (id, patch) => {
     const updated = await apiFetch<Company>(`/api/companies/${id}`, {
       method: 'PATCH', body: JSON.stringify(patch),
@@ -71,6 +74,7 @@ export const useCompanyStore = create<CompanyState>((set) => ({
     set((s) => ({ companies: s.companies.map((c) => c.id === id ? updated : c) }));
   },
 
+  /** Exclui uma empresa e a remove do estado. */
   deleteCompany: async (id) => {
     await apiFetch(`/api/companies/${id}`, { method: 'DELETE' });
     set((s) => ({ companies: s.companies.filter((c) => c.id !== id) }));

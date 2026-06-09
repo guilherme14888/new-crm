@@ -6,6 +6,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../../constants/theme';
 
 interface Props { dealId: string; }
 
+/** Aba de produtos da negociação: tabela de itens com quantidade/desconto/total e modal para adicionar produtos do catálogo. */
 export function DealProductsTab({ dealId }: Props) {
   const { catalog, dealProducts, loadCatalog, loadDealProducts, addProductToDeal, removeProductFromDeal } = useProductStore();
   const [showPicker, setShowPicker] = useState(false);
@@ -18,6 +19,7 @@ export function DealProductsTab({ dealId }: Props) {
     loadDealProducts(dealId);
   }, [dealId]);
 
+  // Adiciona o produto selecionado à negociação com quantidade e desconto, e fecha o modal.
   const handleAdd = async () => {
     if (!selectedProductId) return;
     await addProductToDeal(dealId, {

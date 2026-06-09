@@ -8,6 +8,7 @@ interface BadgeProps {
   textColor?: string;
 }
 
+/** Renderiza uma etiqueta (pill) arredondada com texto, cor de fundo e cor de texto configuráveis. */
 export function Badge({ label, color = COLORS.gray[200], textColor = COLORS.gray[700] }: BadgeProps) {
   return (
     <View style={[styles.badge, { backgroundColor: color }]}>

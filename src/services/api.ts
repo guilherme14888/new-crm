@@ -3,9 +3,15 @@ import Constants from 'expo-constants';
 
 const API_PORT = 3001;
 
+/** Resolve a URL base da API conforme a plataforma (override de config, host web ou host de dev nativo). */
 function resolveApiUrl(): string {
-  // 1) Explicit override always wins (set via API_URL env var → app.config.ts)
+  // 0) Same-origin mode (produção atrás do Traefik): API_URL='' faz o app chamar
+  //    a API na MESMA origem que serviu a página — ex.: https://sistema.br4licitacoes.com/api/...
+  //    O Node serve o web estático e a API no mesmo domínio, então não há host/porta a prefixar.
   const fromConfig = Constants.expoConfig?.extra?.apiUrl as string | undefined;
+  if (fromConfig === '') return '';
+
+  // 1) Explicit override always wins (set via API_URL env var → app.config.ts)
   if (fromConfig && fromConfig !== 'http://localhost:3001') return fromConfig;
 
   // 2) On web, derive from the host that actually loaded the page so
@@ -35,7 +41,9 @@ const TOKEN_KEY = 'crm_token';
 // In-memory cache so apiFetch is synchronous after init
 let _token: string | null = null;
 
+/** Armazenamento do token de autenticação (localStorage na web, SecureStore no nativo) com cache em memória. */
 export const tokenStorage = {
+  /** Carrega o token persistido para o cache em memória. */
   init: async (): Promise<void> => {
     if (Platform.OS === 'web') {
       _token = localStorage.getItem(TOKEN_KEY);
@@ -44,7 +52,9 @@ export const tokenStorage = {
       _token = await SecureStore.getItemAsync(TOKEN_KEY);
     }
   },
+  /** Retorna o token atual em cache (síncrono). */
   get: () => _token,
+  /** Persiste e armazena em cache o token de autenticação. */
   set: async (token: string): Promise<void> => {
     _token = token;
     if (Platform.OS === 'web') {
@@ -54,6 +64,7 @@ export const tokenStorage = {
       await SecureStore.setItemAsync(TOKEN_KEY, token);
     }
   },
+  /** Remove o token do cache e do armazenamento persistente. */
   clear: async (): Promise<void> => {
     _token = null;
     if (Platform.OS === 'web') {
@@ -65,6 +76,7 @@ export const tokenStorage = {
   },
 };
 
+/** Faz uma requisição HTTP à API com headers JSON e token Bearer, lançando erro em respostas não-ok. */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

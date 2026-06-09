@@ -12,10 +12,12 @@ interface Props {
   onUpdateDeal: (patch: Partial<Deal>) => void;
 }
 
+/** Campo de texto rotulado, editável ao toque, que salva o valor ao confirmar ou perder o foco. */
 function Field({ label, value, onSave }: { label: string; value: string; onSave?: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
+  // Salva o rascunho se mudou e encerra a edição.
   const handleSave = () => {
     if (onSave && draft !== value) onSave(draft);
     setEditing(false);
@@ -42,6 +44,7 @@ function Field({ label, value, onSave }: { label: string; value: string; onSave?
   );
 }
 
+// Converte um valor bruto (JSON de array ou lista separada por vírgulas) em um array de strings.
 function parseMultiValue(raw: string): string[] {
   if (!raw) return [];
   try {
@@ -51,6 +54,7 @@ function parseMultiValue(raw: string): string[] {
   return raw.split(',').map((v) => v.trim()).filter(Boolean);
 }
 
+/** Campo de seleção única com menu suspenso de opções, salvando a opção escolhida. */
 function SelectField({ label, value, options, onSave }: { label: string; value: string; options: string[]; onSave: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -87,9 +91,11 @@ function SelectField({ label, value, options, onSave }: { label: string; value: 
   );
 }
 
+/** Campo de seleção múltipla com menu suspenso, salvando as opções marcadas como JSON. */
 function MultiSelectField({ label, value, options, onSave }: { label: string; value: string; options: string[]; onSave: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const selected = parseMultiValue(value);
+  // Alterna a presença de uma opção na seleção e persiste o resultado.
   const toggle = (opt: string) => {
     const next = selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt];
     onSave(JSON.stringify(next));
@@ -141,6 +147,7 @@ function MultiSelectField({ label, value, options, onSave }: { label: string; va
   );
 }
 
+/** Campo de empresa com menu suspenso que lista as empresas carregadas e permite vincular uma à negociação. */
 function CompanyField({ companyId, companyName, onChangeCompany }: { companyId: string; companyName: string; onChangeCompany: (id: string) => void }) {
   const { companies, loadCompanies } = useCompanyStore();
   const [open, setOpen] = useState(false);
@@ -180,6 +187,7 @@ function CompanyField({ companyId, companyName, onChangeCompany }: { companyId: 
   );
 }
 
+/** Painel lateral da negociação: exibe e edita dados principais (valor, datas, probabilidade etc.) e campos personalizados. */
 export function DealLeftPanel({ deal, contact, onUpdateDeal }: Props) {
   const { fields, dealValues, loadFields, loadDealValues, saveDealValues } = useCustomFieldStore();
 
@@ -188,6 +196,7 @@ export function DealLeftPanel({ deal, contact, onUpdateDeal }: Props) {
     loadDealValues(deal.id);
   }, [deal.id]);
 
+  // Persiste o valor de um campo personalizado para esta negociação.
   const handleCustomFieldSave = (fieldId: string, value: string) => {
     saveDealValues(deal.id, [{ fieldId, value }]);
   };
@@ -207,7 +216,7 @@ export function DealLeftPanel({ deal, contact, onUpdateDeal }: Props) {
           value={contact ? `${contact.firstName} ${contact.lastName}` : '—'}
         />
         <CompanyField
-          companyId={deal.companyId}
+          companyId={deal.companyId ?? ''}
           companyName={deal.companyName ?? ''}
           onChangeCompany={(id) => onUpdateDeal({ companyId: id } as any)}
         />

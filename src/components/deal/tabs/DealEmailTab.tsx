@@ -5,6 +5,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../../constants/theme';
 
 interface Props { contact: Contact | undefined; }
 
+/** Aba de e-mail da negociação: mostra o e-mail do contato e abre o cliente de e-mail; placeholder para integração futura. */
 export function DealEmailTab({ contact }: Props) {
   const email = contact?.email;
   return (

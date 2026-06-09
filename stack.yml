@@ -1,0 +1,78 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  Stack Docker Swarm — Sistema BR4 Licitações
+#  Deploy via Portainer (Stacks → Add stack) ou: docker stack deploy -c stack.yml br4-sistema
+#
+#  Pré-requisitos:
+#   - Traefik já rodando no swarm com entrypoint `websecure` e certresolver
+#     `letsencryptresolver` (mesmo padrão do seu n8n).
+#   - Rede overlay externa do Traefik (ajuste `network_public` abaixo se o nome
+#     da sua rede for outro — confira com: docker network ls).
+#   - MariaDB EXTERNO já existente e acessível (preencha DB_* abaixo).
+#   - DNS: registro A de `sistema.br4licitacoes.com` apontando para o swarm.
+# ════════════════════════════════════════════════════════════════════════════
+version: "3.8"
+
+services:
+  sistema:
+    image: br4licitacoes/sistema:latest   # ou fixe uma versão: br4licitacoes/sistema:v1.0.0
+    environment:
+      - PORT=3001
+      - WEB_DIR=/app/backend/public
+
+      # ── Banco de dados (MariaDB externo já existente) ──────────────────────
+      - DB_HOST=mariadb                # host/serviço do seu MariaDB no swarm
+      - DB_PORT=3306
+      - DB_USER=crm
+      - DB_PASSWORD=ALTERE_ME
+      - DB_NAME=crmbr4
+
+      # ── Autenticação ──────────────────────────────────────────────────────
+      - JWT_SECRET=ALTERE_ME_PARA_UM_SEGREDO_LONGO_E_ALEATORIO
+      - JWT_EXPIRES_IN=7d
+
+      # ── Ingestão de licitações (agendador interno diário às 9h BRT) ────────
+      - INGEST_ENABLED=true
+      - INGEST_HOUR_BRT=9
+      - INGEST_PAGES=10
+      - INGEST_CATCHUP_ON_BOOT=true
+      - INGEST_MAX_BACKFILL_DAYS=14
+
+      # ── (Opcional) Filtro de relevância por IA / embeddings ────────────────
+      # - INGEST_AI_RELEVANCE=true
+      # - INGEST_AI_MODEL=claude-haiku-4-5-20251001
+      # - ANTHROPIC_API_KEY=
+      # - VOYAGE_API_KEY=
+      # - OPENAI_API_KEY=
+
+      # ── (Opcional) Credenciais de portais ─────────────────────────────────
+      # - LICITAJA_API_KEY=
+      # - BLL_ORG_KEY=
+
+    networks:
+      - network_public
+
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        order: start-first       # sobe a nova versão antes de derrubar a antiga (zero-downtime)
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 1024M
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.br4_sistema.rule=Host(`sistema.br4licitacoes.com`) ## URL do Sistema
+        - traefik.http.routers.br4_sistema.entrypoints=websecure
+        - traefik.http.routers.br4_sistema.priority=10
+        - traefik.http.routers.br4_sistema.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.br4_sistema.service=br4_sistema
+        - traefik.http.services.br4_sistema.loadbalancer.server.port=3001
+        - traefik.http.services.br4_sistema.loadbalancer.passHostHeader=1
+
+networks:
+  network_public:
+    external: true
+    name: network_public        # ajuste para o nome real da rede do seu Traefik

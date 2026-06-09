@@ -4,6 +4,7 @@ const auth   = require('../middleware/auth');
 const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
 const { audit } = require('../services/auditLog');
 
+/** Formata uma linha da tabela contacts (snake_case) para o objeto Contact da API (camelCase). */
 function fmt(row) {
   if (!row) return null;
   return {

@@ -5,6 +5,7 @@ import { useFunnelStore } from '../../stores/funnelStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme';
 
+// Calcula quantos dias inteiros se passaram desde a data informada (0 se nula).
 function daysSince(dateStr: string | null): number {
   if (!dateStr) return 0;
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
@@ -14,6 +15,7 @@ interface Props {
   deal: Deal;
 }
 
+/** Linha de etiquetas da negociação: badges de "nova", funil, dias de esfriamento (com cor por limite) e início das observações. */
 export function DealTagRow({ deal }: Props) {
   const funnels = useFunnelStore((s) => s.funnels);
   const { warningDays, dangerDays } = useSettingsStore((s) => s.coolingThresholds);

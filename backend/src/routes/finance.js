@@ -22,6 +22,7 @@ const MASTER_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Converte uma linha da tabela `companies` no formato JSON (camelCase) usado na API financeira. */
 function fmtCompany(r) {
   return {
     id: r.id,
@@ -43,6 +44,7 @@ function fmtCompany(r) {
   };
 }
 
+/** Converte uma linha de `company_invoices` no formato JSON (camelCase) da fatura para a API. */
 function fmtInvoice(r) {
   return {
     id: r.id,
@@ -64,6 +66,7 @@ function fmtInvoice(r) {
   };
 }
 
+/** Converte uma linha de `company_license_purchases` no formato JSON (camelCase) da compra de licenças. */
 function fmtLicensePurchase(r) {
   return {
     id: r.id,

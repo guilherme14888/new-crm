@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useUIStore } from '../../../stores/uiStore';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../constants/theme';
 
+/** Aba de arquivos da negociação: botão de anexo (placeholder de upload) e estado vazio. */
 export function DealFilesTab() {
   const showToast = useUIStore((s) => s.showToast);
   return (

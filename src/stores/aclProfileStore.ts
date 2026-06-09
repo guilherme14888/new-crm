@@ -73,6 +73,7 @@ export const useACLProfileStore = create<ACLProfileState>((set) => ({
   profiles: [],
   isLoading: false,
 
+  /** Carrega os perfis de acesso (ACL) da API. */
   loadProfiles: async () => {
     set({ isLoading: true });
     try {
@@ -85,6 +86,7 @@ export const useACLProfileStore = create<ACLProfileState>((set) => ({
     }
   },
 
+  /** Cria um perfil de acesso e o adiciona ao estado; retorna o perfil ou null em erro. */
   createProfile: async (data) => {
     try {
       const profile = await apiFetch<ACLProfile>('/api/acl-profiles', {
@@ -99,6 +101,7 @@ export const useACLProfileStore = create<ACLProfileState>((set) => ({
     }
   },
 
+  /** Atualiza um perfil de acesso e o substitui no estado; retorna o perfil ou null em erro. */
   updateProfile: async (id, data) => {
     try {
       const profile = await apiFetch<ACLProfile>(`/api/acl-profiles/${id}`, {
@@ -113,6 +116,7 @@ export const useACLProfileStore = create<ACLProfileState>((set) => ({
     }
   },
 
+  /** Exclui um perfil de acesso e o remove do estado. */
   deleteProfile: async (id) => {
     try {
       await apiFetch(`/api/acl-profiles/${id}`, { method: 'DELETE' });

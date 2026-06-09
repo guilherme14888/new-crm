@@ -22,6 +22,7 @@ interface Props {
   submitLabel?: string;
 }
 
+/** Valida os dados do formulário (nome/sobrenome obrigatórios, formato de e-mail) e retorna um mapa de erros por campo. */
 function validate(data: FormData): Partial<Record<keyof FormData, string>> {
   const errors: Partial<Record<keyof FormData, string>> = {};
   if (!data.firstName.trim()) errors.firstName = 'First name is required';
@@ -32,6 +33,7 @@ function validate(data: FormData): Partial<Record<keyof FormData, string>> {
   return errors;
 }
 
+/** Formulário de criação/edição de contato com campos controlados, validação e estado de loading no envio. */
 export function ContactForm({ initial, onSubmit, submitLabel = 'Save' }: Props) {
   const [form, setForm] = useState<FormData>({
     firstName: initial?.firstName ?? '',
@@ -46,9 +48,11 @@ export function ContactForm({ initial, onSubmit, submitLabel = 'Save' }: Props) 
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [loading, setLoading] = useState(false);
 
+  // Helper que cria um handler de mudança para atualizar um campo específico do formulário.
   const set = (key: keyof FormData) => (val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
 
+  // Valida o formulário e, se não houver erros, chama onSubmit gerenciando o estado de loading.
   const handleSubmit = async () => {
     const errs = validate(form);
     if (Object.keys(errs).length) { setErrors(errs); return; }

@@ -7,12 +7,14 @@ import { useAuthStore } from '../../../src/stores/authStore';
 import { CRMUser, UserRole } from '../../../src/types/models';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
 
-const ROLE_LABELS: Record<UserRole, string> = { admin: 'Admin', manager: 'Gerente', user: 'Usuário' };
-const ROLE_COLORS: Record<UserRole, string> = { admin: '#7c3aed', manager: '#0891b2', user: '#4b5563' };
+const ROLE_LABELS: Partial<Record<UserRole, string>> = { admin: 'Admin', manager: 'Gerente', consultant: 'Usuário' };
+const ROLE_COLORS: Partial<Record<UserRole, string>> = { admin: '#7c3aed', manager: '#0891b2', consultant: '#4b5563' };
 
 interface UserForm { email: string; displayName: string; role: UserRole; }
-const emptyForm = (): UserForm => ({ email: '', displayName: '', role: 'user' });
+/** Retorna um formulário de usuário em branco com papel padrão "consultant". */
+const emptyForm = (): UserForm => ({ email: '', displayName: '', role: 'consultant' });
 
+/** Tela de administração de usuários: tabela com busca, status e papéis, mais modal de criação/edição. */
 export default function AdminUsersScreen() {
   const { users, isLoading, loadUsers, createUser, updateUser, deleteUser } = useCRMUserStore();
   const currentUser = useAuthStore((s) => s.user);
@@ -29,13 +31,16 @@ export default function AdminUsersScreen() {
       u.email.toLowerCase().includes(search.toLowerCase())
   );
 
+  /** Abre o modal em modo de criação com formulário em branco. */
   const openCreate = () => { setEditingUser(null); setForm(emptyForm()); setShowModal(true); };
+  /** Abre o modal em modo de edição preenchendo o formulário com os dados do usuário. */
   const openEdit = (u: CRMUser) => {
     setEditingUser(u);
     setForm({ email: u.email, displayName: u.displayName, role: u.role });
     setShowModal(true);
   };
 
+  /** Valida os campos e cria ou atualiza o usuário, fechando o modal ao final. */
   const handleSave = async () => {
     if (!form.email.trim() || !form.displayName.trim()) return;
     if (editingUser) {
@@ -46,6 +51,7 @@ export default function AdminUsersScreen() {
     setShowModal(false);
   };
 
+  /** Pede confirmação e ativa/desativa o usuário (não permite alterar o próprio usuário logado). */
   const confirmToggleActive = (u: CRMUser) => {
     if (u.id === currentUser?.id) return;
     const label = u.isActive ? 'Desativar' : 'Ativar';
@@ -60,6 +66,7 @@ export default function AdminUsersScreen() {
     }
   };
 
+  /** Pede confirmação e exclui o usuário (não permite excluir o próprio usuário logado). */
   const confirmDelete = (u: CRMUser) => {
     if (u.id === currentUser?.id) return;
     const doDelete = () => deleteUser(u.id);

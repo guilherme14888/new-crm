@@ -22,12 +22,17 @@ interface ContactState {
   setFilter: (type: ContactType | 'all') => void;
 }
 
+/**
+ * Store Zustand para gerenciamento de contatos.
+ * Sincroniza com API (web) ou SQLite (mobile) e mantém estado de busca e filtro por tipo.
+ */
 export const useContactStore = create<ContactState>((set, get) => ({
   contacts: [],
   isLoading: false,
   searchQuery: '',
   filterType: 'all',
 
+  /** Retorna contatos filtrados pelo tipo selecionado e pelo termo de busca (nome, email, empresa) */
   filteredContacts: () => {
     const { contacts, searchQuery, filterType } = get();
     return contacts.filter((c) => {
@@ -43,6 +48,7 @@ export const useContactStore = create<ContactState>((set, get) => ({
     });
   },
 
+  /** Carrega todos os contatos da API (web) ou SQLite (mobile) */
   loadContacts: async () => {
     set({ isLoading: true });
     try {
@@ -60,6 +66,7 @@ export const useContactStore = create<ContactState>((set, get) => ({
     }
   },
 
+  /** Cria um novo contato via API/banco e o adiciona ao estado */
   createContact: async (data) => {
     try {
       if (Platform.OS === 'web') {
@@ -76,6 +83,7 @@ export const useContactStore = create<ContactState>((set, get) => ({
     }
   },
 
+  /** Atualiza campos de um contato existente e marca como pendente de sincronização */
   updateContact: async (id, patch) => {
     try {
       if (Platform.OS === 'web') {
@@ -93,6 +101,7 @@ export const useContactStore = create<ContactState>((set, get) => ({
     }
   },
 
+  /** Remove um contato via API/banco e o retira do estado */
   deleteContact: async (id) => {
     try {
       if (Platform.OS === 'web') {
@@ -106,6 +115,8 @@ export const useContactStore = create<ContactState>((set, get) => ({
     }
   },
 
+  /** Define o termo de busca usado em filteredContacts */
   setSearch: (q) => set({ searchQuery: q }),
+  /** Define o filtro por tipo de contato usado em filteredContacts */
   setFilter: (type) => set({ filterType: type }),
 }));

@@ -12,9 +12,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme';
 export const SIDEBAR_W  = 220;
 export const SIDEBAR_COL = 64;
 
-interface NavItem { label: string; icon: string; href: string }
-
-const MASTER_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+interface NavItem { label: string; icon: string; href: string; children?: NavItem[] }
 
 const BASE_NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',     icon: '📊', href: '/(app)/(tabs)/dashboard' },
@@ -22,11 +20,19 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { label: 'Boletim',       icon: '📰', href: '/(app)/boletim' },
   { label: 'Licitações',   icon: '🤝', href: '/(app)/(tabs)/negotiations' },
   { label: 'Relatórios',    icon: '📈', href: '/(app)/reports' },
+  {
+    label: 'Inteligência de Mercado', icon: '🧠', href: '/(app)/market-intelligence',
+    children: [
+      { label: 'Dashboard', icon: '📊', href: '/(app)/market-intelligence/dashboard' },
+      { label: 'Listagem',  icon: '📋', href: '/(app)/market-intelligence/listagem' },
+    ],
+  },
 ];
 const SETTINGS_NAV: NavItem = { label: 'Configurações', icon: '⚙️', href: '/(app)/settings' };
 const FINANCE_NAV: NavItem  = { label: 'Financeiro',     icon: '💰', href: '/(app)/finance'  };
 
 // ─── Company Switcher Modal ───────────────────────────────────────────────────
+/** Modal para alternar entre empresas/tenants: lista as empresas disponíveis e troca o contexto recarregando dados. */
 function CompanySwitcherModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const user        = useAuthStore((s) => s.user);
   const router      = useRouter();
@@ -44,6 +50,7 @@ function CompanySwitcherModal({ visible, onClose }: { visible: boolean; onClose:
     listCompanies().then(setCompanies).catch((e) => setError(e?.message ?? 'Erro ao carregar empresas'));
   }, [visible]);
 
+  // Troca a empresa ativa, recarrega funis/deals/contatos e navega para o dashboard.
   const handleSwitch = async (companyId: string) => {
     if (companyId === user?.companyId) { onClose(); return; }
     setSwitching(companyId);
@@ -97,6 +104,7 @@ function CompanySwitcherModal({ visible, onClose }: { visible: boolean; onClose:
 }
 
 // ─── Profile Modal ────────────────────────────────────────────────────────────
+/** Modal de perfil do usuário: edita nome, avatar (com redimensionamento na web) e troca de senha. */
 function ProfileModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const user = useAuthStore((s) => s.user);
 
@@ -120,10 +128,12 @@ function ProfileModal({ visible, onClose }: { visible: boolean; onClose: () => v
     }
   }, [visible, user?.displayName, user?.avatarUrl]);
 
+  // Abre o seletor de arquivo de imagem (apenas web) para escolher um novo avatar.
   const pickAvatar = () => {
     if (Platform.OS === 'web' && fileInputRef.current) fileInputRef.current.click();
   };
 
+  // Lê a imagem escolhida, redimensiona para no máximo 256px e gera o preview em data URL JPEG.
   const onFileChange = (e: any) => {
     const file = e.target?.files?.[0];
     if (!file) return;
@@ -146,6 +156,7 @@ function ProfileModal({ visible, onClose }: { visible: boolean; onClose: () => v
     e.target.value = '';
   };
 
+  // Valida os campos, persiste nome/avatar/senha via updateProfile e exibe feedback de sucesso ou erro.
   const handleSave = async () => {
     setError(''); setSuccess('');
     if (!displayName.trim()) { setError('Nome é obrigatório'); return; }
@@ -219,6 +230,7 @@ function ProfileModal({ visible, onClose }: { visible: boolean; onClose: () => v
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
+/** Barra lateral de navegação: links principais (com itens condicionais por papel), modos recolhido/mobile e ações de perfil, troca de empresa e logout. */
 export function Sidebar() {
   const router   = useRouter();
   const pathname = usePathname();
@@ -228,11 +240,10 @@ export function Sidebar() {
   const mobileOpen      = useUIStore((s) => s.sidebarMobileOpen);
   const setMobileOpen   = useUIStore((s) => s.setSidebarMobileOpen);
 
-  const isMasterCompany = user?.companyId === MASTER_COMPANY_ID;
   const isAdmin         = user?.role === 'admin';
   const NAV_ITEMS = [
     ...BASE_NAV_ITEMS,
-    ...(isMasterCompany ? [SETTINGS_NAV] : []),
+    SETTINGS_NAV,                       // sempre visível (configurações por tenant)
     ...(isAdmin ? [FINANCE_NAV] : []),
   ];
 
@@ -240,12 +251,14 @@ export function Sidebar() {
   const [showCompanySwitcher, setShowCompanySwitcher] = useState(false);
   const [showProfile, setShowProfile]             = useState(false);
 
+  // Encerra a sessão do usuário e redireciona para a tela de login.
   const handleSignOut = async () => {
     setMenuOpen(false);
     await signOut();
     router.replace('/(auth)/login');
   };
 
+  // Indica se um item de navegação corresponde à rota atual (ignorando os grupos de rota do Expo).
   const isActive = (href: string) => {
     const clean = href.replace('/(app)', '').replace('/(tabs)', '');
     return pathname === clean || pathname.startsWith(clean + '/');
@@ -270,15 +283,32 @@ export function Sidebar() {
       <ScrollView style={st.nav} showsVerticalScrollIndicator={false}>
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.href);
+          const go = (href: string) => { setMobileOpen(false); setMenuOpen(false); router.push(href as never); };
+          const expanded = !collapsed && !!item.children && active;
           return (
-            <Pressable
-              key={item.href}
-              style={[st.navItem, active && st.navItemActive, collapsed && st.navItemCollapsed]}
-              onPress={() => { setMobileOpen(false); setMenuOpen(false); router.push(item.href as never); }}
-            >
-              <Text style={[st.navIcon, collapsed && st.navIconCollapsed]}>{item.icon}</Text>
-              {!collapsed && <Text style={[st.navLabel, active && st.navLabelActive]}>{item.label}</Text>}
-            </Pressable>
+            <View key={item.href}>
+              <Pressable
+                style={[st.navItem, active && st.navItemActive, collapsed && st.navItemCollapsed]}
+                onPress={() => go(item.children ? item.children[0].href : item.href)}
+              >
+                <Text style={[st.navIcon, collapsed && st.navIconCollapsed]}>{item.icon}</Text>
+                {!collapsed && <Text style={[st.navLabel, active && st.navLabelActive]}>{item.label}</Text>}
+                {!collapsed && item.children && <Text style={st.navCaret}>{expanded ? '▾' : '▸'}</Text>}
+              </Pressable>
+              {expanded && item.children!.map((child) => {
+                const childActive = isActive(child.href);
+                return (
+                  <Pressable
+                    key={child.href}
+                    style={[st.subItem, childActive && st.subItemActive]}
+                    onPress={() => go(child.href)}
+                  >
+                    <Text style={[st.subIcon, childActive && { opacity: 1 }]}>{child.icon}</Text>
+                    <Text style={[st.subLabel, childActive && st.subLabelActive]}>{child.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           );
         })}
       </ScrollView>
@@ -371,6 +401,7 @@ export function Sidebar() {
 }
 
 // ─── Hamburger button (for mobile web — rendered in layout) ──────────────────
+/** Botão de menu (hambúrguer) que abre/fecha a sidebar no modo mobile web. */
 export function HamburgerButton() {
   const setMobileOpen = useUIStore((s) => s.setSidebarMobileOpen);
   const mobileOpen    = useUIStore((s) => s.sidebarMobileOpen);
@@ -414,8 +445,15 @@ const st = StyleSheet.create({
   navItemCollapsed: { justifyContent: 'center', paddingHorizontal: 0, marginHorizontal: SPACING.xs },
   navIcon:          { fontSize: 18, width: 24, textAlign: 'center' },
   navIconCollapsed: { fontSize: 20, width: 'auto' as any },
-  navLabel:         { fontSize: FONTS.base, color: COLORS.gray[300], fontWeight: '400' },
+  navLabel:         { fontSize: FONTS.base, color: COLORS.gray[300], fontWeight: '400', flex: 1 },
   navLabelActive:   { color: COLORS.primary, fontWeight: '600' },
+  navCaret:         { fontSize: 11, color: COLORS.gray[400] },
+
+  subItem:        { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, paddingLeft: SPACING.xl + SPACING.md, paddingRight: SPACING.lg, marginHorizontal: SPACING.sm, marginVertical: 1, borderRadius: RADIUS.md },
+  subItemActive:  { backgroundColor: COLORS.primary + '22' },
+  subIcon:        { fontSize: 13, width: 18, textAlign: 'center', opacity: 0.7 },
+  subLabel:       { fontSize: FONTS.sm, color: COLORS.gray[400], fontWeight: '400' },
+  subLabelActive: { color: COLORS.primary, fontWeight: '600' },
 
   collapsedActions:    { borderTopWidth: 1, borderTopColor: COLORS.gray[700], paddingVertical: SPACING.sm },
   collapsedActionBtn:  { alignItems: 'center', paddingVertical: SPACING.sm },

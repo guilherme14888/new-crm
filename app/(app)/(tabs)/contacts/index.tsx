@@ -7,6 +7,7 @@ import { ContactSearch } from '../../../../src/components/contacts/ContactSearch
 import { Skeleton } from '../../../../src/components/ui/Skeleton';
 import { COLORS, FONTS, SPACING } from '../../../../src/constants/theme';
 
+/** Tela de listagem de contatos: exibe busca, skeleton de carregamento, estado vazio e a lista de contatos navegável. */
 export default function ContactsScreen() {
   const { contacts, isLoading, searchQuery, loadContacts, setSearch } = useContacts();
 

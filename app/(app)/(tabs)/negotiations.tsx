@@ -40,6 +40,7 @@ const DEFAULT_FILTERS: Filters = {
 };
 
 // ─── View toggle ───────────────────────────────────────────────────────────────
+/** Alterna entre os modos de visualização Lista e Kanban. */
 function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
     <View style={vt.container}>
@@ -61,6 +62,7 @@ const vt = StyleSheet.create({
 });
 
 // ─── Filter modal ──────────────────────────────────────────────────────────────
+/** Modal de filtros avançados (busca, faixa de valor e ordenação) das negociações. */
 function FilterModal({
   visible, filters, onClose, onChange,
 }: {
@@ -167,6 +169,7 @@ const fm = StyleSheet.create({
 });
 
 // ─── Company dropdown (master only) ───────────────────────────────────────────
+/** Dropdown de seleção de empresa (visível apenas para usuários master). */
 function CompanyDropdown({
   companies, activeCompanyId, onSelect, isOpen, onOpenChange,
 }: {
@@ -237,6 +240,7 @@ const cd = StyleSheet.create({
 });
 
 // ─── Funnel dropdown ───────────────────────────────────────────────────────────
+/** Dropdown de seleção do funil ativo. */
 function FunnelDropdown({
   funnels, activeFunnelId, onSelect, isOpen, onOpenChange,
 }: {
@@ -300,6 +304,7 @@ const fd = StyleSheet.create({
 });
 
 // ─── Owner dropdown ────────────────────────────────────────────────────────────
+/** Dropdown de filtro por responsável, com busca de usuários e equipes. */
 function OwnerDropdown({
   value, onChange, users, teams, teamMembers, currentUserId, onLoadTeamMembers, isOpen, onOpenChange,
 }: {
@@ -319,6 +324,7 @@ function OwnerDropdown({
   const close = () => { onOpenChange(false); setSearch(''); };
   const select = (v: string) => { onChange(v); close(); };
 
+  // Resolve o rótulo exibido no gatilho conforme o valor selecionado (todos/minhas/usuário/equipe)
   const getLabel = () => {
     if (value === 'all')  return 'Todos';
     if (value === 'mine') return 'Minhas';
@@ -488,6 +494,7 @@ const od = StyleSheet.create({
 });
 
 // ─── Generic compact dropdown (Status / Sort) ─────────────────────────────────
+/** Dropdown compacto genérico para listas de opções simples (usado em Status e Ordenação). */
 function CompactDropdown<T extends string>({
   label, value, options, onChange, isOpen, onOpenChange, minWidth,
 }: {
@@ -550,6 +557,7 @@ const cdr = StyleSheet.create({
 });
 
 // ─── Filter toolbar ────────────────────────────────────────────────────────────
+/** Barra de filtros que reúne os dropdowns de empresa, funil, responsável, status, ordenação e o botão de filtros avançados. */
 function FilterToolbar({
   filters, onChange, selectedCompanyId, onSelectCompany,
   onOpenAdvanced, activeFilterCount,
@@ -669,6 +677,7 @@ const tb = StyleSheet.create({
 });
 
 // ─── Summary bar ───────────────────────────────────────────────────────────────
+/** Barra de resumo com valor do pipeline e contagens de negociações em andamento, ganhas e perdidas. */
 function SummaryBar({ deals, stages }: { deals: Deal[]; stages: FunnelStage[] }) {
   const stageMap = useMemo(() => Object.fromEntries(stages.map((s) => [s.id, s])), [stages]);
   const active = deals.filter((d) => !d.deletedAt);
@@ -727,6 +736,7 @@ const VIRTUAL_LOST_STAGE: FunnelStage = {
 };
 
 // ─── Kanban board ──────────────────────────────────────────────────────────────
+/** Renderiza o quadro Kanban com colunas das etapas ativas e colunas fixas de Ganho e Perdido, suportando arrastar e soltar. */
 function KanbanBoard({ stages, dealsByStageId, wonDeals, lostDeals, contactNames }: {
   stages: FunnelStage[];
   dealsByStageId: Record<string, Deal[]>;
@@ -776,12 +786,14 @@ function KanbanBoard({ stages, dealsByStageId, wonDeals, lostDeals, contactNames
 }
 
 // ─── List view ─────────────────────────────────────────────────────────────────
+/** Formata uma data ISO no padrão DD/MM/AAAA (ou '—' quando vazia). */
 function formatDate(iso: string) {
   if (!iso) return '—';
   const d = new Date(iso);
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
+/** Badge colorido que indica o status da negociação (Ganho, Perdido ou Em andamento). */
 function StatusBadge({ stageType, dealStage }: { stageType?: string; dealStage: string }) {
   const isWon  = stageType === 'won'  || dealStage === 'closed_won';
   const isLost = stageType === 'lost' || dealStage === 'closed_lost';
@@ -795,6 +807,7 @@ function StatusBadge({ stageType, dealStage }: { stageType?: string; dealStage: 
   );
 }
 
+/** Exibe o avatar do responsável (imagem ou inicial), ou um placeholder quando não encontrado. */
 function OwnerAvatar({ ownerId, users }: { ownerId: string | null; users: any[] }) {
   const owner = users.find((u) => u.id === ownerId);
   if (!owner) return <View style={lv.avatarCircle}><Text style={lv.avatarTxt}>?</Text></View>;
@@ -806,6 +819,7 @@ function OwnerAvatar({ ownerId, users }: { ownerId: string | null; users: any[] 
   );
 }
 
+/** Visualização em lista/tabela das negociações, com colunas de lead, responsável, etapa, valor, data e status. */
 function ListView({
   deals, stages, users, contactNames, onPress,
 }: {
@@ -928,6 +942,7 @@ const lv = StyleSheet.create({
 });
 
 // ─── Apply filters to deals ────────────────────────────────────────────────────
+/** Aplica os filtros (responsável, status, busca, faixa de valor) e a ordenação à lista de negociações. */
 function applyFilters(
   deals: Deal[], filters: Filters, stages: FunnelStage[],
   currentUserId: string | undefined,
@@ -980,6 +995,7 @@ function applyFilters(
 }
 
 // ─── Search modal ─────────────────────────────────────────────────────────────
+/** Modal de busca global que pesquisa contatos e negociações por nome, e-mail, órgão ou título. */
 function SearchModal({
   visible, onClose, deals, contacts, funnels, onSelect,
 }: {
@@ -1185,6 +1201,7 @@ const sm = StyleSheet.create({
 });
 
 // ─── Main screen ───────────────────────────────────────────────────────────────
+/** Tela principal de Licitações: orquestra filtros, resumo e as visualizações em lista e Kanban das negociações. */
 export default function NegotiationsScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -1266,6 +1283,7 @@ export default function NegotiationsScreen() {
     () => Object.fromEntries(contacts.map((c) => [c.id, `${c.firstName} ${c.lastName}`])),
     [contacts]
   );
+  // Retorna o id do contato vinculado a uma negociação (usado pelo arrastar-e-soltar do Kanban)
   const contactIdForDeal = useCallback(
     (dealId: string) => deals.find((d) => d.id === dealId)?.contactId ?? '',
     [deals]
@@ -1279,6 +1297,7 @@ export default function NegotiationsScreen() {
     return count;
   }, [filters]);
 
+  // Mescla uma alteração parcial no estado de filtros
   const updateFilters = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
 
   return (

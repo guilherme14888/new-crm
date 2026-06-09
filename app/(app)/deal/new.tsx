@@ -22,6 +22,7 @@ interface NewContactForm {
   company: string;
 }
 
+/** Seletor de órgão/contato com busca, lista filtrada e modal de criação inline de novo contato. */
 function ContactPicker({
   contacts,
   selectedId,
@@ -50,6 +51,7 @@ function ContactPicker({
     );
   }, [contacts, search]);
 
+  /** Valida nome/sobrenome, dispara a criação do contato e fecha/limpa o modal. */
   const handleCreate = async () => {
     if (!form.firstName.trim() || !form.lastName.trim()) return;
     setCreating(true);
@@ -207,6 +209,7 @@ const cp = StyleSheet.create({
 });
 
 // ─── Main screen ───────────────────────────────────────────────────────────────
+/** Tela de criação de nova negociação: formulário com título, valor, etapa, observações e seleção de órgão. */
 export default function NewDealScreen() {
   const createDeal = useDealStore((s) => s.createDeal);
   const activeFunnelId = useFunnelStore((s) => s.activeFunnelId);
@@ -235,6 +238,7 @@ export default function NewDealScreen() {
     if (!stageId && firstStage) setStageId(firstStage.id);
   }, [firstStage?.id]);
 
+  /** Valida os campos obrigatórios (título e órgão) e retorna o mapa de erros. */
   const validate = () => {
     const e: Record<string, string> = {};
     if (!title.trim()) e.title = 'Título é obrigatório';
@@ -242,6 +246,7 @@ export default function NewDealScreen() {
     return e;
   };
 
+  /** Cria um novo contato (lead) a partir do formulário inline e o seleciona para a negociação. */
   const handleCreateContact = async (form: NewContactForm) => {
     const contact = await createContact({
       firstName: form.firstName.trim(),
@@ -258,6 +263,7 @@ export default function NewDealScreen() {
     setContactId(contact.id);
   };
 
+  /** Valida o formulário e, se válido, cria a negociação e volta para a tela anterior. */
   const handleCreate = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }

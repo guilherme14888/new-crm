@@ -7,6 +7,7 @@ import { Input } from '../../src/components/ui/Input';
 import { Button } from '../../src/components/ui/Button';
 import { COLORS, FONTS, SPACING } from '../../src/constants/theme';
 
+/** Tela de cadastro: renderiza o formulário de criação de conta (nome, e-mail, senha e confirmação) e registra um novo usuário. */
 export default function RegisterScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -15,6 +16,7 @@ export default function RegisterScreen() {
   const [localError, setLocalError] = useState('');
   const { isLoading, error } = useAuthStore();
 
+  // Valida a confirmação e o tamanho da senha, cria a conta e redireciona para o dashboard
   const handleRegister = async () => {
     setLocalError('');
     if (password !== confirm) { setLocalError('Passwords do not match'); return; }

@@ -12,6 +12,7 @@ interface Props {
   onPress: () => void;
 }
 
+/** Cartão de negócio no funil que mostra título, valor, contato, empresa e prazos, com destaque visual para ganho/perdido. */
 export function FunnelDealCard({ deal, contactName, onPress }: Props) {
   const days  = daysAgo(deal.createdAt);
   const isWon = deal.stage === 'closed_won';

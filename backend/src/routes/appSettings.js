@@ -3,7 +3,7 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { resolveScope } = require('../middleware/acl');
 
-// GET /api/settings
+// GET /api/settings — retorna todas as configurações, com as da empresa sobrepondo as globais
 router.get('/', auth, resolveScope, async (req, res) => {
   try {
     const companyId = req.scope.companyId;
@@ -24,7 +24,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/settings/:key
+// GET /api/settings/:key — retorna o valor de uma configuração (preferindo a da empresa)
 router.get('/:key', auth, resolveScope, async (req, res) => {
   try {
     const companyId = req.scope.companyId;
@@ -40,7 +40,7 @@ router.get('/:key', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PUT /api/settings/:key
+// PUT /api/settings/:key — cria ou atualiza (upsert) o valor de uma configuração da empresa
 router.put('/:key', auth, resolveScope, async (req, res) => {
   const { value } = req.body;
   if (value === undefined) return res.status(400).json({ error: 'value required' });

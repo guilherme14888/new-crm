@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ViewProps } from 'react-native';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 
+/** Container visual em forma de cartão (fundo branco, cantos arredondados e sombra) que envolve os filhos. */
 export function Card({ children, style, ...props }: ViewProps) {
   return (
     <View style={[styles.card, style]} {...props}>

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS, FONTS, SPACING } from '../../src/constants/theme';
 
+/** Tela de Relatórios (placeholder): exibe estado vazio indicando que análises e métricas estão em desenvolvimento. */
 export default function ReportsScreen() {
   return (
     <View style={styles.screen}>

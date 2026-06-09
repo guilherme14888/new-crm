@@ -59,6 +59,7 @@ let lastFetch   = 0;
 let inFlight    = null;
 const TTL_MS    = 24 * 60 * 60 * 1000; // 24h
 
+// Busca a lista de municípios na API pública do IBGE (com timeout via AbortController)
 async function fetchCitiesFromIBGE() {
   const url = 'https://servicos.ibge.gov.br/api/v1/localidades/municipios';
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -77,6 +78,7 @@ async function fetchCitiesFromIBGE() {
   } finally { if (t) clearTimeout(t); }
 }
 
+// Garante o cache de cidades, revalidando após o TTL e deduplicando chamadas concorrentes (com fallback estático)
 async function ensureCities() {
   const now = Date.now();
   if (citiesCache && (now - lastFetch) <= TTL_MS) return citiesCache;
@@ -100,6 +102,7 @@ async function ensureCities() {
 // Pre-warm at module load so the first user doesn't pay the IBGE round-trip
 ensureCities().catch(() => {});
 
+// GET /api/locations/cities — retorna a lista de cidades brasileiras (cacheada do IBGE)
 router.get('/cities', auth, async (_req, res) => {
   const list = await ensureCities();
   res.json(list);

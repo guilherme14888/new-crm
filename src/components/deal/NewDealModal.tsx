@@ -18,6 +18,7 @@ interface NewContactForm {
   firstName: string; lastName: string; email: string; phone: string; company: string;
 }
 
+/** Seletor de órgão/contato: busca na lista, exibe o selecionado e abre modal aninhado para criar um novo. */
 function ContactPicker({
   contacts, selectedId, onSelect, onCreateContact,
 }: {
@@ -42,6 +43,7 @@ function ContactPicker({
     );
   }, [contacts, search]);
 
+  // Valida nome/sobrenome, cria o contato via onCreateContact e fecha/limpa o formulário.
   const handleCreate = async () => {
     if (!form.firstName.trim() || !form.lastName.trim()) return;
     setCreating(true);
@@ -165,6 +167,7 @@ const cp = StyleSheet.create({
 
 // ─── New Deal Modal ───────────────────────────────────────────────────────────
 // ─── Reusable dropdown select ─────────────────────────────────────────────────
+/** Dropdown reutilizável: abre um flyout com a lista de itens (com cor opcional) e dispara onSelect na escolha. */
 function DropdownSelect({ label, items, selectedId, onSelect, placeholder }: {
   label: string;
   items: { id: string; name: string; color?: string }[];
@@ -224,6 +227,7 @@ const ds = StyleSheet.create({
   itemTxtActive:{ color: '#1e3a5f', fontWeight: '700' },
 });
 
+/** Modal de criação de negociação: formulário com título, valor, funil, etapa, observações, empresa (master) e órgão. */
 export function NewDealModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const createDeal    = useDealStore((s) => s.createDeal);
   const activeFunnelId = useFunnelStore((s) => s.activeFunnelId);
@@ -273,6 +277,7 @@ export function NewDealModal({ visible, onClose }: { visible: boolean; onClose: 
     setStageId(firstActive?.id ?? '');
   };
 
+  // Valida os campos obrigatórios (título e órgão) e retorna o mapa de erros.
   const validate = () => {
     const e: Record<string, string> = {};
     if (!title.trim()) e.title = 'Título é obrigatório';
@@ -280,6 +285,7 @@ export function NewDealModal({ visible, onClose }: { visible: boolean; onClose: 
     return e;
   };
 
+  // Cria um novo contato (tipo lead) a partir do formulário e o seleciona para a negociação.
   const handleCreateContact = async (form: NewContactForm) => {
     const contact = await createContact({
       firstName: form.firstName.trim(), lastName: form.lastName.trim(),
@@ -290,6 +296,7 @@ export function NewDealModal({ visible, onClose }: { visible: boolean; onClose: 
     setContactId(contact.id);
   };
 
+  // Valida e cria a negociação via createDeal com os dados do formulário, fechando o modal ao final.
   const handleCreate = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }

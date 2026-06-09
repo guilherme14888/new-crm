@@ -21,6 +21,7 @@ export const useProductStore = create<ProductState>((set) => ({
   dealProducts: [],
   isLoading: false,
 
+  /** Carrega o catálogo de produtos da API. */
   loadCatalog: async () => {
     set({ isLoading: true });
     try {
@@ -33,6 +34,7 @@ export const useProductStore = create<ProductState>((set) => ({
     }
   },
 
+  /** Carrega os produtos vinculados a uma negociação. */
   loadDealProducts: async (dealId) => {
     try {
       const dealProducts = await apiFetch<DealProduct[]>(`/api/products/deal/${dealId}`);
@@ -42,6 +44,7 @@ export const useProductStore = create<ProductState>((set) => ({
     }
   },
 
+  /** Cria um produto no catálogo e o adiciona ao estado. */
   createProduct: async (data) => {
     try {
       const product = await apiFetch<Product>('/api/products', { method: 'POST', body: JSON.stringify(data) });
@@ -51,6 +54,7 @@ export const useProductStore = create<ProductState>((set) => ({
     }
   },
 
+  /** Atualiza um produto do catálogo e aplica o patch ao estado. */
   updateProduct: async (id, patch) => {
     try {
       await apiFetch(`/api/products/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
@@ -60,6 +64,7 @@ export const useProductStore = create<ProductState>((set) => ({
     }
   },
 
+  /** Exclui um produto do catálogo e o remove do estado. */
   deleteProduct: async (id) => {
     try {
       await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
@@ -69,6 +74,7 @@ export const useProductStore = create<ProductState>((set) => ({
     }
   },
 
+  /** Vincula um produto a uma negociação e o adiciona à lista de produtos da negociação. */
   addProductToDeal: async (dealId, data) => {
     try {
       const dp = await apiFetch<DealProduct>(`/api/products/deal/${dealId}`, { method: 'POST', body: JSON.stringify(data) });
@@ -78,6 +84,7 @@ export const useProductStore = create<ProductState>((set) => ({
     }
   },
 
+  /** Remove o vínculo de um produto com uma negociação e o tira da lista. */
   removeProductFromDeal: async (dealId, dealProductId) => {
     try {
       await apiFetch(`/api/products/deal/${dealId}/${dealProductId}`, { method: 'DELETE' });

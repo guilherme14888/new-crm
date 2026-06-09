@@ -7,6 +7,7 @@ interface InputProps extends TextInputProps {
   error?: string;
 }
 
+/** Campo de texto com rótulo opcional e exibição de mensagem de erro, repassando demais props ao TextInput. */
 export function Input({ label, error, style, ...props }: InputProps) {
   return (
     <View style={styles.container}>

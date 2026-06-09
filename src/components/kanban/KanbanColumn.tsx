@@ -29,6 +29,7 @@ interface Props {
   isDragTarget: boolean;
 }
 
+/** Coluna de uma etapa do funil no Kanban: cabeçalho com total, contador e lista de cartões; reporta seus limites para o drag-and-drop. */
 export function KanbanColumn({
   stage,
   deals,
@@ -45,6 +46,7 @@ export function KanbanColumn({
   const typeIcon = stage.type === 'won' ? '✓' : stage.type === 'lost' ? '✗' : '';
 
   const colRef = useRef<View>(null);
+  // Retorna os limites atuais (x e largura) da coluna na web via getBoundingClientRect; null em outras plataformas.
   const getLiveBounds = (): { x: number; width: number } | null => {
     if (Platform.OS !== 'web') return null;
     const el = colRef.current as any;

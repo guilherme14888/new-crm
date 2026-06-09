@@ -3,6 +3,7 @@ import { Contact, ContactType } from '../types/models';
 import { generateId } from '../utils/id';
 import { now } from '../utils/date';
 
+/** Converte uma linha do banco em um objeto Contact tipado. */
 function rowToContact(row: Record<string, unknown>): Contact {
   return {
     id: row.id as string,
@@ -23,6 +24,7 @@ function rowToContact(row: Record<string, unknown>): Contact {
   };
 }
 
+/** Retorna todos os contatos não excluídos, ordenados por nome. */
 export async function getAllContacts(): Promise<Contact[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -31,6 +33,7 @@ export async function getAllContacts(): Promise<Contact[]> {
   return rows.map(rowToContact);
 }
 
+/** Busca um contato pelo id, retornando null se não existir. */
 export async function getContactById(id: string): Promise<Contact | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<Record<string, unknown>>(
@@ -39,6 +42,7 @@ export async function getContactById(id: string): Promise<Contact | null> {
   return row ? rowToContact(row) : null;
 }
 
+/** Pesquisa contatos por nome, e-mail ou empresa, escapando curingas LIKE. */
 export async function searchContacts(query: string): Promise<Contact[]> {
   const db = await getDatabase();
   const escaped = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
@@ -52,6 +56,7 @@ export async function searchContacts(query: string): Promise<Contact[]> {
   return rows.map(rowToContact);
 }
 
+/** Cria um novo contato gerando id, timestamps e status de sincronização pendente. */
 export async function createContact(
   data: Omit<Contact, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'deletedAt'>
 ): Promise<Contact> {
@@ -74,6 +79,7 @@ export async function createContact(
   return contact;
 }
 
+/** Atualiza campos do contato (apenas os informados) e marca para sincronização. */
 export async function updateContact(id: string, patch: Partial<Contact>): Promise<void> {
   const db = await getDatabase();
   const updated = now();
@@ -88,6 +94,7 @@ export async function updateContact(id: string, patch: Partial<Contact>): Promis
   );
 }
 
+/** Exclusão lógica do contato (define deleted_at) e marca para sincronização. */
 export async function deleteContact(id: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(

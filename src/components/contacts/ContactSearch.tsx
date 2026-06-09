@@ -8,6 +8,7 @@ interface Props {
   placeholder?: string;
 }
 
+/** Campo de busca de contatos: TextInput estilizado controlado por value/onChangeText, com placeholder configurável. */
 export function ContactSearch({ value, onChangeText, placeholder = 'Search contacts...' }: Props) {
   return (
     <View style={styles.container}>

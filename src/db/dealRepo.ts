@@ -3,6 +3,7 @@ import { Deal, DealStage } from '../types/models';
 import { generateId } from '../utils/id';
 import { now } from '../utils/date';
 
+/** Converte uma linha do banco em um objeto Deal tipado, aplicando padrões. */
 function rowToDeal(row: Record<string, unknown>): Deal {
   return {
     id: row.id as string,
@@ -15,6 +16,7 @@ function rowToDeal(row: Record<string, unknown>): Deal {
     currency: (row.currency as string) ?? 'BRL',
     stage: row.stage as DealStage,
     stageOrder: row.stage_order as number,
+    stageChangedAt: (row.stage_changed_at as string | null) ?? null,
     probability: row.probability as number,
     expectedCloseDate: (row.expected_close_date as string | null) ?? null,
     closingReason: (row.closing_reason as string | null) ?? null,
@@ -26,6 +28,7 @@ function rowToDeal(row: Record<string, unknown>): Deal {
   };
 }
 
+/** Retorna todos os negócios não excluídos, ordenados por estágio e ordem. */
 export async function getAllDeals(): Promise<Deal[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -34,6 +37,7 @@ export async function getAllDeals(): Promise<Deal[]> {
   return rows.map(rowToDeal);
 }
 
+/** Busca um negócio pelo id, retornando null se não existir. */
 export async function getDealById(id: string): Promise<Deal | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<Record<string, unknown>>(
@@ -42,6 +46,7 @@ export async function getDealById(id: string): Promise<Deal | null> {
   return row ? rowToDeal(row) : null;
 }
 
+/** Retorna os negócios não excluídos de um contato, mais recentes primeiro. */
 export async function getDealsByContact(contactId: string): Promise<Deal[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -51,8 +56,9 @@ export async function getDealsByContact(contactId: string): Promise<Deal[]> {
   return rows.map(rowToDeal);
 }
 
+/** Cria um negócio calculando a próxima ordem no estágio e marcando para sincronização. */
 export async function createDeal(
-  data: Omit<Deal, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'deletedAt' | 'stageOrder'>
+  data: Omit<Deal, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus' | 'deletedAt' | 'stageOrder' | 'stageChangedAt'>
 ): Promise<Deal> {
   const db = await getDatabase();
   const stageKey = data.stageId || data.stage;
@@ -65,6 +71,7 @@ export async function createDeal(
     ...data,
     id: generateId(),
     stageOrder,
+    stageChangedAt: null,
     createdAt: now(),
     updatedAt: now(),
     syncStatus: 'pending_push',
@@ -87,6 +94,7 @@ export async function createDeal(
   return deal;
 }
 
+/** Atualiza campos do negócio (apenas os informados) e marca para sincronização. */
 export async function updateDeal(id: string, patch: Partial<Deal>): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
@@ -113,6 +121,7 @@ export async function updateDeal(id: string, patch: Partial<Deal>): Promise<void
   );
 }
 
+/** Move o negócio para outro estágio/ordem (drag-and-drop) e marca para sincronização. */
 export async function moveDeal(id: string, newStage: DealStage, newOrder: number, newStageId?: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
@@ -121,6 +130,7 @@ export async function moveDeal(id: string, newStage: DealStage, newOrder: number
   );
 }
 
+/** Exclusão lógica do negócio (define deleted_at) e marca para sincronização. */
 export async function deleteDeal(id: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
@@ -129,6 +139,7 @@ export async function deleteDeal(id: string): Promise<void> {
   );
 }
 
+/** Renumera sequencialmente a ordem dos negócios de um estágio (1, 2, 3...). */
 export async function rebalanceStageOrder(stageId: string): Promise<void> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<{ id: string }>(

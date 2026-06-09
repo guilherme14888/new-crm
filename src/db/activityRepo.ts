@@ -3,6 +3,7 @@ import { Activity, ActivityType } from '../types/models';
 import { generateId } from '../utils/id';
 import { now } from '../utils/date';
 
+/** Converte uma linha do banco em um objeto Activity tipado. */
 function rowToActivity(row: Record<string, unknown>): Activity {
   return {
     id: row.id as string,
@@ -18,6 +19,7 @@ function rowToActivity(row: Record<string, unknown>): Activity {
   };
 }
 
+/** Retorna as atividades de um contato, mais recentes primeiro, limitadas por `limit`. */
 export async function getActivitiesByContact(contactId: string, limit = 50): Promise<Activity[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -27,6 +29,7 @@ export async function getActivitiesByContact(contactId: string, limit = 50): Pro
   return rows.map(rowToActivity);
 }
 
+/** Retorna todas as atividades de um negócio, mais recentes primeiro. */
 export async function getActivitiesByDeal(dealId: string): Promise<Activity[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -36,6 +39,7 @@ export async function getActivitiesByDeal(dealId: string): Promise<Activity[]> {
   return rows.map(rowToActivity);
 }
 
+/** Retorna as atividades mais recentes do sistema, limitadas por `limit`. */
 export async function getRecentActivities(limit = 20): Promise<Activity[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -45,6 +49,7 @@ export async function getRecentActivities(limit = 20): Promise<Activity[]> {
   return rows.map(rowToActivity);
 }
 
+/** Cria uma nova atividade gerando id, timestamp e status de sincronização pendente. */
 export async function createActivity(
   data: Omit<Activity, 'id' | 'createdAt' | 'syncStatus'>
 ): Promise<Activity> {

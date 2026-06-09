@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, Pressable } from 'react-native';
 import { useActivityStore } from '../../../stores/activityStore';
+import { Activity } from '../../../types/models';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../constants/theme';
 
 const ICONS: Record<string, string> = {
@@ -9,12 +10,14 @@ const ICONS: Record<string, string> = {
 
 interface Props { dealId: string; contactId: string; }
 
+/** Aba de histórico da negociação: linha do tempo de atividades e formulário para adicionar anotações. */
 export function DealHistoryTab({ dealId, contactId }: Props) {
   const { getByDeal, createActivity } = useActivityStore();
-  const [activities, setActivities] = useState<ReturnType<typeof getByDeal>>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [note, setNote] = useState('');
   const [adding, setAdding] = useState(false);
 
+  // Carrega as atividades da negociação no estado local.
   const load = async () => {
     const data = await getByDeal(dealId);
     setActivities(data);
@@ -22,6 +25,7 @@ export function DealHistoryTab({ dealId, contactId }: Props) {
 
   useEffect(() => { load(); }, [dealId]);
 
+  // Cria uma atividade do tipo nota com o texto digitado e recarrega a lista.
   const handleAddNote = async () => {
     if (!note.trim()) return;
     await createActivity({

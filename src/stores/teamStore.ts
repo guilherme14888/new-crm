@@ -42,6 +42,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
   teamMembers: {},
   isLoading: false,
 
+  /** Carrega a lista de equipes da API e atualiza o estado. */
   loadTeams: async () => {
     set({ isLoading: true });
     try {
@@ -54,6 +55,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     }
   },
 
+  /** Cria uma nova equipe e a adiciona ao estado; retorna a equipe ou null em erro. */
   createTeam: async (data) => {
     try {
       const team = await apiFetch<Team>('/api/teams', { method: 'POST', body: JSON.stringify(data) });
@@ -65,6 +67,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     }
   },
 
+  /** Atualiza nome, descrição ou cor de uma equipe e reflete a mudança no estado. */
   updateTeam: async (id, patch) => {
     try {
       await apiFetch(`/api/teams/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
@@ -74,6 +77,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     }
   },
 
+  /** Exclui uma equipe e a remove do estado. */
   deleteTeam: async (id) => {
     try {
       await apiFetch(`/api/teams/${id}`, { method: 'DELETE' });
@@ -83,6 +87,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     }
   },
 
+  /** Carrega os membros de uma equipe e os armazena indexados por teamId. */
   loadMembers: async (teamId) => {
     try {
       const members = await apiFetch<TeamMember[]>(`/api/teams/${teamId}/members`);
@@ -92,6 +97,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     }
   },
 
+  /** Adiciona um usuário a uma equipe, incrementa o contador de membros e retorna o membro criado. */
   addMember: async (teamId, userId, role = 'member') => {
     try {
       const member = await apiFetch<TeamMember>(`/api/teams/${teamId}/members`, {
@@ -109,6 +115,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     }
   },
 
+  /** Remove um usuário de uma equipe e decrementa o contador de membros. */
   removeMember: async (teamId, userId) => {
     try {
       await apiFetch(`/api/teams/${teamId}/members/${userId}`, { method: 'DELETE' });
@@ -124,6 +131,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     }
   },
 
+  /** Atualiza o papel (role) de um membro dentro de uma equipe. */
   updateMemberRole: async (teamId, userId, role) => {
     try {
       await apiFetch(`/api/teams/${teamId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) });

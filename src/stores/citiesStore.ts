@@ -22,6 +22,7 @@ export const useCitiesStore = create<CitiesState>((set, get) => ({
   loaded: false,
   loading: false,
   error: null,
+  // Carrega a lista estática de municípios no estado uma única vez (idempotente).
   load: async () => {
     if (get().loaded) return;
     set({ cities: ALL_CITIES_BR, loaded: true, loading: false });

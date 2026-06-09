@@ -20,6 +20,7 @@ export const useCustomFieldStore = create<CustomFieldState>((set, get) => ({
   dealValues: {},
   isLoading: false,
 
+  /** Carrega as definições de campos personalizados da API. */
   loadFields: async () => {
     set({ isLoading: true });
     try {
@@ -32,6 +33,7 @@ export const useCustomFieldStore = create<CustomFieldState>((set, get) => ({
     }
   },
 
+  /** Carrega os valores dos campos personalizados de uma negociação como mapa fieldId -> valor. */
   loadDealValues: async (dealId) => {
     try {
       const values = await apiFetch<DealCustomValue[]>(`/api/custom-fields/values/${dealId}`);
@@ -43,6 +45,7 @@ export const useCustomFieldStore = create<CustomFieldState>((set, get) => ({
     }
   },
 
+  /** Persiste os valores de campos personalizados de uma negociação e atualiza o mapa local. */
   saveDealValues: async (dealId, values) => {
     try {
       await apiFetch(`/api/custom-fields/values/${dealId}`, {
@@ -57,6 +60,7 @@ export const useCustomFieldStore = create<CustomFieldState>((set, get) => ({
     }
   },
 
+  /** Cria uma nova definição de campo personalizado e a adiciona ao estado. */
   createField: async (data) => {
     try {
       const field = await apiFetch<CustomField>('/api/custom-fields', { method: 'POST', body: JSON.stringify(data) });
@@ -66,6 +70,7 @@ export const useCustomFieldStore = create<CustomFieldState>((set, get) => ({
     }
   },
 
+  /** Atualiza uma definição de campo personalizado e aplica o patch ao estado. */
   updateField: async (id, patch) => {
     try {
       await apiFetch(`/api/custom-fields/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
@@ -75,6 +80,7 @@ export const useCustomFieldStore = create<CustomFieldState>((set, get) => ({
     }
   },
 
+  /** Exclui uma definição de campo personalizado e a remove do estado. */
   deleteField: async (id) => {
     try {
       await apiFetch(`/api/custom-fields/${id}`, { method: 'DELETE' });

@@ -3,6 +3,7 @@ import { ALL_SCHEMA_STATEMENTS, ALL_SEED_STATEMENTS } from './schema';
 
 let db: import('expo-sqlite').SQLiteDatabase | null = null;
 
+/** Abre (uma única vez) o banco SQLite local, roda as migrations e retorna a instância em cache; indisponível na web. */
 export async function getDatabase(): Promise<import('expo-sqlite').SQLiteDatabase> {
   if (db) return db;
   if (Platform.OS === 'web') throw new Error('SQLite not available on web');
@@ -12,6 +13,7 @@ export async function getDatabase(): Promise<import('expo-sqlite').SQLiteDatabas
   return db;
 }
 
+/** Cria as tabelas/índices, aplica ALTERs idempotentes em deals e insere os dados de seed. */
 async function runMigrations(database: import('expo-sqlite').SQLiteDatabase): Promise<void> {
   await database.execAsync(`PRAGMA journal_mode = WAL;`);
   for (const statement of ALL_SCHEMA_STATEMENTS) {

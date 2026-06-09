@@ -18,6 +18,7 @@ const router = require('express').Router();
 const db     = require('../db');
 const finance = require('./finance');
 
+// Middleware que valida a chave compartilhada do webhook via header X-Webhook-Secret (liberado em dev sem secret)
 function checkSecret(req, res, next) {
   const expected = process.env.PAYMENT_WEBHOOK_SECRET;
   if (!expected) {

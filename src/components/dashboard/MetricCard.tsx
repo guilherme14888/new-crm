@@ -10,6 +10,7 @@ interface Props {
   accent?: string;
 }
 
+/** Cartão de métrica do dashboard que exibe um rótulo, um valor em destaque (com cor de acento) e um subtítulo opcional. */
 export function MetricCard({ label, value, sub, accent = COLORS.primary }: Props) {
   return (
     <Card style={styles.card}>

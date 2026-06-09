@@ -17,6 +17,7 @@ interface Props {
   onPress: () => void;
 }
 
+/** Item de lista de contato pressionável com avatar, nome, empresa e badge colorido conforme o tipo do contato. */
 export function ContactListItem({ contact, onPress }: Props) {
   const colors = TYPE_COLORS[contact.type] ?? TYPE_COLORS.lead;
   return (

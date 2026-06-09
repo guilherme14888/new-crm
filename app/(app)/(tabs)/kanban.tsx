@@ -11,6 +11,7 @@ import { PIPELINE_STAGES } from '../../../src/constants/pipeline';
 import { DealStage } from '../../../src/types/models';
 import { COLORS, SPACING, FONTS } from '../../../src/constants/theme';
 
+/** Quadro Kanban: renderiza uma coluna por etapa do pipeline com os negócios da etapa e cuida do arraste (drag) entre colunas. */
 function KanbanBoard() {
   const { dealsByStage, deals } = useDeals();
   const contacts = useContactStore((s) => s.contacts);
@@ -31,7 +32,7 @@ function KanbanBoard() {
       {PIPELINE_STAGES.map((stage) => (
         <KanbanColumn
           key={stage.key}
-          stage={stage}
+          stage={stage as any}  /* config estática legada (StageConfig) — mantida como está */
           deals={dealsByStage[stage.key] ?? []}
           contactNames={contactNames}
           onDragStart={onDragStart}
@@ -46,6 +47,7 @@ function KanbanBoard() {
   );
 }
 
+/** Tela do Kanban: carrega negócios/contatos, provê o contexto de arraste e exibe o quadro com um botão flutuante para novo negócio. */
 export default function KanbanScreen() {
   const loadDeals = useDealStore((s) => s.loadDeals);
   const loadContacts = useContactStore((s) => s.loadContacts);
@@ -56,6 +58,7 @@ export default function KanbanScreen() {
     loadContacts();
   }, []);
 
+  // Retorna o id do contato associado a um negócio (usado pelo contexto de arraste).
   const contactIdForDeal = useCallback(
     (dealId: string) => deals.find((d) => d.id === dealId)?.contactId ?? '',
     [deals]

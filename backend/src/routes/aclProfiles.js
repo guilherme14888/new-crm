@@ -4,6 +4,7 @@ const auth   = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 const { resolveScope, requireRole } = require('../middleware/acl');
 
+// Formata uma linha de perfil de ACL para a API, anexando os funis vinculados
 function fmtProfile(r, funnelIds = []) {
   let permissions = r.permissions;
   if (typeof permissions === 'string') permissions = JSON.parse(permissions);
@@ -23,7 +24,7 @@ function fmtProfile(r, funnelIds = []) {
   };
 }
 
-// GET /api/acl-profiles
+// GET /api/acl-profiles — lista os perfis de ACL da empresa e os perfis de sistema
 router.get('/', auth, resolveScope, async (req, res) => {
   try {
     const companyId = req.scope.companyId;
@@ -47,7 +48,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/acl-profiles
+// POST /api/acl-profiles — cria um perfil de ACL com permissões e funis (admin/manager)
 router.post('/', auth, resolveScope, requireRole('admin', 'manager'), async (req, res) => {
   const { name, description, level = 1, color = '#64748b', permissions, funnelIds = [] } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
@@ -68,7 +69,7 @@ router.post('/', auth, resolveScope, requireRole('admin', 'manager'), async (req
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/acl-profiles/:id
+// PATCH /api/acl-profiles/:id — atualiza um perfil de ACL e seus funis vinculados (admin/manager)
 router.patch('/:id', auth, resolveScope, requireRole('admin', 'manager'), async (req, res) => {
   const { name, description, level, color, permissions, funnelIds } = req.body;
   const sets = [], vals = [];
@@ -96,7 +97,7 @@ router.patch('/:id', auth, resolveScope, requireRole('admin', 'manager'), async 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/acl-profiles/:id
+// DELETE /api/acl-profiles/:id — exclui um perfil de ACL (exceto perfis de sistema) e desvincula usuários (admin/manager)
 router.delete('/:id', auth, resolveScope, requireRole('admin', 'manager'), async (req, res) => {
   const [existing] = await db.query(`SELECT * FROM acl_profiles WHERE id = ?`, [req.params.id]);
   if (!existing.length) return res.status(404).json({ error: 'Profile not found' });

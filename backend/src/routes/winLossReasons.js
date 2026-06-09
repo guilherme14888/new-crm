@@ -3,6 +3,7 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
 
+/** Formata uma linha da tabela win_loss_reasons (snake_case) para o objeto da API (camelCase). */
 function fmt(row) {
   return {
     id: row.id, type: row.type, label: row.label,

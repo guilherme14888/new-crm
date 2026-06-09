@@ -24,18 +24,22 @@ const TABLES = {
   produtos:       'company_produtos',
 };
 
+/** Serializa uma linha de catálogo (id, name) para o formato JSON da API. */
 function fmt(r) {
   return { id: r.id, name: r.name, createdAt: r.created_at, updatedAt: r.updated_at };
 }
 
+/** Cria os handlers CRUD (list/create/update/delete) para a tabela de catálogo informada. */
 function makeHandlers(table) {
   return {
+    // GET — lista todos os registros do catálogo ordenados por nome
     list: async (_req, res) => {
       try {
         const [rows] = await db.query(`SELECT * FROM ${table} ORDER BY name`);
         res.json(rows.map(fmt));
       } catch (e) { res.status(500).json({ error: e.message }); }
     },
+    // POST — cria um novo registro no catálogo
     create: async (req, res) => {
       const { name } = req.body;
       if (!name || !name.trim()) return res.status(400).json({ error: 'name é obrigatório' });
@@ -49,6 +53,7 @@ function makeHandlers(table) {
         res.status(500).json({ error: e.message });
       }
     },
+    // PATCH — renomeia um registro do catálogo
     update: async (req, res) => {
       const { name } = req.body;
       if (!name || !name.trim()) return res.status(400).json({ error: 'name é obrigatório' });
@@ -62,6 +67,7 @@ function makeHandlers(table) {
         res.status(500).json({ error: e.message });
       }
     },
+    // DELETE — remove um registro do catálogo
     delete: async (req, res) => {
       try {
         await db.query(`DELETE FROM ${table} WHERE id = ?`, [req.params.id]);
@@ -71,6 +77,7 @@ function makeHandlers(table) {
   };
 }
 
+// Registra as rotas CRUD (/<catálogo> e /<catálogo>/:id) para cada catálogo do whitelist, exigindo admin
 for (const [path, table] of Object.entries(TABLES)) {
   const h = makeHandlers(table);
   router.get(`/${path}`,        auth, requireAdmin, h.list);

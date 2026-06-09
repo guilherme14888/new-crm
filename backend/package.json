@@ -5,7 +5,10 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "dev": "nodemon src/app.js",
+    "ingest": "node src/jobs/ingest.js",
+    "ingest:pncp": "node src/jobs/ingest.js --portal pncp",
+    "ingest:catchup": "node src/jobs/ingest.js --catchup"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

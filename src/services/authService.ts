@@ -8,11 +8,13 @@ type AuthUserResponse = {
   displayName: string;
   avatarUrl: string | null;
   role: User['role'];
+  aclProfileId?: string | null;
   companyId: string;
   companyName: string | null;
   teamId: string | null;
 };
 
+/** Converte a resposta de usuário da API de autenticação para o modelo User do frontend. */
 function mapUser(u: AuthUserResponse): User {
   return {
     id: u.id,
@@ -20,12 +22,14 @@ function mapUser(u: AuthUserResponse): User {
     displayName: u.displayName,
     avatarUrl: u.avatarUrl,
     role: u.role,
+    aclProfileId: u.aclProfileId ?? null,
     companyId: u.companyId,
     companyName: u.companyName ?? null,
     teamId: u.teamId ?? null,
   };
 }
 
+/** Autentica o usuário, persiste o token e atualiza o authStore (tratando loading/erro). */
 export async function signIn(email: string, password: string): Promise<void> {
   const store = useAuthStore.getState();
   store.setLoading(true);
@@ -45,11 +49,33 @@ export async function signIn(email: string, password: string): Promise<void> {
   }
 }
 
+/** Cria uma nova conta (POST /api/auth/register), persiste o token e atualiza o authStore. */
+export async function signUp(email: string, password: string, displayName: string): Promise<void> {
+  const store = useAuthStore.getState();
+  store.setLoading(true);
+  store.setError(null);
+  try {
+    const data = await apiFetch<{ token: string; user: AuthUserResponse }>(
+      '/api/auth/register',
+      { method: 'POST', body: JSON.stringify({ email, password, displayName }) }
+    );
+    await tokenStorage.set(data.token);
+    store.setUser(mapUser(data.user));
+  } catch (e: unknown) {
+    store.setError(e instanceof Error ? e.message : 'Falha no cadastro');
+    throw e;
+  } finally {
+    store.setLoading(false);
+  }
+}
+
+/** Limpa o token armazenado e o estado de autenticação. */
 export async function signOut(): Promise<void> {
   await tokenStorage.clear();
   useAuthStore.getState().clearAuth();
 }
 
+/** Busca o usuário autenticado atual, retornando null em caso de falha. */
 export async function fetchCurrentUser(): Promise<User | null> {
   try {
     const user = await apiFetch<AuthUserResponse>('/api/auth/me');

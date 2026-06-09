@@ -28,6 +28,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'proposals', label: 'Propostas' },
 ];
 
+/** Tela de detalhe da negociação: cabeçalho, etapas, painel lateral e abas (histórico, tarefas, produtos, etc.). */
 export default function DealDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const deals = useDealStore((s) => s.deals);
@@ -48,6 +49,7 @@ export default function DealDetailScreen() {
     if (found) setLocalDeal(found);
   }, [id, deals]);
 
+  /** Aplica atualização otimista no estado local e persiste a alteração da negociação. */
   const handleUpdate = async (patch: Partial<Deal>) => {
     if (!deal) return;
     setLocalDeal((prev) => prev ? { ...prev, ...patch } : prev);
@@ -62,6 +64,7 @@ export default function DealDetailScreen() {
     );
   }
 
+  /** Retorna o componente da aba atualmente selecionada. */
   const tabContent = () => {
     switch (activeTab) {
       case 'history':   return <DealHistoryTab dealId={deal.id} contactId={deal.contactId} />;

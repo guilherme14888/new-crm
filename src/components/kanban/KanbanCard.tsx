@@ -17,6 +17,7 @@ interface Props {
   isFloating?: boolean;
 }
 
+/** Cartão de negociação do Kanban: exibe título, valor, contato e empresa, com gestos de arrastar e tocar. */
 export function KanbanCard({
   deal,
   contactName,

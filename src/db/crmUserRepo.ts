@@ -3,6 +3,7 @@ import { CRMUser } from '../types/models';
 import { generateId } from '../utils/id';
 import { now } from '../utils/date';
 
+/** Converte uma linha do banco em um objeto CRMUser tipado. */
 function rowToUser(r: Record<string, unknown>): CRMUser {
   return {
     id: r.id as string,
@@ -10,6 +11,7 @@ function rowToUser(r: Record<string, unknown>): CRMUser {
     displayName: r.display_name as string,
     avatarUrl: (r.avatar_url as string | null) ?? null,
     role: (r.role as CRMUser['role']) ?? 'consultant',
+    aclProfileId: (r.acl_profile_id as string | null) ?? null,
     companyId:   (r.company_id as string | null) ?? '',
     companyName: null,
     teamId:      (r.team_id as string | null) ?? null,
@@ -19,6 +21,7 @@ function rowToUser(r: Record<string, unknown>): CRMUser {
   };
 }
 
+/** Retorna todos os usuários do CRM ordenados por nome de exibição. */
 export async function getAllCRMUsers(): Promise<CRMUser[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -27,6 +30,7 @@ export async function getAllCRMUsers(): Promise<CRMUser[]> {
   return rows.map(rowToUser);
 }
 
+/** Busca um usuário do CRM pelo id, retornando null se não existir. */
 export async function getCRMUserById(id: string): Promise<CRMUser | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<Record<string, unknown>>(
@@ -35,6 +39,7 @@ export async function getCRMUserById(id: string): Promise<CRMUser | null> {
   return row ? rowToUser(row) : null;
 }
 
+/** Cria um novo usuário do CRM ativo, gerando id e timestamp. */
 export async function createCRMUser(data: Pick<CRMUser, 'email' | 'displayName' | 'role' | 'avatarUrl'>): Promise<CRMUser> {
   const db = await getDatabase();
   const id = generateId();
@@ -44,13 +49,14 @@ export async function createCRMUser(data: Pick<CRMUser, 'email' | 'displayName' 
      VALUES (?, ?, ?, ?, ?, 1, ?)`,
     [id, data.email, data.displayName, data.avatarUrl ?? null, data.role, ts]
   );
-  return { id, email: data.email, displayName: data.displayName, avatarUrl: data.avatarUrl, role: data.role, companyId: '', companyName: null, teamId: null, isActive: true, createdAt: ts, lastLoginAt: null };
+  return { id, email: data.email, displayName: data.displayName, avatarUrl: data.avatarUrl, role: data.role, aclProfileId: null, companyId: '', companyName: null, teamId: null, isActive: true, createdAt: ts, lastLoginAt: null };
 }
 
+/** Atualiza dinamicamente apenas os campos informados do usuário do CRM. */
 export async function updateCRMUser(id: string, patch: Partial<Pick<CRMUser, 'displayName' | 'role' | 'isActive' | 'avatarUrl'>>): Promise<void> {
   const db = await getDatabase();
   const sets: string[] = [];
-  const vals: unknown[] = [];
+  const vals: (string | number | null)[] = [];
   if (patch.displayName !== undefined) { sets.push('display_name = ?'); vals.push(patch.displayName); }
   if (patch.role !== undefined)        { sets.push('role = ?');         vals.push(patch.role); }
   if (patch.isActive !== undefined)    { sets.push('is_active = ?');    vals.push(patch.isActive ? 1 : 0); }
@@ -60,6 +66,7 @@ export async function updateCRMUser(id: string, patch: Partial<Pick<CRMUser, 'di
   await db.runAsync(`UPDATE crm_users SET ${sets.join(', ')} WHERE id = ?`, vals);
 }
 
+/** Desativa o usuário do CRM (exclusão lógica via is_active = 0). */
 export async function deleteCRMUser(id: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(`UPDATE crm_users SET is_active = 0 WHERE id = ?`, [id]);

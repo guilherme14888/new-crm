@@ -4,6 +4,7 @@ const auth   = require('../middleware/auth');
 const { resolveScope } = require('../middleware/acl');
 const { v4: uuidv4 } = require('uuid');
 
+/** Formata um registro de tarefa do banco para o objeto de API. */
 function fmt(r) {
   return {
     id: r.id, dealId: r.deal_id, assignedTo: r.assigned_to ?? null,
@@ -13,13 +14,14 @@ function fmt(r) {
   };
 }
 
+/** Verifica se o escopo do usuário tem acesso ao deal (admin/master sempre; demais só da própria empresa). */
 async function verifyDealAccess(scope, dealId) {
   if (scope.isAdmin || scope.isMaster) return true;
   const [rows] = await db.query('SELECT company_id FROM deals WHERE id = ?', [dealId]);
   return rows.length > 0 && rows[0].company_id === scope.companyId;
 }
 
-// GET /api/tasks?dealId=
+// GET /api/tasks?dealId= — lista as tarefas (não excluídas) de um deal, pendentes primeiro
 router.get('/', auth, resolveScope, async (req, res) => {
   try {
     const { dealId } = req.query;
@@ -34,7 +36,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/tasks
+// POST /api/tasks — cria uma nova tarefa atrelada a um deal (requer dealId e title)
 router.post('/', auth, resolveScope, async (req, res) => {
   const { dealId, title, type, dueDate, assignedTo, description } = req.body;
   if (!dealId || !title) return res.status(400).json({ error: 'dealId and title required' });
@@ -51,7 +53,7 @@ router.post('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/tasks/:id
+// PATCH /api/tasks/:id — atualiza campos parciais de uma tarefa (título, descrição, tipo, vencimento, responsável)
 router.patch('/:id', auth, resolveScope, async (req, res) => {
   const map = { title: 'title', description: 'description', type: 'type', dueDate: 'due_date', assignedTo: 'assigned_to' };
   const sets = [], vals = [];
@@ -76,7 +78,7 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/tasks/:id/complete
+// PATCH /api/tasks/:id/complete — marca a tarefa como concluída (define completed_at = agora)
 router.patch('/:id/complete', auth, async (req, res) => {
   try {
     await db.query(`UPDATE tasks SET completed_at = NOW() WHERE id = ?`, [req.params.id]);
@@ -84,7 +86,7 @@ router.patch('/:id/complete', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/tasks/:id/reopen
+// PATCH /api/tasks/:id/reopen — reabre a tarefa concluída (limpa completed_at)
 router.patch('/:id/reopen', auth, async (req, res) => {
   try {
     await db.query(`UPDATE tasks SET completed_at = NULL WHERE id = ?`, [req.params.id]);
@@ -92,7 +94,7 @@ router.patch('/:id/reopen', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/tasks/:id
+// DELETE /api/tasks/:id — exclusão lógica da tarefa (define deleted_at = agora)
 router.delete('/:id', auth, async (req, res) => {
   try {
     await db.query(`UPDATE tasks SET deleted_at = NOW() WHERE id = ?`, [req.params.id]);

@@ -8,6 +8,7 @@ import { useFunnelStore } from '../../../src/stores/funnelStore';
 import { Funnel } from '../../../src/types/models';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
 
+/** Tela de listagem de funis de venda: cards com etapas, ações de padrão/editar/excluir e modal de criação. */
 export default function FunnelsScreen() {
   const { funnels, isLoading, loadFunnels, createFunnel, deleteFunnel, setDefaultFunnel } = useFunnelStore();
   const [showCreate, setShowCreate] = useState(false);
@@ -16,12 +17,14 @@ export default function FunnelsScreen() {
 
   useEffect(() => { loadFunnels(); }, []);
 
+  /** Cria um novo funil a partir do formulário e limpa/fecha o modal. */
   const handleCreate = async () => {
     if (!name.trim()) return;
     await createFunnel({ name: name.trim(), description: description.trim() || undefined });
     setName(''); setDescription(''); setShowCreate(false);
   };
 
+  /** Pede confirmação (web/nativo) e exclui o funil, exceto se for o padrão. */
   const confirmDelete = (funnel: Funnel) => {
     if (funnel.isDefault) return;
     if (Platform.OS === 'web') {

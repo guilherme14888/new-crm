@@ -84,6 +84,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   isLoading: false,
   detail: {},
 
+  /** Carrega as empresas com dados financeiros (admin); ignora erros para não-admins. */
   loadCompanies: async () => {
     set({ isLoading: true });
     try {
@@ -93,6 +94,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     finally { set({ isLoading: false }); }
   },
 
+  /** Carrega o detalhe financeiro de uma empresa (faturas e compras de licença); retorna null em erro. */
   loadDetail: async (companyId) => {
     try {
       const d = await apiFetch<CompanyDetail>(`/api/admin/finance/companies/${companyId}`);
@@ -101,6 +103,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     } catch { return null; }
   },
 
+  /** Atualiza parâmetros de cobrança da empresa e recarrega lista e detalhe. */
   updateBilling: async (companyId, patch) => {
     await apiFetch(`/api/admin/finance/companies/${companyId}`, {
       method: 'PATCH', body: JSON.stringify(patch),
@@ -109,6 +112,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     await get().loadDetail(companyId);
   },
 
+  /** Bloqueia o acesso de uma empresa (com motivo opcional) e recarrega a lista. */
   block: async (companyId, reason) => {
     await apiFetch(`/api/admin/finance/companies/${companyId}/block`, {
       method: 'POST', body: JSON.stringify({ reason: reason ?? 'manual' }),
@@ -116,11 +120,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     await get().loadCompanies();
   },
 
+  /** Desbloqueia o acesso de uma empresa e recarrega a lista. */
   unblock: async (companyId) => {
     await apiFetch(`/api/admin/finance/companies/${companyId}/unblock`, { method: 'POST' });
     await get().loadCompanies();
   },
 
+  /** Cria uma fatura para a empresa, recarrega detalhe e lista, e retorna a fatura criada. */
   createInvoice: async (companyId, data) => {
     const inv = await apiFetch<CompanyInvoice>(`/api/admin/finance/companies/${companyId}/invoices`, {
       method: 'POST', body: JSON.stringify(data),
@@ -130,6 +136,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     return inv;
   },
 
+  /** Atualiza uma fatura e recarrega o detalhe da empresa correspondente e a lista. */
   updateInvoice: async (invoiceId, patch) => {
     const updated = await apiFetch<CompanyInvoice>(`/api/admin/finance/invoices/${invoiceId}`, {
       method: 'PATCH', body: JSON.stringify(patch),
@@ -138,6 +145,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     await get().loadCompanies();
   },
 
+  /** Marca uma fatura como paga (com dados de pagamento opcionais) e recarrega detalhe e lista. */
   payInvoice: async (invoiceId, data) => {
     const updated = await apiFetch<CompanyInvoice>(`/api/admin/finance/invoices/${invoiceId}/pay`, {
       method: 'POST', body: JSON.stringify(data ?? {}),
@@ -146,6 +154,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     await get().loadCompanies();
   },
 
+  /** Registra uma compra de licenças para a empresa, recarrega o detalhe e retorna a compra criada. */
   createLicensePurchase: async (companyId, data) => {
     const lp = await apiFetch<LicensePurchase>(`/api/admin/finance/companies/${companyId}/license-purchases`, {
       method: 'POST', body: JSON.stringify(data),
@@ -154,6 +163,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     return lp;
   },
 
+  /** Confirma o pagamento de uma compra de licenças e recarrega detalhe e lista. */
   confirmLicensePurchase: async (purchaseId, data) => {
     const updated = await apiFetch<LicensePurchase>(`/api/admin/finance/license-purchases/${purchaseId}/confirm`, {
       method: 'POST', body: JSON.stringify(data ?? {}),
