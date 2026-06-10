@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/guilherme14888/crm-br4/compare/v1.1.1...v1.2.0) (2026-06-10)
+
+
+### Features
+
+* paginacao (20/pagina) na Listagem e dashboard de IA mais leve ([1bbaded](https://github.com/guilherme14888/crm-br4/commit/1bbaded28211c7be45f26ee15f0ad3122207b855))
+
 ## [1.1.1](https://github.com/guilherme14888/crm-br4/compare/v1.1.0...v1.1.1) (2026-06-10)
 
 
