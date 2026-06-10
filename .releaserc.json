@@ -9,12 +9,6 @@
       { "changelogFile": "CHANGELOG.md" }
     ],
     [
-      "@semantic-release/exec",
-      {
-        "publishCmd": "docker buildx build --platform linux/amd64 --tag br4licitacoes/sistema:v${nextRelease.version} --tag br4licitacoes/sistema:latest --push ."
-      }
-    ],
-    [
       "@semantic-release/git",
       {
         "assets": ["CHANGELOG.md"],

@@ -1,10 +1,12 @@
 name: Release & Publish
 
 # A cada push na branch principal:
-#   1. semantic-release lê os Conventional Commits e decide a próxima versão
+#   1. semantic-release (dry-run) calcula a PRÓXIMA versão pelos Conventional Commits
 #      (feat→minor, fix/style→patch, BREAKING CHANGE→major). 1º release = v1.0.0.
-#   2. cria a tag git (vX.Y.Z), o GitHub Release e atualiza o CHANGELOG.
-#   3. builda a imagem e publica no DockerHub como br4licitacoes/sistema:vX.Y.Z + :latest.
+#   2. builda e publica a imagem no DockerHub (br4licitacoes/sistema:vX.Y.Z + :latest)
+#      — log completo via docker/build-push-action.
+#   3. só então finaliza o release (tag git vX.Y.Z + GitHub Release + CHANGELOG),
+#      garantindo que um build quebrado NÃO deixe tag órfã.
 #
 # Secrets necessários (Settings → Secrets and variables → Actions):
 #   DOCKERHUB_USERNAME  · usuário/organização do DockerHub
@@ -38,15 +40,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login no DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Instalar semantic-release
         run: >
           npm install --no-save
@@ -54,11 +47,53 @@ jobs:
           @semantic-release/commit-analyzer
           @semantic-release/release-notes-generator
           @semantic-release/changelog
-          @semantic-release/exec
           @semantic-release/git
           @semantic-release/github
 
-      - name: Release (versiona + builda + publica)
+      - name: Calcular próxima versão (dry-run)
+        id: ver
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          npx semantic-release --dry-run > sr.log 2>&1
+          cat sr.log
+          V=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' sr.log | head -1)
+          if [ -n "$V" ]; then
+            echo "released=true"  >> "$GITHUB_OUTPUT"
+            echo "version=$V"     >> "$GITHUB_OUTPUT"
+            echo "→ próxima versão: v$V"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "→ nenhum release necessário para estes commits."
+          fi
+
+      - name: Setup Docker Buildx
+        if: steps.ver.outputs.released == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login no DockerHub
+        if: steps.ver.outputs.released == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push da imagem
+        if: steps.ver.outputs.released == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            br4licitacoes/sistema:v${{ steps.ver.outputs.version }}
+            br4licitacoes/sistema:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Finalizar release (tag + GitHub Release + changelog)
+        if: steps.ver.outputs.released == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
