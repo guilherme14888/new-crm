@@ -251,7 +251,7 @@ export async function apiGetCRMUsers(): Promise<CRMUser[]> {
 /** Atualiza parcialmente um usuário do CRM pelo id. */
 export async function apiUpdateCRMUser(
   id: string,
-  patch: Partial<Pick<CRMUser, 'displayName' | 'role' | 'isActive' | 'avatarUrl'> & { companyId?: string; teamId?: string }>
+  patch: Partial<Pick<CRMUser, 'displayName' | 'role' | 'isActive' | 'avatarUrl'> & { companyId?: string; teamId?: string; aclProfileId?: string; password?: string }>
 ): Promise<void> {
   await apiFetch(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 }

@@ -10,7 +10,7 @@ interface CRMUserState {
 
   loadUsers: () => Promise<void>;
   createUser: (data: Pick<CRMUser, 'email' | 'displayName' | 'role' | 'avatarUrl'> & { password?: string; companyId?: string; teamId?: string; aclProfileId?: string }) => Promise<void>;
-  updateUser: (id: string, patch: Partial<Pick<CRMUser, 'displayName' | 'role' | 'isActive' | 'avatarUrl'> & { companyId?: string; aclProfileId?: string }>) => Promise<void>;
+  updateUser: (id: string, patch: Partial<Pick<CRMUser, 'displayName' | 'role' | 'isActive' | 'avatarUrl'> & { companyId?: string; aclProfileId?: string; password?: string }>) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
 }
 
@@ -63,7 +63,9 @@ export const useCRMUserStore = create<CRMUserState>((set) => ({
         const { updateCRMUser } = await import('../db/crmUserRepo');
         await updateCRMUser(id, patch);
       }
-      set((s) => ({ users: s.users.map((u) => u.id === id ? { ...u, ...patch } : u) }));
+      // a senha não faz parte do estado do usuário — não guardar em memória
+      const { password: _pwd, ...statePatch } = patch as typeof patch & { password?: string };
+      set((s) => ({ users: s.users.map((u) => u.id === id ? { ...u, ...statePatch } : u) }));
     } catch (e: any) {
       useUIStore.getState().showToast(e?.message ?? 'Failed to update user');
       throw e;

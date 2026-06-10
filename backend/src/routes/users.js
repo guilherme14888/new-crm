@@ -148,6 +148,22 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
   if (req.body.companyId !== undefined && !scope.isAdmin)
     return res.status(403).json({ error: 'Sem permissão para alterar empresa' });
 
+  // Redefinição de senha: a própria senha (qualquer papel) ou, para admin/gerente,
+  // a de outros usuários. Bloqueia redefinir a senha de quem tem papel superior.
+  let passwordHash = null;
+  if (req.body.password !== undefined && req.body.password !== '') {
+    if (!isSelf && !['admin', 'manager'].includes(scope.role))
+      return res.status(403).json({ error: 'Sem permissão para alterar a senha' });
+    if (String(req.body.password).length < 8)
+      return res.status(400).json({ error: 'Senha deve ter pelo menos 8 caracteres' });
+    if (!isSelf) {
+      const [tr] = await db.query('SELECT role FROM users WHERE id = ?', [req.params.id]);
+      if (tr.length && !canAssignRole(scope.role, tr[0].role))
+        return res.status(403).json({ error: 'Não é possível redefinir a senha de um usuário com papel superior' });
+    }
+    passwordHash = await bcrypt.hash(String(req.body.password), 10);
+  }
+
   const map = { displayName: 'display_name', avatarUrl: 'avatar_url', role: 'role', aclProfileId: 'acl_profile_id', isActive: 'is_active', teamId: 'team_id', companyId: 'company_id' };
   const sets = [], vals = [];
   for (const [jsKey, col] of Object.entries(map)) {
@@ -156,11 +172,14 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
       vals.push(jsKey === 'isActive' ? (req.body[jsKey] ? 1 : 0) : req.body[jsKey]);
     }
   }
+  if (passwordHash) { sets.push('password_hash = ?'); vals.push(passwordHash); }
   if (!sets.length) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
   vals.push(req.params.id);
   try {
     await db.query(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, vals);
-    audit(req, { action: 'update', resource: 'users', resourceId: req.params.id, newValue: req.body });
+    // nunca registrar a senha em claro no log de auditoria
+    const safeBody = { ...req.body }; if (safeBody.password) safeBody.password = '[REDACTED]';
+    audit(req, { action: 'update', resource: 'users', resourceId: req.params.id, newValue: safeBody });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

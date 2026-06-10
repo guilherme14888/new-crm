@@ -747,6 +747,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
   const [formError, setFormError] = useState('');
   const [showPwd, setShowPwd]     = useState(false);
   const [showPwdConfirm, setShowPwdConfirm] = useState(false);
+  const [roleOpen, setRoleOpen]   = useState(false);
   const [form, setForm] = useState({
     email: '', displayName: '', role: 'consultant' as UserRole, aclProfileId: '',
     password: '', passwordConfirm: '', companyId: currentUser?.companyId ?? '',
@@ -765,7 +766,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
   const openCreate = () => {
     setEditing(null);
     setFormError('');
-    setShowPwd(false); setShowPwdConfirm(false);
+    setShowPwd(false); setShowPwdConfirm(false); setRoleOpen(false);
     const defaultProfile = sortedProfiles[0];
     setForm({ email: '', displayName: '', role: 'consultant', aclProfileId: defaultProfile?.id ?? '', password: '', passwordConfirm: '', companyId: currentUser?.companyId ?? '' });
     setShowForm(true);
@@ -774,7 +775,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
   const openEdit = (u: CRMUser) => {
     setEditing(u);
     setFormError('');
-    setShowPwd(false); setShowPwdConfirm(false);
+    setShowPwd(false); setShowPwdConfirm(false); setRoleOpen(false);
     const profile = getProfile(u);
     setForm({ email: u.email, displayName: u.displayName, role: u.role, aclProfileId: profile?.id ?? '', password: '', passwordConfirm: '', companyId: u.companyId });
     setShowForm(true);
@@ -786,10 +787,10 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
     if (!form.email.trim())       { setFormError('E-mail é obrigatório'); return; }
     if (!form.displayName.trim()) { setFormError('Nome é obrigatório'); return; }
 
-    // Password validation (only on create)
-    if (!editing && form.password) {
-      if (form.password.length < 8)                        { setFormError('Senha deve ter pelo menos 8 caracteres'); return; }
-      if (form.password !== form.passwordConfirm)          { setFormError('As senhas não coincidem'); return; }
+    // Validação de senha: na criação é opcional; na edição, só se preenchida (redefinição).
+    if (form.password) {
+      if (form.password.length < 8)               { setFormError('Senha deve ter pelo menos 8 caracteres'); return; }
+      if (form.password !== form.passwordConfirm) { setFormError('As senhas não coincidem'); return; }
     }
 
     try {
@@ -798,6 +799,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
           displayName: form.displayName.trim(),
           role: form.role,
           aclProfileId: form.aclProfileId || undefined,
+          ...(form.password ? { password: form.password.trim() } : {}),
           ...(isAdmin && { companyId: form.companyId }),
         });
       } else {
@@ -886,9 +888,14 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
                 placeholder="email@empresa.com" keyboardType="email-address" autoCapitalize="none" editable={!editing}
               />
 
-              {!editing && (
-                <>
-                  <Text style={s.label}>Senha <Text style={{ color: COLORS.gray[400], fontWeight: '400' }}>(opcional — gerada automaticamente)</Text></Text>
+              {/* Senha: na criação (opcional) e na edição (redefinição pelo admin/gerente) */}
+              <>
+                  <Text style={s.label}>
+                    {editing ? 'Nova senha ' : 'Senha '}
+                    <Text style={{ color: COLORS.gray[400], fontWeight: '400' }}>
+                      {editing ? '(deixe em branco para manter a atual)' : '(opcional — gerada automaticamente)'}
+                    </Text>
+                  </Text>
                   <View style={up.pwdRow}>
                     <TextInput
                       style={[s.input, { flex: 1, marginBottom: 0 }]}
@@ -900,7 +907,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
                     </Pressable>
                   </View>
 
-                  <Text style={s.label}>Confirmar senha</Text>
+                  <Text style={s.label}>{editing ? 'Confirmar nova senha' : 'Confirmar senha'}</Text>
                   <View style={[up.pwdRow, { marginBottom: SPACING.md }]}>
                     <TextInput
                       style={[s.input, { flex: 1, marginBottom: 0 },
@@ -917,21 +924,45 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
                       As senhas não coincidem
                     </Text>
                   )}
-                </>
-              )}
+              </>
 
               <Text style={s.label}>Papel (ACL)</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, marginBottom: SPACING.md }}>
-                {sortedProfiles.map((p) => (
-                  <Pressable
-                    key={p.id}
-                    style={[up.roleBtn, form.aclProfileId === p.id && { backgroundColor: p.color, borderColor: p.color }]}
-                    onPress={() => setForm((f) => ({ ...f, aclProfileId: p.id }))}
-                  >
-                    <Text style={[up.roleBtnTxt, form.aclProfileId === p.id && { color: COLORS.white }]}>{p.name}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              {(() => {
+                const selProfile = sortedProfiles.find((p) => p.id === form.aclProfileId);
+                return (
+                  <View style={up.dropdownWrap}>
+                    <Pressable style={up.dropdownTrigger} onPress={() => setRoleOpen((v) => !v)}>
+                      <View style={up.dropdownTriggerLeft}>
+                        {selProfile && <View style={[up.companyDot, { backgroundColor: selProfile.color }]} />}
+                        <Text style={[up.dropdownTxt, !selProfile && { color: COLORS.gray[400] }]} numberOfLines={1}>
+                          {selProfile ? selProfile.name : 'Selecione um papel'}
+                        </Text>
+                      </View>
+                      <Text style={up.dropdownChevron}>{roleOpen ? '▲' : '▼'}</Text>
+                    </Pressable>
+                    {roleOpen && (
+                      <View style={up.dropdownList}>
+                        {sortedProfiles.map((p) => {
+                          const active = form.aclProfileId === p.id;
+                          return (
+                            <Pressable
+                              key={p.id}
+                              style={[up.dropdownItem, active && { backgroundColor: p.color + '14' }]}
+                              onPress={() => { setForm((f) => ({ ...f, aclProfileId: p.id })); setRoleOpen(false); }}
+                            >
+                              <View style={[up.companyDot, { backgroundColor: p.color }]} />
+                              <Text style={[up.dropdownItemTxt, active && { color: p.color, fontWeight: '700' }]} numberOfLines={1}>
+                                {p.name}
+                              </Text>
+                              {active && <Text style={{ color: p.color, fontWeight: '800' }}>✓</Text>}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
 
               {isAdmin && companies.length > 0 && (
                 <>
@@ -990,6 +1021,15 @@ const up = StyleSheet.create({
   pwdRow:        { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: SPACING.sm },
   eyeBtn:        { padding: SPACING.sm, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[200], backgroundColor: COLORS.white },
   eyeTxt:        { fontSize: 16 },
+  // Dropdown de papel (ACL)
+  dropdownWrap:      { marginBottom: SPACING.md },
+  dropdownTrigger:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, backgroundColor: COLORS.white },
+  dropdownTriggerLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flex: 1 },
+  dropdownTxt:       { fontSize: FONTS.base, color: COLORS.gray[900] },
+  dropdownChevron:   { fontSize: 10, color: COLORS.gray[400], marginLeft: SPACING.sm },
+  dropdownList:      { marginTop: SPACING.xs, borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.md, backgroundColor: COLORS.white, overflow: 'hidden' as any },
+  dropdownItem:      { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.gray[50] },
+  dropdownItemTxt:   { flex: 1, fontSize: FONTS.sm, color: COLORS.gray[700] },
 });
 
 const um = StyleSheet.create({
