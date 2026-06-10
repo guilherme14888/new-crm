@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/guilherme14888/crm-br4/compare/v1.0.0...v1.1.0) (2026-06-10)
+
+
+### Features
+
+* papel (ACL) como lista suspensa e redefinicao de senha na edicao de usuario ([6cdf208](https://github.com/guilherme14888/crm-br4/commit/6cdf2083a67fb3b5312aceb8eee777bd12e865e2))
+
 # 1.0.0 (2026-06-10)
 
 
