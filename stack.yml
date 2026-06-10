@@ -1,52 +1,68 @@
 # ════════════════════════════════════════════════════════════════════════════
-#  Stack Docker Swarm — Sistema BR4 Licitações
-#  Deploy via Portainer (Stacks → Add stack) ou: docker stack deploy -c stack.yml br4-sistema
+#  Stack Docker Swarm — Sistema BR4 Licitações  (guilherme1488/br4licitacoes)
 #
-#  Pré-requisitos:
-#   - Traefik já rodando no swarm com entrypoint `websecure` e certresolver
-#     `letsencryptresolver` (mesmo padrão do seu n8n).
-#   - Rede overlay externa do Traefik (ajuste `network_public` abaixo se o nome
-#     da sua rede for outro — confira com: docker network ls).
-#   - MariaDB EXTERNO já existente e acessível (preencha DB_* abaixo).
-#   - DNS: registro A de `sistema.br4licitacoes.com` apontando para o swarm.
+#  COMO SUBIR NO PORTAINER:
+#   1. Portainer → Stacks → Add stack → Name: br4-sistema
+#   2. Build method: Web editor → cole TODO este arquivo.
+#   3. Role até "Environment variables" → Add an environment variable e crie:
+#        DB_HOST       = host/serviço do seu MariaDB   (ex.: mariadb)
+#        DB_USER       = usuário do banco              (ex.: crm)
+#        DB_PASSWORD   = senha do banco
+#        DB_NAME       = nome do banco                 (ex.: crmbr4)
+#        JWT_SECRET    = um segredo longo e aleatório  (ver dica abaixo)
+#   4. Se a rede do seu Traefik NÃO se chama "network_public", edite o nome no
+#      bloco `networks:` lá no fim do arquivo (confira com: docker network ls).
+#   5. Deploy the stack.
+#
+#  Pré-requisitos do ambiente:
+#   - Traefik no swarm com entrypoint `websecure` e certresolver `letsencryptresolver`
+#     (mesmo padrão do seu n8n) e conectado à rede overlay externa abaixo.
+#   - MariaDB EXTERNO já existente, acessível pela rede do serviço, JÁ POPULADO.
+#   - DNS: registro A de `sistema.br4licitacoes.com` → IP do swarm.
+#
+#  Dica p/ gerar o JWT_SECRET:  openssl rand -hex 32
+#  Imagem privada no DockerHub? Cadastre o registry em Portainer → Registries
+#  (ou deixe o repositório público) para o swarm conseguir puxar a imagem.
 # ════════════════════════════════════════════════════════════════════════════
 version: "3.8"
 
 services:
   sistema:
-    image: guilherme1488/br4licitacoes:latest   # ou fixe uma versão: guilherme1488/br4licitacoes:v1.0.0
+    # Fixe uma versão para reprodutibilidade (ex.: :v1.0.0) ou use :latest.
+    image: guilherme1488/br4licitacoes:latest
     environment:
       - PORT=3001
       - WEB_DIR=/app/backend/public
 
-      # ── Banco de dados (MariaDB externo já existente) ──────────────────────
-      - DB_HOST=mariadb                # host/serviço do seu MariaDB no swarm
+      # ── Banco de dados (MariaDB externo) — defina no painel do Portainer ───
+      - DB_HOST=${DB_HOST}
       - DB_PORT=3306
-      - DB_USER=crm
-      - DB_PASSWORD=ALTERE_ME
-      - DB_NAME=crmbr4
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
 
-      # ── Autenticação ──────────────────────────────────────────────────────
-      - JWT_SECRET=ALTERE_ME_PARA_UM_SEGREDO_LONGO_E_ALEATORIO
+      # ── Autenticação — defina no painel do Portainer ──────────────────────
+      - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=7d
 
-      # ── Ingestão de licitações (agendador interno diário às 9h BRT) ────────
+      # ── Ingestão de licitações (agendador interno diário às 9h BRT) ───────
       - INGEST_ENABLED=true
       - INGEST_HOUR_BRT=9
       - INGEST_PAGES=10
       - INGEST_CATCHUP_ON_BOOT=true
       - INGEST_MAX_BACKFILL_DAYS=14
 
-      # ── (Opcional) Filtro de relevância por IA / embeddings ────────────────
+      # ── (Opcional) Filtro de relevância por IA / embeddings ───────────────
+      # Para ligar, crie estas variáveis também no painel do Portainer:
       # - INGEST_AI_RELEVANCE=true
       # - INGEST_AI_MODEL=claude-haiku-4-5-20251001
-      # - ANTHROPIC_API_KEY=
-      # - VOYAGE_API_KEY=
-      # - OPENAI_API_KEY=
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # - VOYAGE_API_KEY=${VOYAGE_API_KEY}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
 
       # ── (Opcional) Credenciais de portais ─────────────────────────────────
-      # - LICITAJA_API_KEY=
-      # - BLL_ORG_KEY=
+      # - LICITAJA_API_KEY=${LICITAJA_API_KEY}
+      # - BLL_ORG_KEY=${BLL_ORG_KEY}
 
     networks:
       - network_public
@@ -75,4 +91,4 @@ services:
 networks:
   network_public:
     external: true
-    name: network_public        # ajuste para o nome real da rede do seu Traefik
+    name: network_public        # ← troque aqui se a rede do seu Traefik tiver outro nome
