@@ -1,6 +1,6 @@
 # Deploy — Sistema BR4 Licitações
 
-Imagem **única** (`br4licitacoes/sistema`) onde o Node serve o **frontend web** (Expo)
+Imagem **única** (`guilherme1488/br4licitacoes`) onde o Node serve o **frontend web** (Expo)
 e a **API** (`/api`) no mesmo domínio, atrás do **Traefik** no **Docker Swarm**.
 URL de produção: **https://sistema.br4licitacoes.com**
 
@@ -46,7 +46,7 @@ BREAKING CHANGE: tokens antigos deixam de ser aceitos"                # → majo
 ```
 
 Cada release cria: **tag git** `vX.Y.Z`, **GitHub Release**, entrada no `CHANGELOG.md`
-e publica no DockerHub `br4licitacoes/sistema:vX.Y.Z` **e** `:latest`.
+e publica no DockerHub `guilherme1488/br4licitacoes:vX.Y.Z` **e** `:latest`.
 
 ---
 
@@ -61,7 +61,7 @@ e publica no DockerHub `br4licitacoes/sistema:vX.Y.Z` **e** `:latest`.
    **Read and write permissions** (necessário p/ o semantic-release criar tag e commit do changelog).
 
 ### 3.2 DockerHub
-- Crie o repositório **`br4licitacoes/sistema`** (pode ser privado; nesse caso o swarm
+- Crie o repositório **`guilherme1488/br4licitacoes`** (pode ser privado; nesse caso o swarm
   precisa de credencial para puxar a imagem).
 
 ### 3.3 DNS
@@ -84,7 +84,7 @@ git push -u origin main
 > nem para a imagem (estão no `.dockerignore`). Configure os segredos de produção
 > via variáveis de ambiente no `stack.yml` / Portainer.
 
-Ao concluir o push, o workflow **Release & Publish** roda e publica `br4licitacoes/sistema:v1.0.0`.
+Ao concluir o push, o workflow **Release & Publish** roda e publica `guilherme1488/br4licitacoes:v1.0.0`.
 
 ---
 
@@ -112,7 +112,7 @@ git push
 ```
 1. O Actions publica a nova `vX.Y.Z` + `:latest` no DockerHub.
 2. No Portainer, **atualize o serviço** (ou `docker service update --image
-   br4licitacoes/sistema:vX.Y.Z br4-sistema_sistema`). O `update_config: start-first`
+   guilherme1488/br4licitacoes:vX.Y.Z br4-sistema_sistema`). O `update_config: start-first`
    sobe a nova versão antes de derrubar a antiga (sem downtime).
 
 > Dica: para reprodutibilidade, **fixe a versão** no stack (`:v1.2.3`) em vez de `:latest`.
@@ -123,12 +123,12 @@ git push
 
 ```bash
 # build da imagem
-docker build -t br4licitacoes/sistema:dev .
+docker build -t guilherme1488/br4licitacoes:dev .
 
 # roda apontando para um MariaDB acessível
 docker run --rm -p 3001:3001 \
   -e DB_HOST=host.docker.internal -e DB_USER=crm -e DB_PASSWORD=... -e DB_NAME=crmbr4 \
   -e JWT_SECRET=dev-secret \
-  br4licitacoes/sistema:dev
+  guilherme1488/br4licitacoes:dev
 # abra http://localhost:3001
 ```

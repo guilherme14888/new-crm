@@ -3,7 +3,7 @@ name: Release & Publish
 # A cada push na branch principal:
 #   1. semantic-release (dry-run) calcula a PRÓXIMA versão pelos Conventional Commits
 #      (feat→minor, fix/style→patch, BREAKING CHANGE→major). 1º release = v1.0.0.
-#   2. builda e publica a imagem no DockerHub (br4licitacoes/sistema:vX.Y.Z + :latest)
+#   2. builda e publica a imagem no DockerHub (guilherme1488/br4licitacoes:vX.Y.Z + :latest)
 #      — log completo via docker/build-push-action.
 #   3. só então finaliza o release (tag git vX.Y.Z + GitHub Release + CHANGELOG),
 #      garantindo que um build quebrado NÃO deixe tag órfã.
@@ -89,8 +89,8 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            br4licitacoes/sistema:v${{ steps.ver.outputs.version }}
-            br4licitacoes/sistema:latest
+            guilherme1488/br4licitacoes:v${{ steps.ver.outputs.version }}
+            guilherme1488/br4licitacoes:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

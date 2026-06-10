@@ -14,7 +14,7 @@ version: "3.8"
 
 services:
   sistema:
-    image: br4licitacoes/sistema:latest   # ou fixe uma versão: br4licitacoes/sistema:v1.0.0
+    image: guilherme1488/br4licitacoes:latest   # ou fixe uma versão: guilherme1488/br4licitacoes:v1.0.0
     environment:
       - PORT=3001
       - WEB_DIR=/app/backend/public
