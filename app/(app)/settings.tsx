@@ -734,6 +734,13 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const ROLE_COLORS: Record<UserRole, string> = {
   admin: '#7c3aed', manager: '#0891b2', supervisor: '#0284c7', consultant: '#4b5563', agent: '#4b5563',
 };
+/**
+ * Mapeia o nível do perfil ACL para o enum `role` que o backend usa nas
+ * permissões (ex.: trocar de tenant exige role 'admin'). Mantém perfil e papel
+ * em sincronia ao selecionar — sem isto, escolher "Admin" muda só o perfil ACL.
+ */
+const roleForLevel = (level: number): UserRole =>
+  level >= 4 ? 'admin' : level === 3 ? 'manager' : level === 2 ? 'supervisor' : 'consultant';
 
 /** Painel de usuários (dentro do modal): busca, lista com perfil ACL/status e formulário de criar/editar usuário. */
 function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; companies: Company[]; aclProfiles: ACLProfile[] }) {
@@ -948,7 +955,7 @@ function UsersPanel({ users, companies, aclProfiles }: { users: CRMUser[]; compa
                             <Pressable
                               key={p.id}
                               style={[up.dropdownItem, active && { backgroundColor: p.color + '14' }]}
-                              onPress={() => { setForm((f) => ({ ...f, aclProfileId: p.id })); setRoleOpen(false); }}
+                              onPress={() => { setForm((f) => ({ ...f, aclProfileId: p.id, role: roleForLevel(p.level) })); setRoleOpen(false); }}
                             >
                               <View style={[up.companyDot, { backgroundColor: p.color }]} />
                               <Text style={[up.dropdownItemTxt, active && { color: p.color, fontWeight: '700' }]} numberOfLines={1}>
