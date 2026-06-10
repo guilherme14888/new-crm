@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator,
-  useWindowDimensions, Platform, TextInput, FlatList,
+  useWindowDimensions, Platform, TextInput,
 } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
 import { useMarketIntelStore, MarketIntelRow } from '../../../src/stores/marketIntelStore';
@@ -15,6 +15,7 @@ import { useAuthStore } from '../../../src/stores/authStore';
 
 const BRAND = '#7b2d8e';
 const ACCENT = '#c9a227';
+const PAGE_SIZE = 20;   // registros por página na listagem
 
 // ─── Helpers de formatação ────────────────────────────────────────────────────
 const fmtBRL = (n: number | null) =>
@@ -153,6 +154,9 @@ export default function MarketIntelligenceListagem() {
   // Busca ao vivo (aplicada imediatamente).
   const [search, setSearch] = useState('');
 
+  // Página atual da listagem (20 registros por página).
+  const [page, setPage] = useState(1);
+
   // Drawer aberto/fechado.
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -212,6 +216,17 @@ export default function MarketIntelligenceListagem() {
   const activeFilterCount =
     (applied.from || applied.to ? 1 : 0) +
     applied.cidade.size + applied.uf.size + applied.orgao.size + applied.proc.size + applied.produto.size;
+
+  // ── Paginação (20 por página) ────────────────────────────────────────────────
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // volta à 1ª página sempre que a busca/filtros mudam o conjunto de resultados
+  useEffect(() => { setPage(1); }, [search, applied]);
+  // mantém a página dentro do intervalo válido se o total diminuir
+  const safePage = Math.min(page, totalPages);
+  const pageRows = useMemo(
+    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filtered, safePage]
+  );
 
   // ── Ações ────────────────────────────────────────────────────────────────────
   const toggle = (setter: React.Dispatch<React.SetStateAction<Set<string>>>) => (v: string) =>
@@ -323,19 +338,13 @@ export default function MarketIntelligenceListagem() {
               </Text>
             ))}
           </View>
-          {/* corpo */}
+          {/* corpo — apenas os 20 registros da página atual */}
           {filtered.length === 0 ? (
             <Text style={s.empty}>Nenhuma linha para a busca/filtros selecionados.</Text>
           ) : (
-            <FlatList
-              data={filtered}
-              keyExtractor={(r) => r.id}
-              style={{ flex: 1 }}
-              initialNumToRender={40}
-              maxToRenderPerBatch={40}
-              windowSize={11}
-              renderItem={({ item: r, index }) => (
-                <View style={[s.row, index % 2 === 1 && s.rowAlt]}>
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator>
+              {pageRows.map((r, index) => (
+                <View key={r.id} style={[s.row, index % 2 === 1 && s.rowAlt]}>
                   {COLUMNS.map((c) => {
                     const txt = cellText(r, c);
                     const isUrl = c.key === 'urlSite' && !!txt;
@@ -351,11 +360,52 @@ export default function MarketIntelligenceListagem() {
                     );
                   })}
                 </View>
-              )}
-            />
+              ))}
+            </ScrollView>
           )}
         </View>
       </ScrollView>
+
+      {/* ─── Paginação ─────────────────────────────────────────────────────── */}
+      {filtered.length > 0 && (
+        <View style={s.pagination}>
+          <Text style={s.pageInfo}>
+            {((safePage - 1) * PAGE_SIZE + 1).toLocaleString('pt-BR')}–
+            {Math.min(safePage * PAGE_SIZE, filtered.length).toLocaleString('pt-BR')} de {filtered.length.toLocaleString('pt-BR')}
+          </Text>
+          <View style={s.pageControls}>
+            <Pressable
+              style={[s.pageBtn, safePage <= 1 && s.pageBtnDisabled]}
+              disabled={safePage <= 1}
+              onPress={() => setPage(1)}
+            >
+              <Text style={[s.pageBtnTxt, safePage <= 1 && s.pageBtnTxtDisabled]}>«</Text>
+            </Pressable>
+            <Pressable
+              style={[s.pageBtn, safePage <= 1 && s.pageBtnDisabled]}
+              disabled={safePage <= 1}
+              onPress={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              <Text style={[s.pageBtnTxt, safePage <= 1 && s.pageBtnTxtDisabled]}>‹ Anterior</Text>
+            </Pressable>
+            <Text style={s.pageCurrent}>Página {safePage} de {totalPages}</Text>
+            <Pressable
+              style={[s.pageBtn, safePage >= totalPages && s.pageBtnDisabled]}
+              disabled={safePage >= totalPages}
+              onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              <Text style={[s.pageBtnTxt, safePage >= totalPages && s.pageBtnTxtDisabled]}>Próxima ›</Text>
+            </Pressable>
+            <Pressable
+              style={[s.pageBtn, safePage >= totalPages && s.pageBtnDisabled]}
+              disabled={safePage >= totalPages}
+              onPress={() => setPage(totalPages)}
+            >
+              <Text style={[s.pageBtnTxt, safePage >= totalPages && s.pageBtnTxtDisabled]}>»</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {/* ─── Drawer lateral direito de filtros ─────────────────────────────── */}
       {drawerOpen && (
@@ -458,6 +508,15 @@ const s = StyleSheet.create({
   td:       { fontSize: FONTS.sm, color: COLORS.gray[700], paddingHorizontal: 4 },
   tdLink:   { color: COLORS.primary, textDecorationLine: 'underline' as any },
   empty:    { fontSize: FONTS.sm, color: COLORS.gray[400], padding: SPACING.xl, textAlign: 'center' as any },
+
+  pagination:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' as any, gap: SPACING.sm, paddingVertical: SPACING.sm, paddingHorizontal: 2 },
+  pageInfo:     { fontSize: FONTS.sm, color: COLORS.gray[500], fontWeight: '600' },
+  pageControls: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  pageBtn:      { paddingHorizontal: SPACING.md, paddingVertical: 6, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[200], backgroundColor: COLORS.white },
+  pageBtnDisabled: { opacity: 0.4 },
+  pageBtnTxt:   { fontSize: FONTS.sm, color: BRAND, fontWeight: '700' },
+  pageBtnTxtDisabled: { color: COLORS.gray[400] },
+  pageCurrent:  { fontSize: FONTS.sm, color: COLORS.gray[700], fontWeight: '600', paddingHorizontal: SPACING.sm },
 
   // Drawer
   drawerBackdrop: { position: 'fixed' as any, inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 200 } as any,

@@ -12,6 +12,9 @@ import { useAuthStore } from '../../../src/stores/authStore';
 const ACCENT = '#c9a227';
 const BRAND  = '#7b2d8e';
 const TODOS  = 'Todos';
+// Limite de linhas renderizadas nas tabelas do dashboard (visão analítica).
+// Os totais/agregados usam o conjunto COMPLETO; a navegação linha a linha é na Listagem.
+const DASH_ROWS = 100;
 
 // Cores fixas por produto candidato (com fallback determinístico).
 const PRODUCT_COLORS: Record<string, string> = {
@@ -551,7 +554,7 @@ export default function MarketIntelligenceScreen() {
                 </View>
                 <ScrollView style={{ maxHeight: 210 }} showsVerticalScrollIndicator>
                   {processes.length === 0 && <Text style={tbl.empty}>Nenhum processo para os filtros selecionados.</Text>}
-                  {processes.map(({ key, head }, idx) => {
+                  {processes.slice(0, DASH_ROWS).map(({ key, head }, idx) => {
                     const on = selected?.key === key;
                     const st = STATUS_STYLE[head.status ?? ''] ?? { color: COLORS.gray[600], bg: COLORS.gray[100] };
                     return (
@@ -573,6 +576,11 @@ export default function MarketIntelligenceScreen() {
                       </Pressable>
                     );
                   })}
+                  {processes.length > DASH_ROWS && (
+                    <Text style={tbl.more}>
+                      mostrando {DASH_ROWS} de {processes.length} processos — use a Listagem para ver todos
+                    </Text>
+                  )}
                 </ScrollView>
                 </TableScroll>
               </Panel>
@@ -591,7 +599,7 @@ export default function MarketIntelligenceScreen() {
                   <Th w={120} right>Preço Est. Unit.</Th>
                 </View>
                 <ScrollView style={{ maxHeight: 210 }} showsVerticalScrollIndicator>
-                  {ranking.map((r) => (
+                  {ranking.slice(0, DASH_ROWS).map((r) => (
                     <View key={r.id} style={tbl.row}
                       {...({ onMouseMove: (e: any) => setHover({ kind: 'rank', row: r, ...evPos(e) }), onMouseLeave: () => setHover((h) => (h && h.row === r ? null : h)) } as any)}>
                       <View style={[tbl.accent, { backgroundColor: 'transparent' }]} />
@@ -608,6 +616,11 @@ export default function MarketIntelligenceScreen() {
                       <Td w={120} right bold>{fmtBRL(r.precoEstimadoUnit)}</Td>
                     </View>
                   ))}
+                  {ranking.length > DASH_ROWS && (
+                    <Text style={tbl.more}>
+                      mostrando os {DASH_ROWS} maiores de {ranking.length} — Total abaixo considera todos
+                    </Text>
+                  )}
                   <View style={[tbl.row, tbl.totalRow]}>
                     <View style={[tbl.accent, { backgroundColor: ACCENT }]} />
                     <Td w={46} bold>Total</Td>
@@ -754,6 +767,7 @@ const tbl = StyleSheet.create({
   dot:          { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
   totalRow:     { borderTopWidth: 2, borderTopColor: COLORS.gray[300], backgroundColor: COLORS.gray[50] },
   empty:        { fontSize: FONTS.sm, color: COLORS.gray[400], padding: SPACING.md, textAlign: 'center' as any },
+  more:         { fontSize: FONTS.xs, color: COLORS.gray[400], paddingVertical: SPACING.sm, textAlign: 'center' as any, fontStyle: 'italic' as any },
 });
 
 // ─── Screen styles ──────────────────────────────────────────────────────────────
