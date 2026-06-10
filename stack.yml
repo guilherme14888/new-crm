@@ -33,6 +33,7 @@ services:
     environment:
       - PORT=3001
       - WEB_DIR=/app/backend/public
+      - TZ=America/Sao_Paulo        # apenas p/ logs em horário de Brasília (o agendamento já é 9h BRT por cálculo)
 
       # ── Banco de dados (MariaDB externo) — defina no painel do Portainer ───
       - DB_HOST=${DB_HOST}
