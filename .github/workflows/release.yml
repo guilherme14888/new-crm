@@ -58,7 +58,9 @@ jobs:
           set +e
           npx semantic-release --dry-run > sr.log 2>&1
           cat sr.log
-          V=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' sr.log | head -1)
+          # 1º release: "There is no previous release, the next release version is X.Y.Z"
+          # demais:     "The next release version is X.Y.Z"  → grep case-insensitive cobre ambos
+          V=$(grep -oiP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' sr.log | head -1)
           if [ -n "$V" ]; then
             echo "released=true"  >> "$GITHUB_OUTPUT"
             echo "version=$V"     >> "$GITHUB_OUTPUT"
