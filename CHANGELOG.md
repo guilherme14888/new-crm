@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/guilherme14888/crm-br4/compare/v1.6.0...v1.6.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* decodifica nome dos PDFs do zip em CP850 (acentos corretos) ([a5534c8](https://github.com/guilherme14888/crm-br4/commit/a5534c85fa3ab0b32cd80f349a058a81876b2294))
+
 # [1.6.0](https://github.com/guilherme14888/crm-br4/compare/v1.5.0...v1.6.0) (2026-06-12)
 
 
