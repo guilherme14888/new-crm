@@ -351,6 +351,150 @@ const drf = StyleSheet.create({
   clearTxt: { fontSize: FONTS.sm, color: COLORS.gray[600], fontWeight: '600' },
 });
 
+// ─── Mapa do Brasil (SVG web) ──────────────────────────────────────────────────
+// Centróides aproximados de cada UF (lat, lng) — pontos posicionados por estado.
+const UF_CENTROIDS: Record<string, [number, number]> = {
+  AC: [-8.77, -70.55], AL: [-9.62, -36.78], AM: [-3.47, -65.10], AP: [1.41, -51.77],
+  BA: [-12.97, -41.71], CE: [-5.20, -39.53], DF: [-15.83, -47.86], ES: [-19.19, -40.34],
+  GO: [-15.98, -49.86], MA: [-5.42, -45.44], MG: [-18.10, -44.38], MS: [-20.51, -54.54],
+  MT: [-12.64, -55.42], PA: [-3.79, -52.48], PB: [-7.28, -36.72], PE: [-8.38, -37.86],
+  PI: [-6.60, -42.28], PR: [-24.89, -51.55], RJ: [-22.25, -42.66], RN: [-5.81, -36.59],
+  RO: [-10.83, -63.34], RR: [1.99, -61.33], RS: [-30.17, -53.50], SC: [-27.45, -50.95],
+  SE: [-10.57, -37.45], SP: [-22.19, -48.79], TO: [-9.46, -48.26],
+};
+// Contorno aproximado do Brasil (lng, lat) — silhueta reconhecível, não cartográfica.
+const BRAZIL_BORDER: [number, number][] = [
+  [-60.0, 5.2], [-51.0, 4.1], [-50.0, 0.0], [-44.3, -2.5], [-41.0, -2.9], [-37.2, -4.9],
+  [-34.8, -7.1], [-35.2, -9.6], [-37.0, -11.0], [-39.0, -13.5], [-39.0, -15.8], [-39.7, -18.3],
+  [-41.0, -22.0], [-44.9, -23.4], [-48.5, -25.5], [-48.5, -28.5], [-50.0, -30.5], [-52.3, -32.0],
+  [-53.4, -33.7], [-57.6, -30.2], [-56.0, -27.5], [-54.6, -25.6], [-54.3, -24.0], [-58.0, -20.0],
+  [-58.0, -16.3], [-60.0, -13.5], [-65.3, -9.8], [-70.6, -11.0], [-72.9, -9.4], [-70.0, -4.2],
+  [-69.4, -1.0], [-67.3, 2.0], [-64.0, 4.1],
+];
+const MAP_W = 420, MAP_H = 420;
+const BB = { minLng: -74, maxLng: -34, minLat: -34, maxLat: 6 };
+const projX = (lng: number) => ((lng - BB.minLng) / (BB.maxLng - BB.minLng)) * MAP_W;
+const projY = (lat: number) => ((BB.maxLat - lat) / (BB.maxLat - BB.minLat)) * MAP_H;
+
+const h = (tag: string, props: any, ...kids: any[]) => React.createElement(tag, props, ...kids);
+
+/** Gráfico de linhas (uma linha por produto, ao longo dos meses) — SVG web. */
+function LineChart({ months, byMonthProduct, products }: {
+  months: string[]; byMonthProduct: Record<string, Record<string, number>>; products: { name: string; color: string }[];
+}) {
+  if (Platform.OS !== 'web') return <Text style={tbl.empty}>Disponível na versão web.</Text>;
+  if (!months.length) return <Text style={tbl.empty}>Sem dados para os filtros.</Text>;
+  const W = 900, H = 220, padL = 44, padB = 26, padT = 10, padR = 10;
+  const max = Math.max(1, ...months.flatMap((mk) => products.map((p) => byMonthProduct[mk]?.[p.name] ?? 0)));
+  const x = (i: number) => padL + (months.length === 1 ? (W - padL - padR) / 2 : (i / (months.length - 1)) * (W - padL - padR));
+  const y = (v: number) => padT + (1 - v / max) * (H - padT - padB);
+  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', height: 220 } },
+    [0, 0.5, 1].map((g, i) => h('g', { key: `g${i}` },
+      h('line', { x1: padL, x2: W - padR, y1: y(max * g), y2: y(max * g), stroke: '#e5e7eb', strokeWidth: 1 }),
+      h('text', { x: 4, y: y(max * g) + 3, fontSize: 9, fill: '#9ca3af' }, fmtInt(max * g)),
+    )),
+    months.map((mk, i) => h('text', { key: `x${mk}`, x: x(i), y: H - 8, fontSize: 9, fill: '#6b7280', textAnchor: 'middle' }, monthLabel(mk))),
+    products.map((p) => {
+      const pts = months.map((mk, i) => `${x(i)},${y(byMonthProduct[mk]?.[p.name] ?? 0)}`).join(' ');
+      return h('g', { key: p.name },
+        h('polyline', { points: pts, fill: 'none', stroke: p.color, strokeWidth: 2 }),
+        months.map((mk, i) => h('circle', { key: `c${mk}`, cx: x(i), cy: y(byMonthProduct[mk]?.[p.name] ?? 0), r: 2.5, fill: p.color })),
+      );
+    }),
+  );
+}
+
+/** Mapa do Brasil com pontos coloridos por produto + filtros locais (produto/UF/tempo). */
+function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; products: { name: string; color: string }[]; narrow: boolean }) {
+  const [fProd, setFProd] = useState<Set<string>>(new Set());
+  const [fUf, setFUf]     = useState<Set<string>>(new Set());
+  const [mFrom, setMFrom] = useState('');
+  const [mTo, setMTo]     = useState('');
+  const colorOf = (name: string) => products.find((p) => p.name === name)?.color ?? '#7c3aed';
+
+  const ufOpts = useMemo(() => Array.from(new Set(rows.map((r) => r.uf).filter(Boolean) as string[])).sort(), [rows]);
+  const toggle = (set: React.Dispatch<React.SetStateAction<Set<string>>>, v: string) =>
+    set((prev) => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
+
+  const pts = useMemo(() => {
+    const perUf: Record<string, number> = {};
+    const out: { x: number; y: number; color: string }[] = [];
+    for (const r of rows) {
+      const uf = r.uf || '';
+      const c = UF_CENTROIDS[uf]; if (!c) continue;
+      const prod = r.produtoCandidato || r.produto || '—';
+      if (fProd.size && !fProd.has(prod)) continue;
+      if (fUf.size && !fUf.has(uf)) continue;
+      if (mFrom || mTo) { const mk = (r.dataHoraCertame || '').slice(0, 7); if (!mk) continue; if (mFrom && mk < mFrom) continue; if (mTo && mk > mTo) continue; }
+      const k = perUf[uf] = (perUf[uf] ?? 0) + 1;
+      const ang = k * 2.399963; const rad = 3 + Math.sqrt(k) * 2.2;   // espiral p/ separar pontos do mesmo estado
+      out.push({ x: projX(c[1]) + Math.cos(ang) * rad, y: projY(c[0]) + Math.sin(ang) * rad, color: colorOf(prod) });
+      if (out.length > 1500) break;
+    }
+    return out;
+  }, [rows, fProd, fUf, mFrom, mTo, products]);
+
+  const isWeb = Platform.OS === 'web';
+  const WebInput: any = 'input';
+  const dateStyle: any = { border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '4px 6px', fontSize: 12, color: COLORS.gray[700], outline: 'none' };
+  const borderPath = 'M ' + BRAZIL_BORDER.map(([lng, lat]) => `${projX(lng).toFixed(1)},${projY(lat).toFixed(1)}`).join(' L ') + ' Z';
+
+  return (
+    <View style={[s.body, narrow && { flexDirection: 'column' as any }]}>
+      {/* Filtros do mapa */}
+      <View style={mp.filters}>
+        <Text style={mp.fTitle}>Filtros do mapa</Text>
+        <Text style={mp.fLabel}>Período (mês)</Text>
+        <View style={{ flexDirection: 'row', gap: SPACING.xs }}>
+          {isWeb
+            ? <><WebInput type="month" value={mFrom} onChange={(e: any) => setMFrom(e.target.value)} style={dateStyle} />
+                <WebInput type="month" value={mTo} onChange={(e: any) => setMTo(e.target.value)} style={dateStyle} /></>
+            : <Text style={tbl.empty}>web</Text>}
+        </View>
+
+        <Text style={mp.fLabel}>Produto</Text>
+        <View style={mp.chips}>
+          {products.map((p) => {
+            const on = fProd.has(p.name);
+            return (
+              <Pressable key={p.name} style={[mp.chip, on && { backgroundColor: p.color, borderColor: p.color }]} onPress={() => toggle(setFProd, p.name)}>
+                <View style={[mp.dot, { backgroundColor: on ? COLORS.white : p.color }]} />
+                <Text style={[mp.chipTxt, on && { color: COLORS.white }]}>{p.name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={mp.fLabel}>UF</Text>
+        <View style={mp.chips}>
+          {ufOpts.map((u) => {
+            const on = fUf.has(u);
+            return (
+              <Pressable key={u} style={[mp.ufChip, on && mp.ufChipOn]} onPress={() => toggle(setFUf, u)}>
+                <Text style={[mp.ufChipTxt, on && { color: COLORS.white }]}>{u}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {(fProd.size || fUf.size || mFrom || mTo) ? (
+          <Pressable style={mp.clear} onPress={() => { setFProd(new Set()); setFUf(new Set()); setMFrom(''); setMTo(''); }}>
+            <Text style={mp.clearTxt}>Limpar filtros do mapa</Text>
+          </Pressable>
+        ) : null}
+        <Text style={mp.count}>{pts.length.toLocaleString('pt-BR')} ponto(s)</Text>
+      </View>
+
+      {/* Mapa */}
+      <View style={mp.mapWrap}>
+        {isWeb ? h('svg', { viewBox: `0 0 ${MAP_W} ${MAP_H}`, style: { width: '100%', maxWidth: 520, aspectRatio: 1 } },
+          h('path', { d: borderPath, fill: '#eaf3ec', stroke: '#9cc4a6', strokeWidth: 1.2 }),
+          pts.map((p, i) => h('circle', { key: i, cx: p.x.toFixed(1), cy: p.y.toFixed(1), r: 3.2, fill: p.color, fillOpacity: 0.8, stroke: '#fff', strokeWidth: 0.5 })),
+        ) : <Text style={tbl.empty}>Mapa disponível na versão web.</Text>}
+      </View>
+    </View>
+  );
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 export default function MarketIntelligenceScreen() {
   const { width, height } = useWindowDimensions();
@@ -494,6 +638,38 @@ export default function MarketIntelligenceScreen() {
     });
   };
 
+  // ── Visão (padrão / executiva) ────────────────────────────────────────────────
+  const [view, setView] = useState<'padrao' | 'executivo'>('padrao');
+
+  // ── KPIs executivos (reagem aos filtros do topo) ──────────────────────────────
+  const kpis = useMemo(() => {
+    const estimado = filtered.reduce((acc, r) => acc + (r.precoEstimadoTotal ?? 0), 0);
+    const final    = filtered.reduce((acc, r) => acc + (r.precoFinalTotal ?? 0), 0);
+    const nProc = processes.length;
+    // "Venceu AZ" — processos cujo vencedor (posição 1) é a AstraZeneca
+    const azProc = new Set<string>();
+    for (const r of filtered) {
+      if (r.posicao === 1 && /astrazeneca|astra ?zeneca/i.test(r.concorrente || '')) azProc.add(procKey(r));
+    }
+    return {
+      nProc, estimado, final,
+      economia: estimado - final,
+      venceuAZ: azProc.size,
+      ticket: nProc ? final / nProc : 0,
+    };
+  }, [filtered, processes]);
+
+  // ── Valor por licitador (top) ─────────────────────────────────────────────────
+  const valorPorLicitador = useMemo(() => {
+    const t: Record<string, number> = {};
+    for (const r of filtered) {
+      const k = r.licitador || '—';
+      t[k] = (t[k] ?? 0) + (r.precoEstimadoTotal ?? 0);
+    }
+    return Object.entries(t).map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total).slice(0, 8);
+  }, [filtered]);
+
   // ── Loading / vazio ──────────────────────────────────────────────────────────────
   if (isLoading && !loaded) {
     return (
@@ -524,6 +700,13 @@ export default function MarketIntelligenceScreen() {
             <View style={s.titleBlock}>
               <Text style={s.kicker}>STATUS REPORT / INTELIGÊNCIA DE MERCADO</Text>
               <Text style={s.title}>Portfólio de Compras Governamentais</Text>
+              <View style={s.viewToggle}>
+                {([['padrao', '📊 Padrão'], ['executivo', '📈 Executivo']] as const).map(([v, lbl]) => (
+                  <Pressable key={v} style={[s.viewBtn, view === v && s.viewBtnActive]} onPress={() => setView(v)}>
+                    <Text style={[s.viewBtnTxt, view === v && s.viewBtnTxtActive]}>{lbl}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
             <View style={[s.topFilters, narrow && s.topFiltersNarrow]}>
               {showEmpresa && (
@@ -537,6 +720,7 @@ export default function MarketIntelligenceScreen() {
           </View>
 
           {/* ─── Body ──────────────────────────────────────────────────────── */}
+          {view === 'padrao' ? (
           <View style={[s.body, narrow && { flexDirection: 'column' as any }]}>
             {/* LEFT */}
             <View style={[s.left, narrow && s.fullW]}>
@@ -706,6 +890,99 @@ export default function MarketIntelligenceScreen() {
               </Panel>
             </View>
           </View>
+          ) : (
+          /* ─── Visão Executiva ─────────────────────────────────────────── */
+          <View>
+            {/* KPIs */}
+            <View style={s.kpiRow}>
+              {[
+                { label: 'Total de Processos', value: fmtInt(kpis.nProc) },
+                { label: 'Valor Estimado Total', value: `R$ ${fmtBRL(kpis.estimado)}`, accent: true },
+                { label: 'Valor Final Total', value: `R$ ${fmtBRL(kpis.final)}`, accent: true },
+                { label: 'Economia Total', value: `R$ ${fmtBRL(kpis.economia)}`, accent: true },
+                { label: 'Venceu AZ', value: fmtInt(kpis.venceuAZ) },
+                { label: 'Ticket Médio Final', value: `R$ ${fmtBRL(kpis.ticket)}`, accent: true },
+              ].map((k) => (
+                <View key={k.label} style={s.kpiCard}>
+                  <Text style={[s.kpiValue, k.accent && { color: BRAND }]} numberOfLines={1}>{k.value}</Text>
+                  <Text style={s.kpiLabel}>{k.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={[s.body, narrow && { flexDirection: 'column' as any }]}>
+              {/* Valor por Licitador + linha por produto */}
+              <View style={[s.left, narrow && s.fullW]}>
+                <Panel title="Valor por Licitador">
+                  {valorPorLicitador.length === 0 && <Text style={tbl.empty}>Sem dados.</Text>}
+                  {valorPorLicitador.map((l) => {
+                    const max = valorPorLicitador[0]?.total || 1;
+                    return (
+                      <View key={l.name} style={s.licRow}>
+                        <Text style={s.licName} numberOfLines={1}>{l.name}</Text>
+                        <View style={s.licBarTrack}>
+                          <View style={[s.licBarFill, { width: `${(l.total / max) * 100}%` }]} />
+                        </View>
+                        <Text style={s.licVal}>R$ {fmtBRL(l.total)}</Text>
+                      </View>
+                    );
+                  })}
+                </Panel>
+
+                <Panel title="Produto Candidato — quantidade por mês">
+                  <View style={s.legendWrap}>
+                    {products.filter((p) => active.has(p.name)).map((p) => (
+                      <View key={p.name} style={s.legendItem}>
+                        <View style={[s.legendDot, { backgroundColor: p.color }]} />
+                        <Text style={s.legendTxt}>{p.name}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <LineChart months={months} byMonthProduct={byMonthProduct} products={products.filter((p) => active.has(p.name))} />
+                </Panel>
+              </View>
+
+              {/* Ranking */}
+              <View style={[s.right, narrow && s.fullW]}>
+                <Panel title="Ranking de Itens">
+                  <TableScroll minWidth={640}>
+                    <View style={tbl.headerRow}>
+                      <Th w={40}>#L</Th><Th w={40}>#I</Th><Th w={130}>Etapa</Th><Th w={110}>Produto</Th>
+                      <Th w={40}>#P</Th><Th w={150}>Concorrente</Th><Th w={100} right>Est. Unit.</Th><Th w={110} right>Est. Total</Th>
+                    </View>
+                    <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator>
+                      {ranking.slice(0, DASH_ROWS).map((r) => (
+                        <View key={r.id} style={tbl.row}>
+                          <Td w={40}>{r.lote ?? '—'}</Td><Td w={40}>{r.item ?? '—'}</Td>
+                          <Td w={130}>{r.etapaSessao ?? '—'}</Td>
+                          <Td w={110} color={colorFor(r.produtoCandidato ?? '', 0)} bold>{r.produtoCandidato ?? '—'}</Td>
+                          <Td w={40}>{r.posicao ?? '—'}</Td>
+                          <Td w={150}>{r.concorrente ?? '—'}</Td>
+                          <Td w={100} right>{fmtBRL(r.precoEstimadoUnit)}</Td>
+                          <Td w={110} right bold>{fmtBRL(r.precoEstimadoTotal)}</Td>
+                        </View>
+                      ))}
+                      {ranking.length > DASH_ROWS && (
+                        <Text style={tbl.more}>mostrando {DASH_ROWS} de {ranking.length}</Text>
+                      )}
+                      <View style={[tbl.row, tbl.totalRow]}>
+                        <Td w={40} bold>Tot</Td><Td w={40}> </Td><Td w={130}> </Td><Td w={110}> </Td>
+                        <Td w={40}> </Td><Td w={150}> </Td>
+                        <Td w={100} right bold>{fmtBRL(kpis.estimado && ranking.reduce((a, r) => a + (r.precoEstimadoUnit ?? 0), 0))}</Td>
+                        <Td w={110} right bold>{fmtBRL(kpis.estimado)}</Td>
+                      </View>
+                    </ScrollView>
+                  </TableScroll>
+                </Panel>
+              </View>
+            </View>
+
+            {/* Mapa do Brasil */}
+            <Panel title="Processos no Brasil — pontos por produto">
+              <BrazilMap rows={filtered} products={products} narrow={narrow} />
+            </Panel>
+          </View>
+          )}
 
           {/* ─── Footer ───────────────────────────────────────────────────── */}
           <View style={s.footer}>
@@ -810,4 +1087,42 @@ const s = StyleSheet.create({
   footerBadge: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: ACCENT, borderRadius: RADIUS.full, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
   footerTxt:   { fontSize: FONTS.sm, color: COLORS.gray[600], fontWeight: '600', fontStyle: 'italic' as any },
   footerBrand: { fontSize: FONTS.sm, color: BRAND, fontWeight: '900' },
+
+  // Toggle de visão
+  viewToggle:   { flexDirection: 'row', gap: 4, marginTop: SPACING.sm, backgroundColor: COLORS.gray[100], borderRadius: RADIUS.full, padding: 3, alignSelf: 'flex-start' },
+  viewBtn:      { paddingHorizontal: SPACING.md, paddingVertical: 6, borderRadius: RADIUS.full },
+  viewBtnActive:{ backgroundColor: COLORS.white, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+  viewBtnTxt:   { fontSize: FONTS.sm, color: COLORS.gray[500], fontWeight: '700' },
+  viewBtnTxtActive: { color: BRAND },
+
+  // KPIs
+  kpiRow:   { flexDirection: 'row', flexWrap: 'wrap' as any, gap: SPACING.md, paddingTop: SPACING.lg },
+  kpiCard:  { flexGrow: 1, flexBasis: 150, minWidth: 130, backgroundColor: '#f1f8f3', borderWidth: 1, borderColor: '#d6e9db', borderRadius: RADIUS.md, padding: SPACING.md, alignItems: 'center' },
+  kpiValue: { fontSize: 22, fontWeight: '900', color: COLORS.gray[900] },
+  kpiLabel: { fontSize: FONTS.sm, color: COLORS.gray[500], fontWeight: '600', marginTop: 2, textAlign: 'center' as any },
+
+  // Valor por licitador
+  licRow:      { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: 6 },
+  licName:     { width: 150, fontSize: FONTS.sm, color: COLORS.gray[700], fontWeight: '600' },
+  licBarTrack: { flex: 1, height: 16, backgroundColor: COLORS.gray[100], borderRadius: 3, overflow: 'hidden' },
+  licBarFill:  { height: '100%', backgroundColor: '#2e9e5b', borderRadius: 3 },
+  licVal:      { width: 110, textAlign: 'right' as any, fontSize: FONTS.sm, fontWeight: '700', color: COLORS.gray[700] },
+});
+
+// Estilos do mapa
+const mp = StyleSheet.create({
+  filters:  { width: 280, flexShrink: 0, paddingRight: SPACING.md },
+  fTitle:   { fontSize: FONTS.base, fontWeight: '800', color: COLORS.gray[800], marginBottom: SPACING.sm },
+  fLabel:   { fontSize: FONTS.sm, fontWeight: '700', color: COLORS.gray[600], marginTop: SPACING.md, marginBottom: 4 },
+  chips:    { flexDirection: 'row', flexWrap: 'wrap' as any, gap: 6 },
+  chip:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.gray[200], backgroundColor: COLORS.white },
+  dot:      { width: 8, height: 8, borderRadius: 4 },
+  chipTxt:  { fontSize: FONTS.xs, color: COLORS.gray[700], fontWeight: '600' },
+  ufChip:   { paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.gray[200], backgroundColor: COLORS.white },
+  ufChipOn: { backgroundColor: BRAND, borderColor: BRAND },
+  ufChipTxt:{ fontSize: 11, color: COLORS.gray[600], fontWeight: '700' },
+  clear:    { marginTop: SPACING.md, alignItems: 'center', paddingVertical: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: COLORS.gray[100] },
+  clearTxt: { fontSize: FONTS.sm, color: COLORS.gray[600], fontWeight: '600' },
+  count:    { fontSize: FONTS.sm, color: COLORS.gray[500], fontWeight: '600', marginTop: SPACING.md },
+  mapWrap:  { flex: 1, alignItems: 'center', justifyContent: 'flex-start' },
 });
