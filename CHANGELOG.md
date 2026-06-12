@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/guilherme14888/crm-br4/compare/v1.4.0...v1.4.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* editar palavra-chave re-sincroniza o rotulo (produto_candidato) das licitacoes ja capturadas ([e35d1c7](https://github.com/guilherme14888/crm-br4/commit/e35d1c788d4624e4fdbae4675cf0224591ceff4d))
+
 # [1.4.0](https://github.com/guilherme14888/crm-br4/compare/v1.3.0...v1.4.0) (2026-06-12)
 
 
