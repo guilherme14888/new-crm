@@ -1,3 +1,10 @@
+## [1.4.2](https://github.com/guilherme14888/crm-br4/compare/v1.4.1...v1.4.2) (2026-06-12)
+
+
+### Bug Fixes
+
+* matchesTerm mais preciso em keywords multi-palavra ([1cccd05](https://github.com/guilherme14888/crm-br4/commit/1cccd0562b190c6a74b6bdb6f7639072e1a40af1))
+
 ## [1.4.1](https://github.com/guilherme14888/crm-br4/compare/v1.4.0...v1.4.1) (2026-06-12)
 
 
