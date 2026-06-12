@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/guilherme14888/crm-br4/compare/v1.2.0...v1.2.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* filtros da Listagem como dropdown accordion (sem sobreposicao) e Dashboard mais rapido ([af3f0fc](https://github.com/guilherme14888/crm-br4/commit/af3f0fcc200cf0cafa00c78eabdc0007a0a64e9a))
+
 # [1.2.0](https://github.com/guilherme14888/crm-br4/compare/v1.1.1...v1.2.0) (2026-06-10)
 
 
