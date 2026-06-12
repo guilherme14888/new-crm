@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/guilherme14888/crm-br4/compare/v1.3.0...v1.4.0) (2026-06-12)
+
+
+### Features
+
+* worker isolado de ingestao (servico separado no swarm) ([12c1645](https://github.com/guilherme14888/crm-br4/commit/12c16454a93261220067af77b056ac7fe088ae7b))
+
 # [1.3.0](https://github.com/guilherme14888/crm-br4/compare/v1.2.1...v1.3.0) (2026-06-12)
 
 
