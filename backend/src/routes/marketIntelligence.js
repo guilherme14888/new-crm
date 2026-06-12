@@ -3,6 +3,7 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { resolveScope, buildCompanyFilter, requireRole } = require('../middleware/acl');
 const { SOURCE_DEFS } = require('../ingest/sources');
+const marketDocs = require('../marketDocs');
 const { v4: uuidv4 } = require('uuid');
 
 // Inteligência de Mercado — agora POR TENANT (company_id).
@@ -73,6 +74,57 @@ router.get('/:id/history', auth, resolveScope, async (req, res) => {
       precoFinalUnit: n(h.preco_final_unit), precoFinalTotal: n(h.preco_final_total),
       snapshotAt: h.snapshot_at ?? null, runDate: h.run_date ?? null,
     })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/market-intelligence/:id/docs — disponibilidade de edital/ata (metadado barato)
+router.get('/:id/docs', auth, resolveScope, async (req, res) => {
+  try {
+    const { where, params } = buildCompanyFilter(req.scope, 'mi');
+    const [rows] = await db.query(
+      `SELECT mi.company_id, mi.pncp_controle, mi.url_site FROM market_intelligence mi WHERE mi.id = ? AND ${where}`,
+      [req.params.id, ...params]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
+    const r = rows[0];
+    const ctrl = marketDocs.parseControle(r.url_site);
+    const [cached] = await db.query(
+      'SELECT tipo FROM market_intelligence_docs WHERE company_id <=> ? AND pncp_controle = ?',
+      [r.company_id ?? null, r.pncp_controle]
+    );
+    const have = new Set(cached.map((c) => c.tipo));
+    const avail = ctrl ? await marketDocs.availability(ctrl.cnpj, ctrl.ano, ctrl.seq) : { edital: false, ata: false };
+    res.json({ edital: have.has('edital') || avail.edital, ata: have.has('ata') || avail.ata });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/market-intelligence/:id/doc/:tipo — serve o PDF (edital|ata), cacheando no 1º acesso
+router.get('/:id/doc/:tipo', auth, resolveScope, async (req, res) => {
+  const tipo = req.params.tipo === 'ata' ? 'ata' : 'edital';
+  try {
+    const { where, params } = buildCompanyFilter(req.scope, 'mi');
+    const [rows] = await db.query(
+      `SELECT mi.company_id, mi.pncp_controle, mi.url_site FROM market_intelligence mi WHERE mi.id = ? AND ${where}`,
+      [req.params.id, ...params]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
+    const r = rows[0];
+
+    let doc = await marketDocs.getCached(r.company_id, r.pncp_controle, tipo);
+    let buf, filename, mime, viewable;
+    if (doc) {
+      ({ filename, mime } = doc); buf = doc.conteudo; viewable = !!doc.viewable;
+    } else {
+      const ctrl = marketDocs.parseControle(r.url_site);
+      if (!ctrl) return res.status(404).json({ error: 'Documento indisponível' });
+      const fetched = await marketDocs.fetchDoc(r.company_id, r.pncp_controle, tipo, ctrl);
+      if (!fetched) return res.status(404).json({ error: 'Documento indisponível no PNCP' });
+      ({ buf, filename, mime, viewable } = fetched);
+    }
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `${viewable ? 'inline' : 'attachment'}; filename="${encodeURIComponent(filename)}"`);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(buf);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -6,7 +6,7 @@ import {
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
 import { useMarketIntelStore, MarketIntelRow } from '../../../src/stores/marketIntelStore';
 import { useAuthStore } from '../../../src/stores/authStore';
-import { apiFetch } from '../../../src/services/api';
+import { apiFetch, apiFetchBlob } from '../../../src/services/api';
 
 /** Um snapshot da linha do tempo da licitação (transição de status/vencedor/preço). */
 interface HistoryEntry {
@@ -81,7 +81,7 @@ const COLUMNS: Col[] = [
   { key: 'nomeSite',          label: 'Portal',              w: 90 },
   { key: 'urlSite',           label: 'URL',                 w: 260 },
 ];
-const ACTION_W = 44;   // coluna da ação de histórico (🕑)
+const ACTION_W = 76;   // coluna de ações por linha (🕑 histórico + 📄 documentos)
 const TABLE_W = COLUMNS.reduce((s, c) => s + c.w, 0) + 16 + ACTION_W;
 
 const cellText = (r: MarketIntelRow, c: Col) => (c.fmt ? c.fmt(r) : (r[c.key] == null ? '' : String(r[c.key])));
@@ -185,6 +185,42 @@ export default function MarketIntelligenceListagem() {
     catch { setHist([]); }
     finally { setHistLoading(false); }
   };
+
+  // Documentos (edital/ata) — modal com leitor de PDF embutido.
+  const [docRow, setDocRow]       = useState<MarketIntelRow | null>(null);
+  const [docAvail, setDocAvail]   = useState<{ edital: boolean; ata: boolean } | null>(null);
+  const [docTab, setDocTab]       = useState<'edital' | 'ata'>('edital');
+  const [docUrl, setDocUrl]       = useState<string | null>(null);
+  const [docIsPdf, setDocIsPdf]   = useState(true);
+  const [docLoading, setDocLoading] = useState(false);
+  const [docError, setDocError]   = useState('');
+
+  // libera o object URL anterior (evita vazamento de memória)
+  const revokeDocUrl = () => setDocUrl((u) => { if (u) URL.revokeObjectURL(u); return null; });
+
+  const loadDoc = async (row: MarketIntelRow, tipo: 'edital' | 'ata') => {
+    setDocTab(tipo); setDocError(''); setDocLoading(true); revokeDocUrl();
+    try {
+      const blob = await apiFetchBlob(`/api/market-intelligence/${row.id}/doc/${tipo}`);
+      const isPdf = blob.type === 'application/pdf';
+      setDocIsPdf(isPdf);
+      setDocUrl(URL.createObjectURL(blob));
+    } catch (e: any) {
+      setDocError(e?.message ?? 'Não foi possível carregar o documento.');
+    } finally { setDocLoading(false); }
+  };
+
+  const openDocs = async (r: MarketIntelRow) => {
+    setDocRow(r); setDocAvail(null); setDocError(''); revokeDocUrl();
+    try {
+      const avail = await apiFetch<{ edital: boolean; ata: boolean }>(`/api/market-intelligence/${r.id}/docs`);
+      setDocAvail(avail);
+      if (avail.edital) loadDoc(r, 'edital');
+      else if (avail.ata) loadDoc(r, 'ata');
+    } catch { setDocAvail({ edital: false, ata: false }); }
+  };
+
+  const closeDocs = () => { revokeDocUrl(); setDocRow(null); setDocAvail(null); setDocError(''); };
 
   // Estado de RASCUNHO dos filtros (editado no drawer, comitado em "Filtrar").
   const [dFrom, setDFrom]       = useState('');
@@ -359,7 +395,7 @@ export default function MarketIntelligenceListagem() {
         <View style={{ minWidth: TABLE_W, flex: 1 }}>
           {/* header */}
           <View style={s.headRow}>
-            <Text style={[s.th, { width: ACTION_W, textAlign: 'center' as any }]}>Hist.</Text>
+            <Text style={[s.th, { width: ACTION_W, textAlign: 'center' as any }]}>Ações</Text>
             {COLUMNS.map((c) => (
               <Text key={String(c.key)} style={[s.th, { width: c.w }, c.right && { textAlign: 'right' as any }]} numberOfLines={1}>
                 {c.label}
@@ -373,9 +409,14 @@ export default function MarketIntelligenceListagem() {
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator>
               {pageRows.map((r, index) => (
                 <View key={r.id} style={[s.row, index % 2 === 1 && s.rowAlt]}>
-                  <Pressable style={s.histBtn} onPress={() => openHistory(r)}>
-                    <Text style={s.histIcon}>🕑</Text>
-                  </Pressable>
+                  <View style={s.actionsCell}>
+                    <Pressable onPress={() => openHistory(r)} style={s.actionBtn} {...({ title: 'Histórico' } as any)}>
+                      <Text style={s.histIcon}>🕑</Text>
+                    </Pressable>
+                    <Pressable onPress={() => openDocs(r)} style={s.actionBtn} {...({ title: 'Edital / Ata (PDF)' } as any)}>
+                      <Text style={s.histIcon}>📄</Text>
+                    </Pressable>
+                  </View>
                   {COLUMNS.map((c) => {
                     const txt = cellText(r, c);
                     const isUrl = c.key === 'urlSite' && !!txt;
@@ -559,6 +600,73 @@ export default function MarketIntelligenceListagem() {
           </View>
         </>
       )}
+
+      {/* ─── Modal: documentos (edital/ata) com leitor de PDF ──────────────── */}
+      {docRow && (
+        <>
+          <Pressable style={s.drawerBackdrop} onPress={closeDocs} />
+          <View style={s.docModal}>
+            <View style={s.drawerHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.histTitle}>Documentos da licitação</Text>
+                <Text style={s.histSub} numberOfLines={1}>
+                  {docRow.licitador || ''} {docRow.nProcesso ? `· ${docRow.nProcesso}` : ''}
+                </Text>
+              </View>
+              <Pressable onPress={closeDocs} style={s.drawerClose}>
+                <Text style={s.drawerCloseTxt}>✕</Text>
+              </Pressable>
+            </View>
+
+            {/* Abas Edital / Ata */}
+            <View style={s.docTabs}>
+              {(['edital', 'ata'] as const).map((t) => {
+                const enabled = docAvail ? docAvail[t] : false;
+                const active = docTab === t;
+                return (
+                  <Pressable
+                    key={t}
+                    disabled={!enabled}
+                    style={[s.docTab, active && s.docTabActive, !enabled && s.docTabDisabled]}
+                    onPress={() => loadDoc(docRow, t)}
+                  >
+                    <Text style={[s.docTabTxt, active && s.docTabTxtActive, !enabled && s.docTabTxtDisabled]}>
+                      {t === 'edital' ? '📄 Edital' : '📄 Ata'}{!enabled && docAvail ? ' (n/d)' : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Visualizador */}
+            <View style={s.docBody}>
+              {!docAvail && <ActivityIndicator color={BRAND} style={{ marginTop: SPACING.xl }} />}
+              {docAvail && !docAvail.edital && !docAvail.ata && (
+                <Text style={s.centerTxt}>Nenhum documento disponível no PNCP para esta licitação.</Text>
+              )}
+              {docLoading && <ActivityIndicator color={BRAND} style={{ marginTop: SPACING.xl }} />}
+              {!!docError && !docLoading && <Text style={[s.centerTxt, { color: COLORS.danger }]}>{docError}</Text>}
+              {!docLoading && !docError && docUrl && (
+                docIsPdf ? (
+                  // leitor de PDF embutido (visualizador nativo do navegador)
+                  Platform.OS === 'web'
+                    ? React.createElement('iframe', { src: docUrl, style: { width: '100%', height: '100%', border: 'none' }, title: 'Documento' })
+                    : <Text style={s.centerTxt}>Abra no navegador para visualizar o PDF.</Text>
+                ) : (
+                  <View style={{ alignItems: 'center', padding: SPACING.xl }}>
+                    <Text style={s.centerTxt}>Este documento não é PDF (provavelmente arquivo compactado/Word).</Text>
+                    {Platform.OS === 'web' && (
+                      <Pressable style={[s.applyBtn, { marginTop: SPACING.md }]} onPress={() => (window as any).open(docUrl, '_blank')}>
+                        <Text style={s.applyBtnTxt}>Baixar arquivo</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )
+              )}
+            </View>
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -626,9 +734,22 @@ const s = StyleSheet.create({
   applyBtn:    { paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md, borderRadius: RADIUS.md, backgroundColor: BRAND },
   applyBtnTxt: { fontSize: FONTS.base, color: COLORS.white, fontWeight: '700' },
 
-  // Ação de histórico na tabela
-  histBtn:   { width: ACTION_W, alignItems: 'center', justifyContent: 'center' },
-  histIcon:  { fontSize: 15 },
+  // Ações por linha na tabela (histórico + documentos)
+  actionsCell: { width: ACTION_W, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
+  actionBtn:   { paddingHorizontal: 4, paddingVertical: 2, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  histBtn:     { width: ACTION_W, alignItems: 'center', justifyContent: 'center' },
+  histIcon:    { fontSize: 15 },
+
+  // Modal de documentos (leitor de PDF)
+  docModal:  { position: 'fixed' as any, top: '4%' as any, left: '50%' as any, transform: [{ translateX: '-50%' as any }] as any, width: '88%' as any, maxWidth: 1000, height: '92%' as any, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, zIndex: 201, overflow: 'hidden' as any, flexDirection: 'column', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 30 } as any,
+  docTabs:   { flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.gray[100] },
+  docTab:    { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  docTabActive: { borderBottomColor: BRAND },
+  docTabDisabled: { opacity: 0.4 },
+  docTabTxt: { fontSize: FONTS.base, color: COLORS.gray[600], fontWeight: '700' },
+  docTabTxtActive: { color: BRAND },
+  docTabTxtDisabled: { color: COLORS.gray[400] },
+  docBody:   { flex: 1, backgroundColor: COLORS.gray[100], alignItems: 'stretch', justifyContent: 'center' },
 
   // Modal de histórico (linha do tempo) — centralizado, não polui a tabela
   histModal: { position: 'fixed' as any, top: '50%' as any, left: '50%' as any, transform: [{ translateX: '-50%' as any }, { translateY: '-50%' as any }] as any, width: '92%' as any, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, zIndex: 201, overflow: 'hidden' as any, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 30 } as any,

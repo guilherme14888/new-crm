@@ -90,3 +90,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
   return res.json() as Promise<T>;
 }
+
+/** Baixa um recurso binário (ex.: PDF) com o token Bearer e retorna um Blob. */
+export async function apiFetchBlob(path: string): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  if (_token) headers['Authorization'] = `Bearer ${_token}`;
+  const res = await fetch(`${API_URL}${path}`, { headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? `HTTP ${res.status}`);
+  }
+  return res.blob();
+}
