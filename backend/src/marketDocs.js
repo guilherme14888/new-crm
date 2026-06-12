@@ -1,6 +1,6 @@
 // Documentos da licitação (edital/ata) do PNCP, trazidos para DENTRO do CRM:
-// baixa do PNCP, extrai o PDF se vier .zip, cacheia em market_intelligence_docs
-// (LONGBLOB) e devolve os bytes para o leitor de PDF embutido.
+// baixa do PNCP, extrai TODOS os PDFs (inclusive de zips aninhados, ex.: ComprasGov),
+// cacheia cada PDF em market_intelligence_docs (LONGBLOB) e serve para o leitor embutido.
 
 const AdmZip = require('adm-zip');
 const db = require('./db');
@@ -9,9 +9,16 @@ const { request, getJson } = require('./ingest/http');
 const BASE = 'https://pncp.gov.br';
 const API = `${BASE}/api/pncp/v1`;
 const MAX_CACHE = 12 * 1024 * 1024;   // 12MB (max_allowed_packet = 16MB)
+const ZIP_SIG = '504b0304';
+const isPdfBuf = (b) => b.slice(0, 5).toString('latin1') === '%PDF-';
+const isZipBuf = (b) => b.slice(0, 4).toString('hex') === ZIP_SIG;
 
 let seq = 0;
 const docId = () => `doc-${Date.now().toString(36)}-${++seq}`;
+
+// Tipo "Ata de Registro de Preço" (regex preciso p/ NÃO casar "Contr-ATA-ção").
+const isAtaTipo = (t) => /ata de registro|^\s*ata\b/i.test(String(t || ''));
+const isEditalTipo = (t) => /edital|aviso/i.test(String(t || ''));
 
 /** Extrai cnpj/ano/seq da url_site (.../app/editais/{cnpj}/{ano}/{seq}). */
 function parseControle(urlSite) {
@@ -19,90 +26,134 @@ function parseControle(urlSite) {
   return m ? { cnpj: m[1], ano: m[2], seq: m[3] } : null;
 }
 
-/** Disponibilidade barata (sem baixar): há edital? há ata? (consulta metadados PNCP). */
+/** Extrai recursivamente todos os PDFs de um buffer (zip, zip aninhado ou PDF puro). */
+function extractPdfs(buf, baseName, depth = 0) {
+  const out = [];
+  if (isZipBuf(buf) && depth < 4) {
+    try {
+      for (const e of new AdmZip(buf).getEntries()) {
+        if (e.isDirectory) continue;
+        const data = e.getData();
+        const name = e.entryName.split(/[/\\]/).pop();
+        if (/\.pdf$/i.test(name) && isPdfBuf(data)) out.push({ name, data });
+        else if (isZipBuf(data)) out.push(...extractPdfs(data, name, depth + 1));
+      }
+    } catch { /* zip inválido */ }
+  } else if (isPdfBuf(buf)) {
+    const nm = /\.pdf$/i.test(baseName || '') ? baseName : `${baseName || 'documento'}.pdf`;
+    out.push({ name: nm, data: buf });
+  }
+  return out;
+}
+
+/** Disponibilidade barata: há edital? há ata? (uma chamada a /arquivos + fallback /atas). */
 async function availability(cnpj, ano, seq) {
   const out = { edital: false, ata: false };
-  try { const a = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/arquivos`); out.edital = Array.isArray(a) && a.length > 0; } catch { /* ignora */ }
-  try { const t = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/atas`);     out.ata    = Array.isArray(t) && t.length > 0; } catch { /* ignora */ }
+  try {
+    const arq = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/arquivos`);
+    if (Array.isArray(arq) && arq.length) {
+      out.edital = true;
+      out.ata = arq.some((a) => isAtaTipo(a.tipoDocumentoNome));
+    }
+  } catch { /* ignora */ }
+  if (!out.ata) {
+    try { const t = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/atas`); out.ata = Array.isArray(t) && t.length > 0; } catch { /* ignora */ }
+  }
   return out;
 }
 
 /** Resolve a URL do documento (edital ou ata) no PNCP. */
 async function resolveDocUrl(tipo, cnpj, ano, seq) {
+  const arq = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/arquivos`);
+  const list = Array.isArray(arq) ? arq : [];
   if (tipo === 'edital') {
-    const arq = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/arquivos`);
-    if (!Array.isArray(arq) || !arq.length) return null;
-    const pick = arq.find((a) => /edital/i.test(a.tipoDocumentoNome || '')) || arq[0];
-    return { url: pick.url || pick.uri, label: pick.titulo || 'edital' };
+    const pick = list.find((a) => isEditalTipo(a.tipoDocumentoNome) && !isAtaTipo(a.tipoDocumentoNome))
+      || list.find((a) => !isAtaTipo(a.tipoDocumentoNome)) || list[0];
+    return pick ? { url: pick.url || pick.uri, label: pick.titulo || 'edital' } : null;
   }
-  // ata
-  const atas = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/atas`);
-  if (!Array.isArray(atas) || !atas.length) return null;
-  const ata = atas[0];
-  // documento direto na ata, se houver
-  if (ata.url || ata.uri) return { url: ata.url || ata.uri, label: ata.titulo || 'ata' };
-  // senão, arquivos da ata
-  const seqAta = ata.sequencialAta ?? ata.sequencial ?? 1;
+  const ataDoc = list.find((a) => isAtaTipo(a.tipoDocumentoNome));
+  if (ataDoc) return { url: ataDoc.url || ataDoc.uri, label: ataDoc.titulo || 'ata' };
+  // fallback: recurso /atas
   try {
-    const aarq = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/atas/${seqAta}/arquivos`);
-    if (Array.isArray(aarq) && aarq.length) {
-      const d = aarq[0];
-      return { url: d.url || d.uri, label: d.titulo || 'ata' };
+    const atas = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/atas`);
+    if (Array.isArray(atas) && atas.length) {
+      const ata = atas[0];
+      if (ata.url || ata.uri) return { url: ata.url || ata.uri, label: ata.titulo || 'ata' };
+      const seqAta = ata.sequencialAta ?? ata.sequencial ?? 1;
+      const aarq = await getJson(`${API}/orgaos/${cnpj}/compras/${ano}/${seq}/atas/${seqAta}/arquivos`);
+      if (Array.isArray(aarq) && aarq.length) { const d = aarq[0]; return { url: d.url || d.uri, label: d.titulo || 'ata' }; }
     }
   } catch { /* ignora */ }
   return null;
 }
 
-/** Lê do cache (se houver). */
-async function getCached(companyId, pncpControle, tipo) {
+/** Linhas em cache de um documento (tipo) de uma licitação. */
+async function cachedRows(companyId, pncpControle, tipo) {
   const [rows] = await db.query(
-    'SELECT filename, mime, viewable, conteudo FROM market_intelligence_docs WHERE company_id <=> ? AND pncp_controle = ? AND tipo = ? LIMIT 1',
+    'SELECT idx, filename, mime, viewable, size_bytes FROM market_intelligence_docs WHERE company_id <=> ? AND pncp_controle = ? AND tipo = ? ORDER BY idx',
     [companyId ?? null, pncpControle, tipo]
   );
-  return rows[0] || null;
+  return rows;
 }
 
 /**
- * Baixa do PNCP, extrai o maior PDF se vier zip, cacheia e devolve
- * { buf, filename, mime, viewable }. Retorna null se não houver documento.
+ * Lista os arquivos (PDFs) do documento — do cache ou baixando+extraindo do PNCP.
+ * Retorna [{ idx, name, size, mime, viewable }].
  */
-async function fetchDoc(companyId, pncpControle, tipo, ctrl) {
+async function listFiles(companyId, pncpControle, tipo, ctrl) {
+  const cached = await cachedRows(companyId, pncpControle, tipo);
+  if (cached.length) return cached.map((c) => ({ idx: c.idx, name: c.filename, size: c.size_bytes, mime: c.mime, viewable: !!c.viewable }));
+
   const ref = await resolveDocUrl(tipo, ctrl.cnpj, ctrl.ano, ctrl.seq);
-  if (!ref || !ref.url) return null;
-
+  if (!ref || !ref.url) return [];
   const res = await request(ref.url, { headers: { Accept: '*/*' }, timeout: 60000 });
-  if (!res.ok) return null;
-  let buf = Buffer.from(await res.arrayBuffer());
-  let filename = ref.label;
+  if (!res.ok) return [];
+  const buf = Buffer.from(await res.arrayBuffer());
 
-  // .zip → extrai o maior PDF interno (o edital costuma ser o principal)
-  if (buf.slice(0, 4).toString('hex') === '504b0304') {
-    try {
-      const pdfs = new AdmZip(buf).getEntries()
-        .filter((e) => !e.isDirectory && /\.pdf$/i.test(e.entryName))
-        .sort((a, b) => b.header.size - a.header.size);
-      if (pdfs.length) { buf = pdfs[0].getData(); filename = pdfs[0].entryName.split('/').pop(); }
-    } catch { /* zip inválido → mantém original */ }
+  let files = extractPdfs(buf, ref.label);
+  let pdf = true;
+  if (!files.length) { // sem PDF → guarda o arquivo bruto (zip/doc) como download
+    pdf = false;
+    let nm = ref.label || 'documento';
+    if (!/\.[a-z0-9]{2,4}$/i.test(nm)) nm += isZipBuf(buf) ? '.zip' : '.bin';
+    files = [{ name: nm, data: buf }];
   }
 
-  const isPdf = buf.slice(0, 5).toString('latin1') === '%PDF-';
-  const mime = isPdf ? 'application/pdf' : 'application/octet-stream';
-  const viewable = isPdf ? 1 : 0;
-  if (!/\.[a-z0-9]{2,4}$/i.test(filename)) filename += isPdf ? '.pdf' : '.bin';
-
-  if (buf.length <= MAX_CACHE) {
-    try {
-      await db.query(
-        `INSERT INTO market_intelligence_docs
-           (id, company_id, pncp_controle, tipo, filename, mime, viewable, size_bytes, source_url, conteudo, fetched_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,NOW())
-         ON DUPLICATE KEY UPDATE filename=VALUES(filename), mime=VALUES(mime), viewable=VALUES(viewable),
-           size_bytes=VALUES(size_bytes), source_url=VALUES(source_url), conteudo=VALUES(conteudo), fetched_at=NOW()`,
-        [docId(), companyId ?? null, pncpControle, tipo, filename, mime, viewable, buf.length, ref.url, buf]
-      );
-    } catch { /* cache é complementar; segue servindo mesmo se falhar */ }
+  const result = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const viewable = pdf && isPdfBuf(f.data) ? 1 : 0;
+    const mime = viewable ? 'application/pdf' : 'application/octet-stream';
+    if (f.data.length <= MAX_CACHE) {
+      try {
+        await db.query(
+          `INSERT INTO market_intelligence_docs
+             (id, company_id, pncp_controle, tipo, idx, filename, mime, viewable, size_bytes, source_url, conteudo, fetched_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW())
+           ON DUPLICATE KEY UPDATE filename=VALUES(filename), mime=VALUES(mime), viewable=VALUES(viewable),
+             size_bytes=VALUES(size_bytes), source_url=VALUES(source_url), conteudo=VALUES(conteudo), fetched_at=NOW()`,
+          [docId(), companyId ?? null, pncpControle, tipo, i, f.name, mime, viewable, f.data.length, ref.url, f.data]
+        );
+      } catch { /* cache complementar */ }
+    }
+    result.push({ idx: i, name: f.name, size: f.data.length, mime, viewable: !!viewable });
   }
-  return { buf, filename, mime, viewable: !!viewable };
+  return result;
 }
 
-module.exports = { parseControle, availability, getCached, fetchDoc };
+/** Bytes de um arquivo específico (idx) — do cache (baixa+extrai se ainda não houver). */
+async function getFile(companyId, pncpControle, tipo, idx, ctrl) {
+  const sel = async () => {
+    const [rows] = await db.query(
+      'SELECT filename, mime, viewable, conteudo FROM market_intelligence_docs WHERE company_id <=> ? AND pncp_controle = ? AND tipo = ? AND idx = ? LIMIT 1',
+      [companyId ?? null, pncpControle, tipo, idx]
+    );
+    return rows[0] || null;
+  };
+  let r = await sel();
+  if (!r) { await listFiles(companyId, pncpControle, tipo, ctrl); r = await sel(); }
+  if (!r || !r.conteudo) return null;
+  return { buf: r.conteudo, filename: r.filename, mime: r.mime, viewable: !!r.viewable };
+}
+
+module.exports = { parseControle, availability, listFiles, getFile };

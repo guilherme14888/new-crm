@@ -98,33 +98,43 @@ router.get('/:id/docs', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/market-intelligence/:id/doc/:tipo — serve o PDF (edital|ata), cacheando no 1º acesso
+// Helper: carrega a linha (escopada) e devolve { company_id, pncp_controle, ctrl }
+async function loadMiRow(req) {
+  const { where, params } = buildCompanyFilter(req.scope, 'mi');
+  const [rows] = await db.query(
+    `SELECT mi.company_id, mi.pncp_controle, mi.url_site FROM market_intelligence mi WHERE mi.id = ? AND ${where}`,
+    [req.params.id, ...params]
+  );
+  if (!rows.length) return null;
+  return { ...rows[0], ctrl: marketDocs.parseControle(rows[0].url_site) };
+}
+
+// GET /:id/doc/:tipo — lista os arquivos (PDFs) do edital/ata (baixa+extrai do PNCP no 1º acesso)
 router.get('/:id/doc/:tipo', auth, resolveScope, async (req, res) => {
   const tipo = req.params.tipo === 'ata' ? 'ata' : 'edital';
   try {
-    const { where, params } = buildCompanyFilter(req.scope, 'mi');
-    const [rows] = await db.query(
-      `SELECT mi.company_id, mi.pncp_controle, mi.url_site FROM market_intelligence mi WHERE mi.id = ? AND ${where}`,
-      [req.params.id, ...params]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
-    const r = rows[0];
+    const row = await loadMiRow(req);
+    if (!row) return res.status(404).json({ error: 'Não encontrado' });
+    if (!row.ctrl) return res.json({ files: [] });
+    const files = await marketDocs.listFiles(row.company_id, row.pncp_controle, tipo, row.ctrl);
+    res.json({ files });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
-    let doc = await marketDocs.getCached(r.company_id, r.pncp_controle, tipo);
-    let buf, filename, mime, viewable;
-    if (doc) {
-      ({ filename, mime } = doc); buf = doc.conteudo; viewable = !!doc.viewable;
-    } else {
-      const ctrl = marketDocs.parseControle(r.url_site);
-      if (!ctrl) return res.status(404).json({ error: 'Documento indisponível' });
-      const fetched = await marketDocs.fetchDoc(r.company_id, r.pncp_controle, tipo, ctrl);
-      if (!fetched) return res.status(404).json({ error: 'Documento indisponível no PNCP' });
-      ({ buf, filename, mime, viewable } = fetched);
-    }
-    res.setHeader('Content-Type', mime);
-    res.setHeader('Content-Disposition', `${viewable ? 'inline' : 'attachment'}; filename="${encodeURIComponent(filename)}"`);
+// GET /:id/doc/:tipo/file/:idx — serve os bytes de um arquivo específico (inline se PDF)
+router.get('/:id/doc/:tipo/file/:idx', auth, resolveScope, async (req, res) => {
+  const tipo = req.params.tipo === 'ata' ? 'ata' : 'edital';
+  const idx = parseInt(req.params.idx, 10) || 0;
+  try {
+    const row = await loadMiRow(req);
+    if (!row) return res.status(404).json({ error: 'Não encontrado' });
+    if (!row.ctrl) return res.status(404).json({ error: 'Documento indisponível' });
+    const f = await marketDocs.getFile(row.company_id, row.pncp_controle, tipo, idx, row.ctrl);
+    if (!f) return res.status(404).json({ error: 'Documento indisponível no PNCP' });
+    res.setHeader('Content-Type', f.mime);
+    res.setHeader('Content-Disposition', `${f.viewable ? 'inline' : 'attachment'}; filename="${encodeURIComponent(f.filename)}"`);
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    res.send(buf);
+    res.send(f.buf);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

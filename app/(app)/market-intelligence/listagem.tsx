@@ -187,9 +187,12 @@ export default function MarketIntelligenceListagem() {
   };
 
   // Documentos (edital/ata) — modal com leitor de PDF embutido.
+  type DocFile = { idx: number; name: string; size: number; mime: string; viewable: boolean };
   const [docRow, setDocRow]       = useState<MarketIntelRow | null>(null);
   const [docAvail, setDocAvail]   = useState<{ edital: boolean; ata: boolean } | null>(null);
   const [docTab, setDocTab]       = useState<'edital' | 'ata'>('edital');
+  const [docFiles, setDocFiles]   = useState<DocFile[]>([]);
+  const [docFileIdx, setDocFileIdx] = useState(0);
   const [docUrl, setDocUrl]       = useState<string | null>(null);
   const [docIsPdf, setDocIsPdf]   = useState(true);
   const [docLoading, setDocLoading] = useState(false);
@@ -198,20 +201,35 @@ export default function MarketIntelligenceListagem() {
   // libera o object URL anterior (evita vazamento de memória)
   const revokeDocUrl = () => setDocUrl((u) => { if (u) URL.revokeObjectURL(u); return null; });
 
-  const loadDoc = async (row: MarketIntelRow, tipo: 'edital' | 'ata') => {
-    setDocTab(tipo); setDocError(''); setDocLoading(true); revokeDocUrl();
+  // baixa e exibe um arquivo específico (idx) do documento
+  const loadFile = async (row: MarketIntelRow, tipo: 'edital' | 'ata', idx: number) => {
+    setDocFileIdx(idx); setDocError(''); setDocLoading(true); revokeDocUrl();
     try {
-      const blob = await apiFetchBlob(`/api/market-intelligence/${row.id}/doc/${tipo}`);
-      const isPdf = blob.type === 'application/pdf';
-      setDocIsPdf(isPdf);
+      const blob = await apiFetchBlob(`/api/market-intelligence/${row.id}/doc/${tipo}/file/${idx}`);
+      setDocIsPdf(blob.type === 'application/pdf');
       setDocUrl(URL.createObjectURL(blob));
     } catch (e: any) {
       setDocError(e?.message ?? 'Não foi possível carregar o documento.');
     } finally { setDocLoading(false); }
   };
 
+  // lista os arquivos de um documento (edital/ata) e abre o principal
+  const loadDoc = async (row: MarketIntelRow, tipo: 'edital' | 'ata') => {
+    setDocTab(tipo); setDocError(''); setDocLoading(true); setDocFiles([]); revokeDocUrl();
+    try {
+      const { files } = await apiFetch<{ files: DocFile[] }>(`/api/market-intelligence/${row.id}/doc/${tipo}`);
+      setDocFiles(files);
+      if (!files.length) { setDocError('Documento indisponível no PNCP.'); setDocLoading(false); return; }
+      // escolhe o principal: nome que parece o edital/ata; senão o 1º PDF; senão o 1º
+      const pref = files.find((f) => new RegExp(tipo, 'i').test(f.name)) || files.find((f) => f.viewable) || files[0];
+      await loadFile(row, tipo, pref.idx);
+    } catch (e: any) {
+      setDocError(e?.message ?? 'Erro ao carregar documentos.'); setDocLoading(false);
+    }
+  };
+
   const openDocs = async (r: MarketIntelRow) => {
-    setDocRow(r); setDocAvail(null); setDocError(''); revokeDocUrl();
+    setDocRow(r); setDocAvail(null); setDocFiles([]); setDocError(''); revokeDocUrl();
     try {
       const avail = await apiFetch<{ edital: boolean; ata: boolean }>(`/api/market-intelligence/${r.id}/docs`);
       setDocAvail(avail);
@@ -220,7 +238,7 @@ export default function MarketIntelligenceListagem() {
     } catch { setDocAvail({ edital: false, ata: false }); }
   };
 
-  const closeDocs = () => { revokeDocUrl(); setDocRow(null); setDocAvail(null); setDocError(''); };
+  const closeDocs = () => { revokeDocUrl(); setDocRow(null); setDocAvail(null); setDocFiles([]); setDocError(''); };
 
   // Estado de RASCUNHO dos filtros (editado no drawer, comitado em "Filtrar").
   const [dFrom, setDFrom]       = useState('');
@@ -638,6 +656,22 @@ export default function MarketIntelligenceListagem() {
               })}
             </View>
 
+            {/* Seletor de arquivos (edital normalmente tem vários PDFs: edital, anexos, relação) */}
+            {docFiles.length > 1 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.docFiles} contentContainerStyle={{ gap: SPACING.xs, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, alignItems: 'center' }}>
+                {docFiles.map((f) => {
+                  const active = f.idx === docFileIdx;
+                  return (
+                    <Pressable key={f.idx} style={[s.docChip, active && s.docChipActive]} onPress={() => docRow && loadFile(docRow, docTab, f.idx)}>
+                      <Text style={[s.docChipTxt, active && s.docChipTxtActive]} numberOfLines={1}>
+                        {f.viewable ? '📄 ' : '📎 '}{f.name.replace(/\.pdf$/i, '')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+
             {/* Visualizador */}
             <View style={s.docBody}>
               {!docAvail && <ActivityIndicator color={BRAND} style={{ marginTop: SPACING.xl }} />}
@@ -749,6 +783,11 @@ const s = StyleSheet.create({
   docTabTxt: { fontSize: FONTS.base, color: COLORS.gray[600], fontWeight: '700' },
   docTabTxtActive: { color: BRAND },
   docTabTxtDisabled: { color: COLORS.gray[400] },
+  docFiles:  { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: COLORS.gray[100], backgroundColor: COLORS.gray[50] },
+  docChip:   { paddingHorizontal: SPACING.md, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.gray[200], backgroundColor: COLORS.white, maxWidth: 240 },
+  docChipActive: { borderColor: BRAND, backgroundColor: BRAND + '12' },
+  docChipTxt:   { fontSize: FONTS.sm, color: COLORS.gray[600], fontWeight: '600' },
+  docChipTxtActive: { color: BRAND, fontWeight: '700' },
   docBody:   { flex: 1, backgroundColor: COLORS.gray[100], alignItems: 'stretch', justifyContent: 'center' },
 
   // Modal de histórico (linha do tempo) — centralizado, não polui a tabela
