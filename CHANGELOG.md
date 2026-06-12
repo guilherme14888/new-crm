@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/guilherme14888/crm-br4/compare/v1.4.2...v1.5.0) (2026-06-12)
+
+
+### Features
+
+* leitor de edital/ata (PDF) embutido na Listagem ([1e5d5fa](https://github.com/guilherme14888/crm-br4/commit/1e5d5fac96991b2b1bdfc87e0fea51433ea0fe3a))
+
 ## [1.4.2](https://github.com/guilherme14888/crm-br4/compare/v1.4.1...v1.4.2) (2026-06-12)
 
 
