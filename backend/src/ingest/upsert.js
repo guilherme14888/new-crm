@@ -43,11 +43,51 @@ function newId(fonte) {
   return `${(fonte || 'mi').toLowerCase()}-${Date.now().toString(36)}-${seq}`;
 }
 
+let histSeq = 0;
+// Comparações nulo-seguras p/ detectar transição relevante.
+const sEq = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
+const nEq = (a, b) => (a == null ? null : Number(a)) === (b == null ? null : Number(b));
+/** Houve mudança digna de histórico (status/situação/posição/vencedor/preço)? */
+function hasTransition(prev, row) {
+  return !(
+    sEq(prev.status, row.status) &&
+    sEq(prev.encerramento, row.encerramento) &&
+    sEq(prev.concorrente, row.concorrente) &&
+    nEq(prev.posicao, row.posicao) &&
+    nEq(prev.preco_final_unit, row.preco_final_unit)
+  );
+}
+/** Grava um snapshot do estado ATUAL no histórico (best-effort, nunca quebra a ingestão). */
+async function recordHistory(miId, companyId, key, row, runDate) {
+  try {
+    histSeq++;
+    await db.query(
+      `INSERT INTO market_intelligence_history
+         (id, company_id, mi_id, dedupe_key, status, encerramento, etapa_sessao, posicao,
+          concorrente, cnpj_concorrente, preco_final_unit, preco_final_total, snapshot_at, run_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        `h-${Date.now().toString(36)}-${histSeq}`, companyId, miId, key,
+        row.status ?? null, row.encerramento ?? null, row.etapa_sessao ?? null, row.posicao ?? null,
+        row.concorrente ?? null, row.cnpj_concorrente ?? null, row.preco_final_unit ?? null, row.preco_final_total ?? null,
+        toDateTime(new Date().toISOString()), runDate ?? null,
+      ]
+    );
+  } catch { /* histórico é complementar; não bloqueia a gravação principal */ }
+}
+
 /** rec = objeto normalizado (camelCase). Retorna 'inserted' | 'updated'. */
 async function upsertRecord(rec) {
   // Blindagem multi-tenant: nunca grava sem company_id (evita linhas órfãs/sem dono).
   if (!rec.companyId) throw new Error('upsertRecord: company_id ausente — gravação bloqueada');
   const key = dedupeKey(rec);
+  // estado anterior (mesma chave UNIQUE company_id+dedupe_key) para o histórico
+  const [prevRows] = await db.query(
+    `SELECT id, status, encerramento, posicao, concorrente, preco_final_unit
+       FROM market_intelligence WHERE company_id = ? AND dedupe_key = ? LIMIT 1`,
+    [rec.companyId, key]
+  );
+  const prev = prevRows[0] || null;
   const row = {
     id: newId(rec.fonte),
     company_id: rec.companyId || null,
@@ -73,7 +113,15 @@ async function upsertRecord(rec) {
     vals
   );
   // affectedRows: 1 = insert, 2 = update (MySQL/MariaDB)
-  return res.affectedRows === 1 ? 'inserted' : 'updated';
+  const action = res.affectedRows === 1 ? 'inserted' : 'updated';
+
+  // Histórico: registra o snapshot inicial (insert) ou quando há transição relevante.
+  const miId = prev ? prev.id : row.id;
+  if (!prev || hasTransition(prev, row)) {
+    await recordHistory(miId, rec.companyId, key, row, rec.firstSeenDate);
+  }
+
+  return action;
 }
 
 module.exports = { upsertRecord };

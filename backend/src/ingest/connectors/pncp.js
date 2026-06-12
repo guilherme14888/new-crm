@@ -2,7 +2,7 @@
 // Interface comum: { name, enabled, search(keyword, opts) → Promise<record[]> }
 
 const { getJson, sleep } = require('../http');
-const { regiaoOf, numOrNull, mapStatus, toDateTime } = require('../normalize');
+const { regiaoOf, numOrNull, mapStatus, toDateTime, matchesTerm } = require('../normalize');
 
 const BASE = 'https://pncp.gov.br';
 
@@ -90,6 +90,9 @@ async function compraToRecords(hit, termo, produtoCandidato, delay) {
 
   const records = [];
   for (const it of itens) {
+    // Scraping OBJETIVO: dentro do edital, mantém só os itens cuja descrição casa
+    // com a palavra-chave buscada (descarta os demais itens — a "sujeira").
+    if (!matchesTerm(it.descricao, termo)) continue;
     await sleep(Math.round(delay / 3));
     // ME/EPP: tipoBeneficio 1/2/3 = exclusiva/cota/subcontratação; 4 = sem benefício
     const meEpp = [1, 2, 3].includes(Number(it.tipoBeneficio)) ? 'Sim' : 'Não';

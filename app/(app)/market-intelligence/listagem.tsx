@@ -6,6 +6,15 @@ import {
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
 import { useMarketIntelStore, MarketIntelRow } from '../../../src/stores/marketIntelStore';
 import { useAuthStore } from '../../../src/stores/authStore';
+import { apiFetch } from '../../../src/services/api';
+
+/** Um snapshot da linha do tempo da licitação (transição de status/vencedor/preço). */
+interface HistoryEntry {
+  status: string | null; encerramento: string | null; etapaSessao: string | null;
+  posicao: number | null; concorrente: string | null; cnpjConcorrente: string | null;
+  precoFinalUnit: number | null; precoFinalTotal: number | null;
+  snapshotAt: string | null; runDate: string | null;
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Inteligência de Mercado — Listagem
@@ -72,7 +81,8 @@ const COLUMNS: Col[] = [
   { key: 'nomeSite',          label: 'Portal',              w: 90 },
   { key: 'urlSite',           label: 'URL',                 w: 260 },
 ];
-const TABLE_W = COLUMNS.reduce((s, c) => s + c.w, 0) + 16;
+const ACTION_W = 44;   // coluna da ação de histórico (🕑)
+const TABLE_W = COLUMNS.reduce((s, c) => s + c.w, 0) + 16 + ACTION_W;
 
 const cellText = (r: MarketIntelRow, c: Col) => (c.fmt ? c.fmt(r) : (r[c.key] == null ? '' : String(r[c.key])));
 
@@ -164,6 +174,17 @@ export default function MarketIntelligenceListagem() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Qual grupo de filtro está aberto no drawer (accordion: só um por vez).
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+
+  // Histórico (linha do tempo) de uma licitação — modal sob demanda.
+  const [histRow, setHistRow] = useState<MarketIntelRow | null>(null);
+  const [hist, setHist] = useState<HistoryEntry[] | null>(null);
+  const [histLoading, setHistLoading] = useState(false);
+  const openHistory = async (r: MarketIntelRow) => {
+    setHistRow(r); setHist(null); setHistLoading(true);
+    try { setHist(await apiFetch<HistoryEntry[]>(`/api/market-intelligence/${r.id}/history`)); }
+    catch { setHist([]); }
+    finally { setHistLoading(false); }
+  };
 
   // Estado de RASCUNHO dos filtros (editado no drawer, comitado em "Filtrar").
   const [dFrom, setDFrom]       = useState('');
@@ -338,6 +359,7 @@ export default function MarketIntelligenceListagem() {
         <View style={{ minWidth: TABLE_W, flex: 1 }}>
           {/* header */}
           <View style={s.headRow}>
+            <Text style={[s.th, { width: ACTION_W, textAlign: 'center' as any }]}>Hist.</Text>
             {COLUMNS.map((c) => (
               <Text key={String(c.key)} style={[s.th, { width: c.w }, c.right && { textAlign: 'right' as any }]} numberOfLines={1}>
                 {c.label}
@@ -351,6 +373,9 @@ export default function MarketIntelligenceListagem() {
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator>
               {pageRows.map((r, index) => (
                 <View key={r.id} style={[s.row, index % 2 === 1 && s.rowAlt]}>
+                  <Pressable style={s.histBtn} onPress={() => openHistory(r)}>
+                    <Text style={s.histIcon}>🕑</Text>
+                  </Pressable>
                   {COLUMNS.map((c) => {
                     const txt = cellText(r, c);
                     const isUrl = c.key === 'urlSite' && !!txt;
@@ -483,6 +508,57 @@ export default function MarketIntelligenceListagem() {
           </View>
         </>
       )}
+
+      {/* ─── Modal: histórico (linha do tempo) da licitação ─────────────────── */}
+      {histRow && (
+        <>
+          <Pressable style={s.drawerBackdrop} onPress={() => setHistRow(null)} />
+          <View style={[s.histModal, { maxWidth: Math.min(width - 32, 560) }]}>
+            <View style={s.drawerHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.histTitle}>Histórico da licitação</Text>
+                <Text style={s.histSub} numberOfLines={2}>
+                  {histRow.produtoLicitado || histRow.produto || '—'} · {histRow.licitador || ''} {histRow.nProcesso ? `· ${histRow.nProcesso}` : ''}
+                </Text>
+              </View>
+              <Pressable onPress={() => setHistRow(null)} style={s.drawerClose}>
+                <Text style={s.drawerCloseTxt}>✕</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ padding: SPACING.lg }}>
+              {histLoading && <ActivityIndicator color={BRAND} style={{ marginVertical: SPACING.lg }} />}
+              {!histLoading && hist && hist.length === 0 && (
+                <Text style={s.centerTxt}>Sem histórico registrado ainda.</Text>
+              )}
+              {!histLoading && hist && hist.map((h, i) => {
+                const last = i === hist.length - 1;
+                const dateTxt = (h.snapshotAt || h.runDate || '').toString().slice(0, 10).split('-').reverse().join('/');
+                return (
+                  <View key={i} style={s.tlRow}>
+                    <View style={s.tlMarker}>
+                      <View style={[s.tlDot, last && { backgroundColor: BRAND }]} />
+                      {i < hist.length - 1 && <View style={s.tlLine} />}
+                    </View>
+                    <View style={s.tlBody}>
+                      <Text style={s.tlDate}>{dateTxt || '—'}</Text>
+                      <Text style={s.tlStatus}>
+                        {h.status ?? '—'}{h.encerramento ? ` · ${h.encerramento}` : ''}
+                      </Text>
+                      {h.concorrente ? (
+                        <Text style={s.tlMeta}>🏆 {h.concorrente}{h.posicao != null ? ` (#${h.posicao})` : ''}</Text>
+                      ) : null}
+                      {h.precoFinalUnit != null ? (
+                        <Text style={s.tlMeta}>Preço final unit.: {fmtBRL(h.precoFinalUnit)}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -549,6 +625,23 @@ const s = StyleSheet.create({
   clearBtnTxt: { fontSize: FONTS.base, color: COLORS.gray[600], fontWeight: '700' },
   applyBtn:    { paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md, borderRadius: RADIUS.md, backgroundColor: BRAND },
   applyBtnTxt: { fontSize: FONTS.base, color: COLORS.white, fontWeight: '700' },
+
+  // Ação de histórico na tabela
+  histBtn:   { width: ACTION_W, alignItems: 'center', justifyContent: 'center' },
+  histIcon:  { fontSize: 15 },
+
+  // Modal de histórico (linha do tempo) — centralizado, não polui a tabela
+  histModal: { position: 'fixed' as any, top: '50%' as any, left: '50%' as any, transform: [{ translateX: '-50%' as any }, { translateY: '-50%' as any }] as any, width: '92%' as any, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, zIndex: 201, overflow: 'hidden' as any, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 30 } as any,
+  histTitle: { fontSize: FONTS.lg, fontWeight: '800', color: COLORS.gray[900] },
+  histSub:   { fontSize: FONTS.sm, color: COLORS.gray[500], marginTop: 2 },
+  tlRow:     { flexDirection: 'row', gap: SPACING.md },
+  tlMarker:  { alignItems: 'center', width: 16 },
+  tlDot:     { width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.gray[300], marginTop: 3 },
+  tlLine:    { flex: 1, width: 2, backgroundColor: COLORS.gray[200], marginVertical: 2 },
+  tlBody:    { flex: 1, paddingBottom: SPACING.lg },
+  tlDate:    { fontSize: FONTS.xs, color: COLORS.gray[400], fontWeight: '700' },
+  tlStatus:  { fontSize: FONTS.base, color: COLORS.gray[900], fontWeight: '700', marginTop: 1 },
+  tlMeta:    { fontSize: FONTS.sm, color: COLORS.gray[600], marginTop: 2 },
 });
 
 // ─── Estilos do drawer (grupos de filtro) ─────────────────────────────────────

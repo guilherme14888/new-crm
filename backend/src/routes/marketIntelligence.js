@@ -48,6 +48,34 @@ router.get('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/market-intelligence/:id/history — linha do tempo de uma licitação/item
+// (transições de status/situação/posição/vencedor/preço). Escopo por tenant.
+router.get('/:id/history', auth, resolveScope, async (req, res) => {
+  try {
+    const { where, params } = buildCompanyFilter(req.scope, 'mi');
+    const [mi] = await db.query(
+      `SELECT mi.id FROM market_intelligence mi WHERE mi.id = ? AND ${where}`,
+      [req.params.id, ...params]
+    );
+    if (!mi.length) return res.status(404).json({ error: 'Não encontrado' });
+    const [rows] = await db.query(
+      `SELECT status, encerramento, etapa_sessao, posicao, concorrente, cnpj_concorrente,
+              preco_final_unit, preco_final_total, snapshot_at, run_date
+         FROM market_intelligence_history
+        WHERE mi_id = ? ORDER BY snapshot_at ASC, id ASC`,
+      [req.params.id]
+    );
+    const n = (v) => (v === null || v === undefined ? null : parseFloat(v));
+    res.json(rows.map((h) => ({
+      status: h.status ?? null, encerramento: h.encerramento ?? null, etapaSessao: h.etapa_sessao ?? null,
+      posicao: h.posicao === null ? null : Number(h.posicao),
+      concorrente: h.concorrente ?? null, cnpjConcorrente: h.cnpj_concorrente ?? null,
+      precoFinalUnit: n(h.preco_final_unit), precoFinalTotal: n(h.preco_final_total),
+      snapshotAt: h.snapshot_at ?? null, runDate: h.run_date ?? null,
+    })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ════════════════════════════════════════════════════════════════════════════
 //  Palavras-Chave (por tenant)
 // ════════════════════════════════════════════════════════════════════════════

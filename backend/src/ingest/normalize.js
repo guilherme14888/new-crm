@@ -13,6 +13,49 @@ const regiaoOf = (uf) => REGIAO_UF[(uf || '').toUpperCase()] || null;
 
 /** Mantém só dígitos (ex.: CNPJ "12.345/0001-90" → "12345000190"). */
 const digits = (s) => String(s == null ? '' : s).replace(/[^0-9]/g, '');
+
+// ── Casamento descrição × palavra-chave (scraping objetivo) ───────────────────
+// Stopwords (conectivos/preposições) que não devem contar no casamento.
+const STOPWORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'para', 'com', 'sem', 'e', 'em', 'no', 'na', 'por', 'um', 'uma']);
+
+/** minúsculo, sem acentos, só [a-z0-9] separados por espaço. */
+function normTxt(s) {
+  return String(s == null ? '' : s)
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/** Tokens "úteis" de um termo (≥3 letras, sem stopwords). */
+function termTokens(term) {
+  return normTxt(term).split(' ').filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+}
+
+/**
+ * Decide se a DESCRIÇÃO do item de fato corresponde à palavra-chave buscada —
+ * usado para gravar APENAS os itens pertinentes (sem a sujeira dos demais itens
+ * do mesmo edital). Regra:
+ *   1) a descrição contém o termo inteiro como substring; OU
+ *   2) contém o TOKEN MAIS DISTINTIVO do termo — o mais longo, que para
+ *      medicamentos é o princípio ativo ("tezepelumabe", "ciclossilicato",
+ *      "glicemia"). Usar só o token distintivo evita falsos-negativos quando a
+ *      keyword é verbosa ("tezepelumabe 210 mg/1,91 ml (110 mg/ml)") e a
+ *      descrição traz outra apresentação ("Tezepelumabe 210MG Caneta 1,91ML").
+ *      Itens de OUTROS produtos do mesmo edital não contêm esse token → caem.
+ */
+function matchesTerm(description, term) {
+  const nd = normTxt(description);
+  if (!nd) return false;
+  const nt = normTxt(term);
+  if (!nt) return true;                 // sem termo → não filtra
+  if (nd.includes(nt)) return true;     // substring direto (melhor caso)
+  const toks = termTokens(term);
+  if (!toks.length) return true;
+  const main = toks.slice().sort((a, b) => b.length - a.length)[0]; // mais longo
+  const stem = main.endsWith('s') ? main.slice(0, -1) : main;        // plural cru
+  return nd.includes(stem);
+}
 /** Converte para número ou null (vazio/NaN → null). */
 const numOrNull = (v) =>
   v === null || v === undefined || v === '' || isNaN(Number(v)) ? null : Number(v);
@@ -49,4 +92,4 @@ function dedupeKey(rec) {
   return [digits(rec.cnpj), proc, rec.lote ?? 0, rec.item ?? 0, conc].join('|');
 }
 
-module.exports = { regiaoOf, digits, numOrNull, mapStatus, toDateTime, dedupeKey, REGIAO_UF };
+module.exports = { regiaoOf, digits, numOrNull, mapStatus, toDateTime, dedupeKey, REGIAO_UF, normTxt, termTokens, matchesTerm };
