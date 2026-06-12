@@ -58,7 +58,14 @@ const PORT = process.env.PORT || 3001;
 // Inicia o servidor HTTP na porta configurada e agenda a ingestão automática diária de licitações.
 app.listen(PORT, () => {
   console.log(`API running on port ${PORT}`);
-  // Ingestão automática de licitações (diária às 9h BRT enquanto o servidor roda).
+  // Ingestão automática de licitações (diária às 9h BRT). Pode rodar:
+  //  - in-process aqui (padrão, setups simples de 1 container); OU
+  //  - num WORKER isolado (serviço `ingest-worker` do stack), e aí o web sobe
+  //    com RUN_SCHEDULER=false para NÃO competir CPU/conexões com a API.
+  if (process.env.RUN_SCHEDULER === 'false') {
+    console.log('[scheduler] desativado neste container (RUN_SCHEDULER=false) — ingestão roda no worker isolado.');
+    return;
+  }
   try {
     require('./ingest/scheduler').startDailyIngest();
   } catch (e) {

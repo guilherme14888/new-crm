@@ -9,13 +9,19 @@ URL de produção: **https://sistema.br4licitacoes.com**
 ## 1. Arquitetura
 
 ```
-Internet → Traefik (websecure/TLS) → serviço "sistema" (porta 3001)
+Internet → Traefik (websecure/TLS) → serviço "sistema" (porta 3001, RUN_SCHEDULER=false)
                                          ├── /            → SPA web (expo export)
                                          ├── /api/*       → API Express
                                          └── /health      → healthcheck
                                                  │
-                                                 └── MariaDB EXTERNO (DB_HOST)
+serviço "ingest-worker" (mesma imagem,          ├──────────→ MariaDB EXTERNO (DB_HOST)
+  command: node src/jobs/worker.js, 1 réplica) ─┘
+  └── só o agendador (catch-up no boot + 9h BRT) — isolado da API
 ```
+
+> **Dois serviços, uma imagem.** O `sistema` serve web+API (e sobe com
+> `RUN_SCHEDULER=false`); o `ingest-worker` roda só a ingestão, num container à
+> parte, para não disputar CPU/conexões com a API. Mantenha o worker em **1 réplica**.
 
 O front foi configurado em modo **same-origin** (`API_URL=""` no build): ele chama
 `/api/...` na mesma origem que o serviu — nada de porta 3001 exposta publicamente.
