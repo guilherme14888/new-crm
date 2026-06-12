@@ -362,7 +362,7 @@ export default function MarketIntelligenceScreen() {
   const companyId = useAuthStore((s) => s.user?.companyId);
 
   // recarrega ao trocar de tenant (a empresa ativa muda → backend re-escopa)
-  useEffect(() => { loadRows(); }, [companyId]);
+  useEffect(() => { loadRows(companyId); }, [companyId]);
 
   const [openId, setOpenId]           = useState<string | null>(null);
   const [empresa, setEmpresa]         = useState(TODOS);
@@ -559,7 +559,7 @@ export default function MarketIntelligenceScreen() {
                     const st = STATUS_STYLE[head.status ?? ''] ?? { color: COLORS.gray[600], bg: COLORS.gray[100] };
                     return (
                       <Pressable key={key} onPress={() => { setSelectedKey(key); setSelectedItem(0); }}
-                        {...({ onMouseMove: (e: any) => setHover({ kind: 'proc', row: head, ...evPos(e) }), onMouseLeave: () => setHover((h) => (h && h.row === head ? null : h)) } as any)}
+                        {...({ onMouseEnter: (e: any) => setHover({ kind: 'proc', row: head, ...evPos(e) }), onMouseLeave: () => setHover((h) => (h && h.row === head ? null : h)) } as any)}
                         style={[tbl.row, idx % 2 === 1 && tbl.rowAlt, on && tbl.rowSel]}>
                         <View style={[tbl.accent, { backgroundColor: on ? ACCENT : 'transparent' }]} />
                         <View style={{ width: 110 }}>
@@ -601,7 +601,7 @@ export default function MarketIntelligenceScreen() {
                 <ScrollView style={{ maxHeight: 210 }} showsVerticalScrollIndicator>
                   {ranking.slice(0, DASH_ROWS).map((r) => (
                     <View key={r.id} style={tbl.row}
-                      {...({ onMouseMove: (e: any) => setHover({ kind: 'rank', row: r, ...evPos(e) }), onMouseLeave: () => setHover((h) => (h && h.row === r ? null : h)) } as any)}>
+                      {...({ onMouseEnter: (e: any) => setHover({ kind: 'rank', row: r, ...evPos(e) }), onMouseLeave: () => setHover((h) => (h && h.row === r ? null : h)) } as any)}>
                       <View style={[tbl.accent, { backgroundColor: 'transparent' }]} />
                       <Td w={46}>{r.lote ?? '—'}</Td>
                       <Td w={46}>{r.item ?? '—'}</Td>

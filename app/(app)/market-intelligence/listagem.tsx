@@ -86,31 +86,33 @@ function searchBlob(r: MarketIntelRow): string {
   return parts.join(' ').toLowerCase();
 }
 
-// ─── Drawer de multi-seleção (lista com checkboxes + busca interna) ────────────
+// ─── Drawer de multi-seleção (dropdown accordion: só um aberto por vez) ────────
 function MultiSelect({
-  label, options, selected, onToggle,
+  label, options, selected, onToggle, open, onToggleOpen,
 }: {
   label: string; options: string[]; selected: Set<string>; onToggle: (v: string) => void;
+  open: boolean; onToggleOpen: () => void;
 }) {
   const [q, setQ] = useState('');
-  const [expanded, setExpanded] = useState(false);
   const CAP = 100;
   const matches = useMemo(() => {
     const t = q.trim().toLowerCase();
     return t ? options.filter((o) => o.toLowerCase().includes(t)) : options;
   }, [options, q]);
   const filtered = matches.slice(0, CAP);
+  // limpa a busca ao fechar o grupo
+  useEffect(() => { if (!open) setQ(''); }, [open]);
 
   return (
-    <View style={dw.group}>
-      <Pressable style={dw.groupHead} onPress={() => setExpanded((v) => !v)}>
+    <View style={[dw.group, open && dw.groupOpen]}>
+      <Pressable style={dw.groupHead} onPress={onToggleOpen}>
         <Text style={dw.groupTitle}>{label}</Text>
-        <Text style={dw.groupCount}>
-          {selected.size > 0 ? `${selected.size} selec.` : `${options.length}`} {expanded ? '▲' : '▼'}
+        <Text style={[dw.groupCount, selected.size > 0 && dw.groupCountActive]}>
+          {selected.size > 0 ? `${selected.size} selec.` : `${options.length}`} {open ? '▲' : '▼'}
         </Text>
       </Pressable>
-      {expanded && (
-        <>
+      {open && (
+        <View style={dw.panel}>
           <TextInput
             value={q}
             onChangeText={setQ}
@@ -118,7 +120,8 @@ function MultiSelect({
             placeholderTextColor={COLORS.gray[400]}
             style={dw.search}
           />
-          <View style={dw.optList}>
+          {/* ScrollView com altura limitada → rola dentro do dropdown, sem cobrir os filtros abaixo */}
+          <ScrollView style={dw.optList} nestedScrollEnabled showsVerticalScrollIndicator keyboardShouldPersistTaps="handled">
             {filtered.length === 0 && <Text style={dw.emptyOpt}>Nenhuma opção.</Text>}
             {filtered.map((o) => {
               const on = selected.has(o);
@@ -132,8 +135,8 @@ function MultiSelect({
             {matches.length > CAP && (
               <Text style={dw.moreHint}>+{matches.length - CAP} — use a busca acima para refinar</Text>
             )}
-          </View>
-        </>
+          </ScrollView>
+        </View>
       )}
     </View>
   );
@@ -149,7 +152,7 @@ export default function MarketIntelligenceListagem() {
   const loadRows  = useMarketIntelStore((s) => s.loadRows);
   const companyId = useAuthStore((s) => s.user?.companyId);
 
-  useEffect(() => { loadRows(); }, [companyId]);
+  useEffect(() => { loadRows(companyId); }, [companyId]);
 
   // Busca ao vivo (aplicada imediatamente).
   const [search, setSearch] = useState('');
@@ -159,6 +162,8 @@ export default function MarketIntelligenceListagem() {
 
   // Drawer aberto/fechado.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Qual grupo de filtro está aberto no drawer (accordion: só um por vez).
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
 
   // Estado de RASCUNHO dos filtros (editado no drawer, comitado em "Filtrar").
   const [dFrom, setDFrom]       = useState('');
@@ -238,6 +243,7 @@ export default function MarketIntelligenceListagem() {
     setDCidade(new Set(applied.cidade)); setDUf(new Set(applied.uf));
     setDOrgao(new Set(applied.orgao)); setDProc(new Set(applied.proc));
     setDProduto(new Set(applied.produto));
+    setOpenFilter(null);
     setDrawerOpen(true);
   };
 
@@ -444,11 +450,23 @@ export default function MarketIntelligenceListagem() {
                 ) : null}
               </View>
 
-              <MultiSelect label="Cidade"  options={options.cidade}  selected={dCidade}  onToggle={toggle(setDCidade)} />
-              <MultiSelect label="UF"      options={options.uf}      selected={dUf}      onToggle={toggle(setDUf)} />
-              <MultiSelect label="Órgão"   options={options.orgao}   selected={dOrgao}   onToggle={toggle(setDOrgao)} />
-              <MultiSelect label="Processo" options={options.proc}   selected={dProc}    onToggle={toggle(setDProc)} />
-              <MultiSelect label="Produto" options={options.produto} selected={dProduto} onToggle={toggle(setDProduto)} />
+              {([
+                ['cidade', 'Cidade', options.cidade, dCidade, setDCidade],
+                ['uf', 'UF', options.uf, dUf, setDUf],
+                ['orgao', 'Órgão', options.orgao, dOrgao, setDOrgao],
+                ['proc', 'Processo', options.proc, dProc, setDProc],
+                ['produto', 'Produto', options.produto, dProduto, setDProduto],
+              ] as const).map(([key, lbl, opts, sel, setter]) => (
+                <MultiSelect
+                  key={key}
+                  label={lbl}
+                  options={opts}
+                  selected={sel}
+                  onToggle={toggle(setter as React.Dispatch<React.SetStateAction<Set<string>>>)}
+                  open={openFilter === key}
+                  onToggleOpen={() => setOpenFilter((o) => (o === key ? null : key))}
+                />
+              ))}
 
               <View style={{ height: 80 }} />
             </ScrollView>
@@ -536,11 +554,15 @@ const s = StyleSheet.create({
 // ─── Estilos do drawer (grupos de filtro) ─────────────────────────────────────
 const dw = StyleSheet.create({
   group:      { paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.gray[100] },
+  groupOpen:  { backgroundColor: COLORS.gray[50], borderRadius: RADIUS.md, paddingHorizontal: SPACING.sm, marginHorizontal: -SPACING.sm },
   groupHead:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   groupTitle: { fontSize: FONTS.base, fontWeight: '800', color: COLORS.gray[800] },
   groupCount: { fontSize: FONTS.sm, color: COLORS.gray[500], fontWeight: '600' },
-  search:     { borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 7, fontSize: FONTS.sm, marginTop: SPACING.sm, color: COLORS.gray[900], ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-  optList:    { marginTop: SPACING.sm, maxHeight: 260 },
+  groupCountActive: { color: BRAND, fontWeight: '800' },
+  // painel aberto do dropdown: card contido com sombra (não cobre os filtros abaixo)
+  panel:      { marginTop: SPACING.sm, borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.md, backgroundColor: COLORS.white, padding: SPACING.sm },
+  search:     { borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 7, fontSize: FONTS.sm, color: COLORS.gray[900], ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
+  optList:    { marginTop: SPACING.sm, maxHeight: 240 },
   optRow:     { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: 6 },
   checkbox:   { width: 16, height: 16, borderRadius: 3, borderWidth: 1.5, borderColor: COLORS.gray[300], alignItems: 'center', justifyContent: 'center' },
   checkboxOn: { backgroundColor: BRAND, borderColor: BRAND },

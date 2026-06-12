@@ -80,7 +80,8 @@ interface MarketIntelState {
   rows: MarketIntelRow[];
   isLoading: boolean;
   loaded: boolean;
-  loadRows: () => Promise<void>;
+  loadedCompanyId: string | null;
+  loadRows: (companyId?: string | null, force?: boolean) => Promise<void>;
   sources: MarketIntelSource[];
   sourcesLoading: boolean;
   loadSources: () => Promise<void>;
@@ -97,14 +98,19 @@ export const useMarketIntelStore = create<MarketIntelState>((set, get) => ({
   rows: [],
   isLoading: false,
   loaded: false,
+  loadedCompanyId: null,
 
   // Carrega as licitações do tenant logado (master vê todas).
-  loadRows: async () => {
-    if (get().isLoading) return;
+  // Cacheia por empresa: se já carregou para este tenant, não rebusca (evita
+  // baixar milhares de linhas a cada acesso ao Dashboard/Listagem). `force` ignora o cache.
+  loadRows: async (companyId = null, force = false) => {
+    const st = get();
+    if (st.isLoading) return;
+    if (!force && st.loaded && st.loadedCompanyId === companyId) return; // já em cache p/ este tenant
     set({ isLoading: true });
     try {
       const rows = await apiFetch<MarketIntelRow[]>('/api/market-intelligence');
-      set({ rows, loaded: true });
+      set({ rows, loaded: true, loadedCompanyId: companyId });
     } catch {
       useUIStore.getState().showToast('Erro ao carregar inteligência de mercado');
     } finally {
