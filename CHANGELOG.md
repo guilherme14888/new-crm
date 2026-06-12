@@ -1,3 +1,10 @@
+## [1.7.1](https://github.com/guilherme14888/crm-br4/compare/v1.7.0...v1.7.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* mapa do Brasil com geometria real por UF (sem cor) + KPIs com valor inteiro ([7078306](https://github.com/guilherme14888/crm-br4/commit/70783069b3768ecc2e36ebb0850e853e6bf4f9f7))
+
 # [1.7.0](https://github.com/guilherme14888/crm-br4/compare/v1.6.1...v1.7.0) (2026-06-12)
 
 
