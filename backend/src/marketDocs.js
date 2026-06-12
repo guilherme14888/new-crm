@@ -3,8 +3,23 @@
 // cacheia cada PDF em market_intelligence_docs (LONGBLOB) e serve para o leitor embutido.
 
 const AdmZip = require('adm-zip');
+const iconv = require('iconv-lite');
 const db = require('./db');
 const { request, getJson } = require('./ingest/http');
+
+/**
+ * Decodifica o nome de uma entrada de zip respeitando a codificação:
+ *  - bit 0x800 do flag ligado → UTF-8;
+ *  - senão, acentos vêm em CP850 (codepage OEM dos zips Windows no Brasil, ex.:
+ *    0xC7 = "Ã"). latin1/utf8 produziriam "Ç"/"�".
+ */
+function decodeEntryName(entry) {
+  const raw = entry.rawEntryName;
+  if (!Buffer.isBuffer(raw) || !raw.length) return entry.entryName || '';
+  if (entry.header && (entry.header.flags & 0x800)) return raw.toString('utf8');
+  if (raw.every((b) => b < 0x80)) return raw.toString('latin1');   // ASCII puro
+  return iconv.decode(raw, 'cp850');
+}
 
 const BASE = 'https://pncp.gov.br';
 const API = `${BASE}/api/pncp/v1`;
@@ -34,7 +49,7 @@ function extractPdfs(buf, baseName, depth = 0) {
       for (const e of new AdmZip(buf).getEntries()) {
         if (e.isDirectory) continue;
         const data = e.getData();
-        const name = e.entryName.split(/[/\\]/).pop();
+        const name = decodeEntryName(e).split(/[/\\]/).pop();
         if (/\.pdf$/i.test(name) && isPdfBuf(data)) out.push({ name, data });
         else if (isZipBuf(data)) out.push(...extractPdfs(data, name, depth + 1));
       }
