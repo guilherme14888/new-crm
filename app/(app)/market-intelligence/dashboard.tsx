@@ -3,6 +3,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, useWi
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
 import { useMarketIntelStore, MarketIntelRow } from '../../../src/stores/marketIntelStore';
 import { useAuthStore } from '../../../src/stores/authStore';
+import { BR_VIEW, BR_UF } from '../../../src/constants/brazilUf';
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Inteligência de Mercado — Portfólio de Compras Governamentais
@@ -351,30 +352,9 @@ const drf = StyleSheet.create({
   clearTxt: { fontSize: FONTS.sm, color: COLORS.gray[600], fontWeight: '600' },
 });
 
-// ─── Mapa do Brasil (SVG web) ──────────────────────────────────────────────────
-// Centróides aproximados de cada UF (lat, lng) — pontos posicionados por estado.
-const UF_CENTROIDS: Record<string, [number, number]> = {
-  AC: [-8.77, -70.55], AL: [-9.62, -36.78], AM: [-3.47, -65.10], AP: [1.41, -51.77],
-  BA: [-12.97, -41.71], CE: [-5.20, -39.53], DF: [-15.83, -47.86], ES: [-19.19, -40.34],
-  GO: [-15.98, -49.86], MA: [-5.42, -45.44], MG: [-18.10, -44.38], MS: [-20.51, -54.54],
-  MT: [-12.64, -55.42], PA: [-3.79, -52.48], PB: [-7.28, -36.72], PE: [-8.38, -37.86],
-  PI: [-6.60, -42.28], PR: [-24.89, -51.55], RJ: [-22.25, -42.66], RN: [-5.81, -36.59],
-  RO: [-10.83, -63.34], RR: [1.99, -61.33], RS: [-30.17, -53.50], SC: [-27.45, -50.95],
-  SE: [-10.57, -37.45], SP: [-22.19, -48.79], TO: [-9.46, -48.26],
-};
-// Contorno aproximado do Brasil (lng, lat) — silhueta reconhecível, não cartográfica.
-const BRAZIL_BORDER: [number, number][] = [
-  [-60.0, 5.2], [-51.0, 4.1], [-50.0, 0.0], [-44.3, -2.5], [-41.0, -2.9], [-37.2, -4.9],
-  [-34.8, -7.1], [-35.2, -9.6], [-37.0, -11.0], [-39.0, -13.5], [-39.0, -15.8], [-39.7, -18.3],
-  [-41.0, -22.0], [-44.9, -23.4], [-48.5, -25.5], [-48.5, -28.5], [-50.0, -30.5], [-52.3, -32.0],
-  [-53.4, -33.7], [-57.6, -30.2], [-56.0, -27.5], [-54.6, -25.6], [-54.3, -24.0], [-58.0, -20.0],
-  [-58.0, -16.3], [-60.0, -13.5], [-65.3, -9.8], [-70.6, -11.0], [-72.9, -9.4], [-70.0, -4.2],
-  [-69.4, -1.0], [-67.3, 2.0], [-64.0, 4.1],
-];
-const MAP_W = 420, MAP_H = 420;
-const BB = { minLng: -74, maxLng: -34, minLat: -34, maxLat: 6 };
-const projX = (lng: number) => ((lng - BB.minLng) / (BB.maxLng - BB.minLng)) * MAP_W;
-const projY = (lat: number) => ((BB.maxLat - lat) / (BB.maxLat - BB.minLat)) * MAP_H;
+// ─── Mapa do Brasil (SVG web, geometria real por UF — ver src/constants/brazilUf) ─
+// Centróide projetado (x,y no viewBox) de cada UF — para posicionar os pontos.
+const UF_XY: Record<string, [number, number]> = Object.fromEntries(BR_UF.map((u) => [u.uf, [u.cx, u.cy]]));
 
 const h = (tag: string, props: any, ...kids: any[]) => React.createElement(tag, props, ...kids);
 
@@ -421,14 +401,14 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
     const out: { x: number; y: number; color: string }[] = [];
     for (const r of rows) {
       const uf = r.uf || '';
-      const c = UF_CENTROIDS[uf]; if (!c) continue;
+      const c = UF_XY[uf]; if (!c) continue;
       const prod = r.produtoCandidato || r.produto || '—';
       if (fProd.size && !fProd.has(prod)) continue;
       if (fUf.size && !fUf.has(uf)) continue;
       if (mFrom || mTo) { const mk = (r.dataHoraCertame || '').slice(0, 7); if (!mk) continue; if (mFrom && mk < mFrom) continue; if (mTo && mk > mTo) continue; }
       const k = perUf[uf] = (perUf[uf] ?? 0) + 1;
-      const ang = k * 2.399963; const rad = 3 + Math.sqrt(k) * 2.2;   // espiral p/ separar pontos do mesmo estado
-      out.push({ x: projX(c[1]) + Math.cos(ang) * rad, y: projY(c[0]) + Math.sin(ang) * rad, color: colorOf(prod) });
+      const ang = k * 2.399963; const rad = k === 1 ? 0 : 3 + Math.sqrt(k) * 2.4;   // espiral p/ separar pontos do mesmo estado
+      out.push({ x: c[0] + Math.cos(ang) * rad, y: c[1] + Math.sin(ang) * rad, color: colorOf(prod) });
       if (out.length > 1500) break;
     }
     return out;
@@ -437,7 +417,6 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
   const isWeb = Platform.OS === 'web';
   const WebInput: any = 'input';
   const dateStyle: any = { border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '4px 6px', fontSize: 12, color: COLORS.gray[700], outline: 'none' };
-  const borderPath = 'M ' + BRAZIL_BORDER.map(([lng, lat]) => `${projX(lng).toFixed(1)},${projY(lat).toFixed(1)}`).join(' L ') + ' Z';
 
   return (
     <View style={[s.body, narrow && { flexDirection: 'column' as any }]}>
@@ -486,9 +465,13 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
 
       {/* Mapa */}
       <View style={mp.mapWrap}>
-        {isWeb ? h('svg', { viewBox: `0 0 ${MAP_W} ${MAP_H}`, style: { width: '100%', maxWidth: 520, aspectRatio: 1 } },
-          h('path', { d: borderPath, fill: '#eaf3ec', stroke: '#9cc4a6', strokeWidth: 1.2 }),
-          pts.map((p, i) => h('circle', { key: i, cx: p.x.toFixed(1), cy: p.y.toFixed(1), r: 3.2, fill: p.color, fillOpacity: 0.8, stroke: '#fff', strokeWidth: 0.5 })),
+        {isWeb ? h('svg', { viewBox: `0 0 ${BR_VIEW.w} ${BR_VIEW.h}`, style: { width: '100%', maxWidth: 560 } },
+          // estados SEM cor — só contorno
+          BR_UF.map((u) => h('path', { key: u.uf, d: u.d, fill: '#ffffff', stroke: '#4b5563', strokeWidth: 0.8, fillRule: 'evenodd' })),
+          // rótulos das UFs
+          BR_UF.map((u) => h('text', { key: `t${u.uf}`, x: u.cx, y: u.cy + 3, fontSize: 11, fontWeight: 700, fill: '#374151', textAnchor: 'middle' }, u.uf)),
+          // pontos coloridos por produto (sobre o mapa)
+          pts.map((p, i) => h('circle', { key: i, cx: p.x.toFixed(1), cy: p.y.toFixed(1), r: 3.4, fill: p.color, fillOpacity: 0.85, stroke: '#fff', strokeWidth: 0.6 })),
         ) : <Text style={tbl.empty}>Mapa disponível na versão web.</Text>}
       </View>
     </View>
@@ -903,8 +886,14 @@ export default function MarketIntelligenceScreen() {
                 { label: 'Venceu AZ', value: fmtInt(kpis.venceuAZ) },
                 { label: 'Ticket Médio Final', value: `R$ ${fmtBRL(kpis.ticket)}`, accent: true },
               ].map((k) => (
-                <View key={k.label} style={s.kpiCard}>
-                  <Text style={[s.kpiValue, k.accent && { color: BRAND }]} numberOfLines={1}>{k.value}</Text>
+                <View key={k.label} style={s.kpiCard} {...(Platform.OS === 'web' ? ({ title: `${k.label}: ${k.value}` } as any) : {})}>
+                  <Text
+                    style={[s.kpiValue, k.accent && { color: BRAND }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.5}
+                    {...(Platform.OS === 'web' ? ({ title: k.value } as any) : {})}
+                  >{k.value}</Text>
                   <Text style={s.kpiLabel}>{k.label}</Text>
                 </View>
               ))}
@@ -1097,8 +1086,8 @@ const s = StyleSheet.create({
 
   // KPIs
   kpiRow:   { flexDirection: 'row', flexWrap: 'wrap' as any, gap: SPACING.md, paddingTop: SPACING.lg },
-  kpiCard:  { flexGrow: 1, flexBasis: 150, minWidth: 130, backgroundColor: '#f1f8f3', borderWidth: 1, borderColor: '#d6e9db', borderRadius: RADIUS.md, padding: SPACING.md, alignItems: 'center' },
-  kpiValue: { fontSize: 22, fontWeight: '900', color: COLORS.gray[900] },
+  kpiCard:  { flexGrow: 1, flexBasis: 170, minWidth: 150, backgroundColor: '#f1f8f3', borderWidth: 1, borderColor: '#d6e9db', borderRadius: RADIUS.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.sm, alignItems: 'center' },
+  kpiValue: { fontSize: 19, fontWeight: '900', color: COLORS.gray[900], width: '100%' as any, textAlign: 'center' as any },
   kpiLabel: { fontSize: FONTS.sm, color: COLORS.gray[500], fontWeight: '600', marginTop: 2, textAlign: 'center' as any },
 
   // Valor por licitador
