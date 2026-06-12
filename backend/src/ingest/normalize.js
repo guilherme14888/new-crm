@@ -52,9 +52,18 @@ function matchesTerm(description, term) {
   if (nd.includes(nt)) return true;     // substring direto (melhor caso)
   const toks = termTokens(term);
   if (!toks.length) return true;
-  const main = toks.slice().sort((a, b) => b.length - a.length)[0]; // mais longo
-  const stem = main.endsWith('s') ? main.slice(0, -1) : main;        // plural cru
-  return nd.includes(stem);
+  const stemOf = (t) => (t.endsWith('s') ? t.slice(0, -1) : t); // plural cru
+  const longest = toks.slice().sort((a, b) => b.length - a.length)[0];
+  // Nome MUITO distintivo (≥11: princípio ativo, ex.: "tezepelumabe",
+  // "ciclossilicato") → casa só por ele. Cobre keywords verbosas com dosagem/
+  // palavras de enchimento ("tezepelumabe 210 mg/1,91 ml (110 mg/ml)").
+  if (longest.length >= 11) return nd.includes(stemOf(longest));
+  // Caso contrário (keyword multi-palavra genérica, ex.: "tiras de glicemia"),
+  // exige TODOS os tokens significativos (≥5) — assim "lanceta para glicemia"
+  // ou "aparelho medidor de glicemia" não casam "tiras de glicemia".
+  const sig = toks.filter((t) => t.length >= 5);
+  const required = sig.length ? sig : toks;
+  return required.every((t) => nd.includes(stemOf(t)));
 }
 /** Converte para número ou null (vazio/NaN → null). */
 const numOrNull = (v) =>
