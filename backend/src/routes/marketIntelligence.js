@@ -134,6 +134,22 @@ router.patch('/keywords/:id', auth, resolveScope, async (req, res) => {
       `UPDATE market_intelligence_keywords SET ${sets.join(', ')} WHERE id = ? AND company_id = ?`, vals
     );
     if (!r.affectedRows) return res.status(404).json({ error: 'Não encontrada' });
+
+    // Se o rótulo (produto_candidato) mudou, re-sincroniza as linhas já capturadas
+    // por esta palavra-chave — assim a correção aparece na hora, sem esperar a
+    // próxima ingestão (evita o caso "editei a keyword mas o produto não atualizou").
+    if (req.body.produtoCandidato !== undefined) {
+      const [kwRows] = await db.query(
+        'SELECT termo, produto_candidato FROM market_intelligence_keywords WHERE id = ? AND company_id = ?',
+        [req.params.id, req.scope.companyId]
+      );
+      if (kwRows[0]) {
+        await db.query(
+          'UPDATE market_intelligence SET produto_candidato = ? WHERE company_id = ? AND termo_busca = ?',
+          [kwRows[0].produto_candidato ?? null, req.scope.companyId, kwRows[0].termo]
+        );
+      }
+    }
     res.json({ ok: true });
   } catch (e) {
     if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Palavra-chave já existe' });
