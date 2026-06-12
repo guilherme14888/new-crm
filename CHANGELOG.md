@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/guilherme14888/crm-br4/compare/v1.2.1...v1.3.0) (2026-06-12)
+
+
+### Features
+
+* scraping objetivo (so itens da keyword) + historico da licitacao ([a83adc9](https://github.com/guilherme14888/crm-br4/commit/a83adc933940ff333d42550c2c3a175fb095d31e))
+
 ## [1.2.1](https://github.com/guilherme14888/crm-br4/compare/v1.2.0...v1.2.1) (2026-06-12)
 
 
