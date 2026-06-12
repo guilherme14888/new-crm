@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/guilherme14888/crm-br4/compare/v1.6.1...v1.7.0) (2026-06-12)
+
+
+### Features
+
+* visao executiva no dashboard (KPIs, valor por licitador) + mapa do Brasil ([62b1f2c](https://github.com/guilherme14888/crm-br4/commit/62b1f2ce2f1da8568507ea78efccc587faaca951))
+
 ## [1.6.1](https://github.com/guilherme14888/crm-br4/compare/v1.6.0...v1.6.1) (2026-06-12)
 
 
