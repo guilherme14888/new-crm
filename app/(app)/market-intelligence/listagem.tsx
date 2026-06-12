@@ -358,8 +358,10 @@ export default function MarketIntelligenceListagem() {
   }
 
   const WebInput: any = 'input';
-  const dateWebStyle: any = { width: '100%', boxSizing: 'border-box', border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '7px 9px', fontSize: 13, color: COLORS.gray[700], outline: 'none' };
+  const dateWebStyle: any = { width: '100%', boxSizing: 'border-box', border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '7px 9px', fontSize: 13, color: COLORS.gray[700], outline: 'none', cursor: 'pointer' };
   const isWeb = Platform.OS === 'web';
+  // abre o calendário nativo ao clicar em qualquer parte do campo de data
+  const openPicker = (e: any) => { try { e.currentTarget.showPicker && e.currentTarget.showPicker(); } catch { /* ignora */ } };
 
   return (
     <View style={s.screen}>
@@ -517,13 +519,13 @@ export default function MarketIntelligenceListagem() {
                   <View style={{ flex: 1 }}>
                     <Text style={dw.dateLbl}>De</Text>
                     {isWeb
-                      ? <WebInput type="date" value={dFrom} onChange={(e: any) => setDFrom(e.target.value)} style={dateWebStyle} />
+                      ? <WebInput type="date" value={dFrom} onChange={(e: any) => setDFrom(e.target.value)} onClick={openPicker} onFocus={openPicker} style={dateWebStyle} />
                       : <TextInput value={dFrom} onChangeText={setDFrom} placeholder="AAAA-MM-DD" placeholderTextColor={COLORS.gray[400]} style={dw.dateInput} />}
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={dw.dateLbl}>Até</Text>
                     {isWeb
-                      ? <WebInput type="date" value={dTo} onChange={(e: any) => setDTo(e.target.value)} style={dateWebStyle} />
+                      ? <WebInput type="date" value={dTo} onChange={(e: any) => setDTo(e.target.value)} onClick={openPicker} onFocus={openPicker} style={dateWebStyle} />
                       : <TextInput value={dTo} onChangeText={setDTo} placeholder="AAAA-MM-DD" placeholderTextColor={COLORS.gray[400]} style={dw.dateInput} />}
                   </View>
                 </View>

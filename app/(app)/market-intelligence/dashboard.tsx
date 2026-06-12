@@ -308,7 +308,8 @@ function DateRangeFilter({ from, to, setFrom, setTo, openId, setOpenId }: {
 }) {
   const open = openId === 'data';
   const WebInput: any = 'input';
-  const webStyle: any = { width: '100%', boxSizing: 'border-box', border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '6px 8px', fontSize: 13, color: COLORS.gray[700], marginTop: 4, outline: 'none' };
+  const webStyle: any = { width: '100%', boxSizing: 'border-box', border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '6px 8px', fontSize: 13, color: COLORS.gray[700], marginTop: 4, outline: 'none', cursor: 'pointer' };
+  const openPicker = (e: any) => { try { e.currentTarget.showPicker && e.currentTarget.showPicker(); } catch { /* ignora */ } };
 
   const label = !from && !to ? TODOS
     : from && to ? (from === to ? fmtBRdate(from) : `${fmtBRdate(from)} – ${fmtBRdate(to)}`)
@@ -329,11 +330,11 @@ function DateRangeFilter({ from, to, setFrom, setTo, openId, setOpenId }: {
             <View style={[sel.flyout, { padding: SPACING.md }]}>
               <Text style={drf.lbl}>De</Text>
               {isWeb
-                ? <WebInput type="date" value={from} onChange={(e: any) => setFrom(e.target.value)} style={webStyle} />
+                ? <WebInput type="date" value={from} onChange={(e: any) => setFrom(e.target.value)} onClick={openPicker} onFocus={openPicker} style={webStyle} />
                 : <TextInput value={from} onChangeText={setFrom} placeholder="AAAA-MM-DD" placeholderTextColor={COLORS.gray[400]} style={drf.input} />}
               <Text style={[drf.lbl, { marginTop: SPACING.sm }]}>Até</Text>
               {isWeb
-                ? <WebInput type="date" value={to} onChange={(e: any) => setTo(e.target.value)} style={webStyle} />
+                ? <WebInput type="date" value={to} onChange={(e: any) => setTo(e.target.value)} onClick={openPicker} onFocus={openPicker} style={webStyle} />
                 : <TextInput value={to} onChangeText={setTo} placeholder="AAAA-MM-DD" placeholderTextColor={COLORS.gray[400]} style={drf.input} />}
               <Pressable style={drf.clear} onPress={() => { setFrom(''); setTo(''); }}>
                 <Text style={drf.clearTxt}>Limpar</Text>
@@ -355,6 +356,12 @@ const drf = StyleSheet.create({
 // ─── Mapa do Brasil (SVG web, geometria real por UF — ver src/constants/brazilUf) ─
 // Centróide projetado (x,y no viewBox) de cada UF — para posicionar os pontos.
 const UF_XY: Record<string, [number, number]> = Object.fromEntries(BR_UF.map((u) => [u.uf, [u.cx, u.cy]]));
+
+// Rótulos deslocados (UFs pequenas/apertadas) com linha-guia, igual aos mapas usuais.
+const LABEL_OVERRIDE: Record<string, [number, number]> = {
+  RN: [592, 170], PB: [592, 190], PE: [592, 210], AL: [592, 230], SE: [592, 250],
+  ES: [566, 388], RJ: [560, 432], DF: [432, 314],
+};
 
 const h = (tag: string, props: any, ...kids: any[]) => React.createElement(tag, props, ...kids);
 
@@ -405,7 +412,7 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
       const prod = r.produtoCandidato || r.produto || '—';
       if (fProd.size && !fProd.has(prod)) continue;
       if (fUf.size && !fUf.has(uf)) continue;
-      if (mFrom || mTo) { const mk = (r.dataHoraCertame || '').slice(0, 7); if (!mk) continue; if (mFrom && mk < mFrom) continue; if (mTo && mk > mTo) continue; }
+      if (mFrom || mTo) { const d = (r.dataHoraCertame || '').slice(0, 10); if (!d) continue; if (mFrom && d < mFrom) continue; if (mTo && d > mTo) continue; }
       const k = perUf[uf] = (perUf[uf] ?? 0) + 1;
       const ang = k * 2.399963; const rad = k === 1 ? 0 : 3 + Math.sqrt(k) * 2.4;   // espiral p/ separar pontos do mesmo estado
       out.push({ x: c[0] + Math.cos(ang) * rad, y: c[1] + Math.sin(ang) * rad, color: colorOf(prod) });
@@ -416,18 +423,20 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
 
   const isWeb = Platform.OS === 'web';
   const WebInput: any = 'input';
-  const dateStyle: any = { border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '4px 6px', fontSize: 12, color: COLORS.gray[700], outline: 'none' };
+  const dateStyle: any = { border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '6px 8px', fontSize: 12, color: COLORS.gray[700], outline: 'none', cursor: 'pointer' };
+  // abre o calendário nativo ao clicar em qualquer parte do campo
+  const openPicker = (e: any) => { try { e.currentTarget.showPicker && e.currentTarget.showPicker(); } catch { /* ignora */ } };
 
   return (
     <View style={[s.body, narrow && { flexDirection: 'column' as any }]}>
       {/* Filtros do mapa */}
       <View style={mp.filters}>
         <Text style={mp.fTitle}>Filtros do mapa</Text>
-        <Text style={mp.fLabel}>Período (mês)</Text>
+        <Text style={mp.fLabel}>Período (data do certame)</Text>
         <View style={{ flexDirection: 'row', gap: SPACING.xs }}>
           {isWeb
-            ? <><WebInput type="month" value={mFrom} onChange={(e: any) => setMFrom(e.target.value)} style={dateStyle} />
-                <WebInput type="month" value={mTo} onChange={(e: any) => setMTo(e.target.value)} style={dateStyle} /></>
+            ? <><WebInput type="date" value={mFrom} onChange={(e: any) => setMFrom(e.target.value)} onClick={openPicker} onFocus={openPicker} style={dateStyle} />
+                <WebInput type="date" value={mTo} onChange={(e: any) => setMTo(e.target.value)} onClick={openPicker} onFocus={openPicker} style={dateStyle} /></>
             : <Text style={tbl.empty}>web</Text>}
         </View>
 
@@ -468,8 +477,15 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
         {isWeb ? h('svg', { viewBox: `0 0 ${BR_VIEW.w} ${BR_VIEW.h}`, style: { width: '100%', maxWidth: 560 } },
           // estados SEM cor — só contorno
           BR_UF.map((u) => h('path', { key: u.uf, d: u.d, fill: '#ffffff', stroke: '#4b5563', strokeWidth: 0.8, fillRule: 'evenodd' })),
-          // rótulos das UFs
-          BR_UF.map((u) => h('text', { key: `t${u.uf}`, x: u.cx, y: u.cy + 3, fontSize: 11, fontWeight: 700, fill: '#374151', textAnchor: 'middle' }, u.uf)),
+          // rótulos das UFs (deslocados c/ linha-guia onde há aperto)
+          BR_UF.map((u) => {
+            const ov = LABEL_OVERRIDE[u.uf];
+            if (ov) return h('g', { key: `t${u.uf}` },
+              h('line', { x1: u.cx, y1: u.cy, x2: ov[0] - 1, y2: ov[1] - 3, stroke: '#9ca3af', strokeWidth: 0.6 }),
+              h('text', { x: ov[0], y: ov[1], fontSize: 11, fontWeight: 700, fill: '#374151', textAnchor: 'start' }, u.uf),
+            );
+            return h('text', { key: `t${u.uf}`, x: u.cx, y: u.cy + 3, fontSize: 11, fontWeight: 700, fill: '#374151', textAnchor: 'middle' }, u.uf);
+          }),
           // pontos coloridos por produto (sobre o mapa)
           pts.map((p, i) => h('circle', { key: i, cx: p.x.toFixed(1), cy: p.y.toFixed(1), r: 3.4, fill: p.color, fillOpacity: 0.85, stroke: '#fff', strokeWidth: 0.6 })),
         ) : <Text style={tbl.empty}>Mapa disponível na versão web.</Text>}
