@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/guilherme14888/crm-br4/compare/v1.5.0...v1.6.0) (2026-06-12)
+
+
+### Features
+
+* leitor de documentos extrai todos os PDFs (zips aninhados) e lista por arquivo ([f8b904f](https://github.com/guilherme14888/crm-br4/commit/f8b904fdbb50381754ff4a4ff8fc2f102cfe6c01))
+
 # [1.5.0](https://github.com/guilherme14888/crm-br4/compare/v1.4.2...v1.5.0) (2026-06-12)
 
 
