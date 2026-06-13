@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/guilherme14888/crm-br4/compare/v1.7.3...v1.8.0) (2026-06-13)
+
+
+### Features
+
+* oportunidades abertas -> Licitacoes com confirmacao de participacao + docs no deal ([0327c0c](https://github.com/guilherme14888/crm-br4/commit/0327c0c96c6dd3099617aae774208337a02fcc55))
+
 ## [1.7.3](https://github.com/guilherme14888/crm-br4/compare/v1.7.2...v1.7.3) (2026-06-13)
 
 
