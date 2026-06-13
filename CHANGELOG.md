@@ -1,3 +1,10 @@
+## [1.7.3](https://github.com/guilherme14888/crm-br4/compare/v1.7.2...v1.7.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* rotulos das UFs no centro real do estado (centroide de area) ([6666b3c](https://github.com/guilherme14888/crm-br4/commit/6666b3c5480530620fe7ba613ac1271995b9b2c6))
+
 ## [1.7.2](https://github.com/guilherme14888/crm-br4/compare/v1.7.1...v1.7.2) (2026-06-13)
 
 
