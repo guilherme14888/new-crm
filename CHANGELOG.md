@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/guilherme14888/crm-br4/compare/v1.8.0...v1.9.0) (2026-06-13)
+
+
+### Features
+
+* oportunidades como cards bloqueados na etapa Oportunidade + botao Participar ([5741066](https://github.com/guilherme14888/crm-br4/commit/57410669af2b824bd419f9f42f5e6b88814c41f9))
+
 # [1.8.0](https://github.com/guilherme14888/crm-br4/compare/v1.7.3...v1.8.0) (2026-06-13)
 
 
