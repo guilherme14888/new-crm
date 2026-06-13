@@ -103,6 +103,8 @@ export interface Deal {
   closingReason: string | null;
   notes: string | null;
   stageChangedAt: string | null;
+  locked?: boolean;            // oportunidade bloqueada até "Participar"
+  miControle?: string | null;  // licitação de origem (pncp_controle)
   companyId?: string;
   companyName?: string | null;
   createdAt: string;

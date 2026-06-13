@@ -1,44 +1,38 @@
-// Oportunidades (licitações abertas) → CRM: lista o "inbox" de abertas não
-// convertidas e converte uma em deal (negociação) ao confirmar participação —
-// cria/usa o contato do órgão, grava infos em campos personalizados e COPIA os
-// documentos (edital/ata/anexos) para a aba Arquivos do deal.
+// Oportunidades (licitações abertas) → CRM como deals BLOQUEADOS na etapa
+// "Oportunidade". O botão "Participar" desbloqueia o deal (locked=0), move para a
+// próxima etapa e COPIA os documentos (edital/ata/anexos) para a aba Arquivos.
 
 const db = require('./db');
 const { v4: uuidv4 } = require('uuid');
 const marketDocs = require('./marketDocs');
 
 const MASTER = '00000000-0000-0000-0000-000000000001';
+const OPP_STAGE = 'Oportunidade';
 const fmtBRL = (n) => (n == null ? '' : Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
-/** Inbox: licitações ABERTAS (recebendo propostas) e ainda NÃO convertidas, 1 por edital. */
-async function listOpportunities(companyId) {
-  const [rows] = await db.query(
-    `SELECT mi.pncp_controle AS controle, MIN(mi.id) AS miId,
-            MAX(mi.licitador) AS licitador, MAX(mi.uf) AS uf, MAX(mi.municipio) AS municipio,
-            MAX(mi.modalidade) AS modalidade, MAX(mi.n_edital) AS nEdital, MAX(mi.n_processo) AS nProcesso,
-            MAX(mi.data_hora_certame) AS dataHoraCertame, MAX(mi.prazo_edital) AS prazoEdital,
-            MAX(mi.url_site) AS urlSite, MAX(mi.nome_site) AS nomeSite,
-            GROUP_CONCAT(DISTINCT COALESCE(mi.produto_candidato, mi.produto) SEPARATOR ', ') AS produtos,
-            SUM(mi.preco_estimado_total) AS valorEstimado, COUNT(*) AS itens
-       FROM market_intelligence mi
-      WHERE mi.company_id = ? AND mi.encerramento = 'Recebendo propostas' AND mi.pncp_controle IS NOT NULL
-        AND mi.pncp_controle COLLATE utf8mb4_unicode_ci NOT IN (
-          SELECT mi_controle FROM deals WHERE mi_controle IS NOT NULL AND deleted_at IS NULL AND company_id = ?
-        )
-      GROUP BY mi.pncp_controle
-      ORDER BY MAX(mi.data_hora_certame) DESC
-      LIMIT 500`,
-    [companyId, companyId]
+/** Garante a etapa "Oportunidade" (1ª) no funil default e devolve ids úteis. */
+async function ensureOpportunityStage() {
+  const [f] = await db.query("SELECT id FROM funnels WHERE company_id = ? AND is_default = 1 ORDER BY name LIMIT 1", [MASTER]);
+  if (!f.length) return null;
+  const funnelId = f[0].id;
+  let [s] = await db.query('SELECT id FROM funnel_stages WHERE funnel_id = ? AND name = ? LIMIT 1', [funnelId, OPP_STAGE]);
+  let oppStageId;
+  if (s.length) oppStageId = s[0].id;
+  else {
+    oppStageId = uuidv4();
+    await db.query(
+      'INSERT INTO funnel_stages (id, funnel_id, company_id, name, color, order_index, probability, type) VALUES (?,?,?,?,?,?,?,?)',
+      [oppStageId, funnelId, MASTER, OPP_STAGE, '#64748b', 0, 5, 'active']
+    );
+  }
+  const [n] = await db.query(
+    "SELECT id FROM funnel_stages WHERE funnel_id = ? AND type = 'active' AND name <> ? ORDER BY order_index, name LIMIT 1",
+    [funnelId, OPP_STAGE]
   );
-  return rows.map((r) => ({
-    controle: r.controle, miId: r.miId, licitador: r.licitador, uf: r.uf, municipio: r.municipio,
-    modalidade: r.modalidade, nEdital: r.nEdital, nProcesso: r.nProcesso,
-    dataHoraCertame: r.dataHoraCertame, prazoEdital: r.prazoEdital, urlSite: r.urlSite, nomeSite: r.nomeSite,
-    produtos: r.produtos, valorEstimado: r.valorEstimado == null ? null : Number(r.valorEstimado), itens: Number(r.itens),
-  }));
+  return { funnelId, oppStageId, nextStageId: n[0]?.id || oppStageId };
 }
 
-/** Garante (idempotente) os campos personalizados da licitação e grava os valores no deal. */
+/** Garante (idempotente) os campos personalizados da licitação e grava os valores. */
 async function ensureAndSaveCustomFields(companyId, dealId, values) {
   const [existing] = await db.query("SELECT id, name FROM custom_fields WHERE company_id = ? AND entity_type = 'deal' AND is_active = 1", [companyId]);
   const byName = new Map(existing.map((f) => [f.name, f.id]));
@@ -87,60 +81,32 @@ async function copyDocs(companyId, controle, urlSite, dealId) {
   return n;
 }
 
-/** Confirma participação: cria o deal a partir da licitação aberta. Retorna o deal id. */
-async function confirmParticipation(scope, controle) {
-  const companyId = scope.companyId;
-  if (!controle) { const e = new Error('controle obrigatório'); e.code = 'BAD'; throw e; }
-
-  const [dup] = await db.query('SELECT id FROM deals WHERE company_id = ? AND mi_controle = ? AND deleted_at IS NULL', [companyId, controle]);
-  if (dup.length) { const e = new Error('Licitação já confirmada.'); e.code = 'DUP'; e.dealId = dup[0].id; throw e; }
-
-  const [aggR] = await db.query(
-    `SELECT MIN(id) miId, MAX(licitador) licitador, MAX(uf) uf, MAX(municipio) municipio, MAX(modalidade) modalidade,
-            MAX(n_edital) nEdital, MAX(n_processo) nProcesso, MAX(prazo_edital) prazoEdital, MAX(url_site) urlSite,
-            MAX(nome_site) nomeSite, MAX(cnpj) cnpj,
-            GROUP_CONCAT(DISTINCT COALESCE(produto_candidato, produto) SEPARATOR ', ') produtos,
-            SUM(preco_estimado_total) valor
-       FROM market_intelligence WHERE company_id = ? AND pncp_controle = ?`,
-    [companyId, controle]
-  );
-  const o = aggR[0];
-  if (!o || !o.miId) { const e = new Error('Oportunidade não encontrada.'); e.code = 'NF'; throw e; }
-
-  // Contato (órgão) — find-or-create
-  const orgName = (o.licitador || 'Órgão licitante').slice(0, 200);
-  let contactId;
+/** Contato (órgão) — find-or-create. */
+async function ensureOrgaoContact(companyId, licitador, cnpj) {
+  const orgName = (licitador || 'Órgão licitante').slice(0, 200);
   const [c] = await db.query(
     'SELECT id FROM contacts WHERE company_id = ? AND deleted_at IS NULL AND (first_name = ? OR company = ?) LIMIT 1',
     [companyId, orgName, orgName]
   );
-  if (c.length) contactId = c[0].id;
-  else {
-    contactId = uuidv4();
-    await db.query(
-      `INSERT INTO contacts (id,company_id,type,first_name,last_name,email,phone,company,job_title,avatar_url,tags,notes)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [contactId, companyId, 'company', orgName, '', null, null, orgName, 'Órgão licitante', null, JSON.stringify([]), `CNPJ: ${o.cnpj || '—'}`]
-    );
-  }
-
-  // 1ª etapa ativa do funil default (master)
-  const [st] = await db.query(
-    `SELECT fs.id stageId, fs.funnel_id funnelId, fs.probability prob
-       FROM funnel_stages fs JOIN funnels f ON f.id = fs.funnel_id
-      WHERE f.company_id = ? AND f.is_default = 1 AND fs.type = 'active'
-      ORDER BY fs.order_index ASC LIMIT 1`,
-    [MASTER]
+  if (c.length) return c[0].id;
+  const id = uuidv4();
+  await db.query(
+    `INSERT INTO contacts (id,company_id,type,first_name,last_name,email,phone,company,job_title,avatar_url,tags,notes)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, companyId, 'company', orgName, '', null, null, orgName, 'Órgão licitante', null, JSON.stringify([]), `CNPJ: ${cnpj || '—'}`]
   );
-  const stage = st[0] || {};
-  const funnelId = stage.funnelId || 'default-funnel';
-  const stageId = stage.stageId || '';
+  return id;
+}
 
+/** Cria um deal BLOQUEADO na etapa Oportunidade a partir de um agregado de licitação. */
+async function createLockedDeal(scope, stage, o) {
+  const companyId = scope.companyId;
+  const contactId = await ensureOrgaoContact(companyId, o.licitador, o.cnpj);
   const dealId = uuidv4();
   const valueCent = o.valor == null ? 0 : Math.round(Number(o.valor) * 100);
-  const title = `${o.licitador || 'Licitação'} — ${o.nEdital || o.nProcesso || controle}`.slice(0, 250);
+  const title = `${o.licitador || 'Licitação'} — ${o.nEdital || o.nProcesso || o.controle}`.slice(0, 250);
   const notes = [
-    `Licitação ${controle}`,
+    `Licitação ${o.controle}`,
     `Órgão: ${o.licitador || '—'}`,
     `Local: ${o.municipio || ''}${o.uf ? `/${o.uf}` : ''}`,
     `Modalidade: ${o.modalidade || '—'}`,
@@ -148,24 +114,70 @@ async function confirmParticipation(scope, controle) {
     `Valor estimado: R$ ${fmtBRL(o.valor)}`,
     `PNCP: ${o.urlSite || '—'}`,
   ].join('\n');
-  const [maxRow] = await db.query('SELECT MAX(stage_order) m FROM deals WHERE stage_id = ? AND deleted_at IS NULL', [stageId]);
+  const [maxRow] = await db.query('SELECT MAX(stage_order) m FROM deals WHERE stage_id = ? AND deleted_at IS NULL', [stage.oppStageId]);
   const stageOrder = (maxRow[0].m ?? 0) + 1;
   await db.query(
-    `INSERT INTO deals (id,company_id,contact_id,funnel_id,stage_id,owner_id,title,value,currency,stage,stage_order,probability,expected_close_date,closing_reason,notes,mi_controle)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [dealId, companyId, contactId, funnelId, stageId, scope.userId, title, valueCent, 'BRL', 'qualification', stageOrder, stage.prob ?? 10, o.prazoEdital || null, null, notes, controle]
+    `INSERT INTO deals (id,company_id,contact_id,funnel_id,stage_id,owner_id,title,value,currency,stage,stage_order,probability,expected_close_date,closing_reason,notes,mi_controle,locked)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
+    [dealId, companyId, contactId, stage.funnelId, stage.oppStageId, scope.userId, title, valueCent, 'BRL', 'qualification', stageOrder, 5, o.prazoEdital || null, null, notes, o.controle]
   );
-
   await ensureAndSaveCustomFields(companyId, dealId, {
     'Órgão': o.licitador, 'Nº Processo': o.nProcesso, 'Nº Edital': o.nEdital, 'UF': o.uf, 'Município': o.municipio,
     'Modalidade': o.modalidade, 'Produto': o.produtos,
     'Valor estimado': o.valor != null ? `R$ ${fmtBRL(o.valor)}` : '', 'Portal': o.nomeSite,
     'Link PNCP': o.urlSite, 'Prazo': (o.prazoEdital || '').toString().slice(0, 10),
   });
-
-  await copyDocs(companyId, controle, o.urlSite, dealId).catch(() => {});
-
   return dealId;
 }
 
-module.exports = { listOpportunities, confirmParticipation };
+/** Sincroniza: cria deals bloqueados (etapa Oportunidade) para as licitações ABERTAS ainda não convertidas. */
+async function syncOpportunities(scope) {
+  const companyId = scope.companyId;
+  const stage = await ensureOpportunityStage();
+  if (!stage) return { created: 0 };
+  const [opps] = await db.query(
+    `SELECT mi.pncp_controle AS controle,
+            MAX(mi.licitador) AS licitador, MAX(mi.uf) AS uf, MAX(mi.municipio) AS municipio,
+            MAX(mi.modalidade) AS modalidade, MAX(mi.n_edital) AS nEdital, MAX(mi.n_processo) AS nProcesso,
+            MAX(mi.prazo_edital) AS prazoEdital, MAX(mi.url_site) AS urlSite, MAX(mi.nome_site) AS nomeSite, MAX(mi.cnpj) AS cnpj,
+            GROUP_CONCAT(DISTINCT COALESCE(mi.produto_candidato, mi.produto) SEPARATOR ', ') AS produtos,
+            SUM(mi.preco_estimado_total) AS valor
+       FROM market_intelligence mi
+      WHERE mi.company_id = ? AND mi.encerramento = 'Recebendo propostas' AND mi.pncp_controle IS NOT NULL
+        AND mi.pncp_controle COLLATE utf8mb4_unicode_ci NOT IN (
+          SELECT mi_controle FROM deals WHERE mi_controle IS NOT NULL AND deleted_at IS NULL AND company_id = ?
+        )
+      GROUP BY mi.pncp_controle
+      ORDER BY MAX(mi.data_hora_certame) DESC
+      LIMIT 500`,
+    [companyId, companyId]
+  );
+  let created = 0;
+  for (const o of opps) {
+    try { await createLockedDeal(scope, stage, o); created++; } catch { /* ignora 1 */ }
+  }
+  return { created };
+}
+
+/** Participar: desbloqueia o deal, move p/ a próxima etapa e copia os documentos. */
+async function participate(scope, dealId) {
+  const [d] = await db.query('SELECT * FROM deals WHERE id = ? AND company_id = ? AND deleted_at IS NULL', [dealId, scope.companyId]);
+  if (!d.length) { const e = new Error('Negociação não encontrada.'); e.code = 'NF'; throw e; }
+  const deal = d[0];
+  if (!deal.locked) return { ok: true, alreadyUnlocked: true };
+
+  const stage = await ensureOpportunityStage();
+  const nextStageId = (stage && stage.nextStageId) || deal.stage_id;
+  const [maxRow] = await db.query('SELECT MAX(stage_order) m FROM deals WHERE stage_id = ? AND deleted_at IS NULL', [nextStageId]);
+  const order = (maxRow[0].m ?? 0) + 1;
+  await db.query('UPDATE deals SET locked = 0, stage_id = ?, stage_order = ?, stage_changed_at = NOW() WHERE id = ?', [nextStageId, order, dealId]);
+
+  let docs = 0;
+  if (deal.mi_controle) {
+    const [mi] = await db.query('SELECT MAX(url_site) urlSite FROM market_intelligence WHERE company_id = ? AND pncp_controle = ?', [scope.companyId, deal.mi_controle]);
+    docs = await copyDocs(scope.companyId, deal.mi_controle, mi[0]?.urlSite, dealId).catch(() => 0);
+  }
+  return { ok: true, stageId: nextStageId, docs };
+}
+
+module.exports = { ensureOpportunityStage, syncOpportunities, participate };

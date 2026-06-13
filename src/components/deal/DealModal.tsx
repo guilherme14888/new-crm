@@ -298,12 +298,14 @@ function copyToClipboard(value: string) {
 export function DealModal() {
   const openDealId  = useUIStore((s) => s.openDealId);
   const closeDeal   = useUIStore((s) => s.closeDeal);
+  const showToast   = useUIStore((s) => s.showToast);
   const [copiedField, setCopiedField] = useState<'email' | 'phone' | null>(null);
 
   const deals       = useDealStore((s) => s.deals);
   const updateDeal  = useDealStore((s) => s.updateDeal);
   const deleteDeal  = useDealStore((s) => s.deleteDeal);
   const moveDeal    = useDealStore((s) => s.moveDeal);
+  const participate = useDealStore((s) => s.participate);
 
   const contacts         = useContactStore((s) => s.contacts);
   const funnels              = useFunnelStore((s) => s.funnels);
@@ -383,6 +385,13 @@ export function DealModal() {
   };
 
   const isClosed = deal?.stage === 'closed_won' || deal?.stage === 'closed_lost';
+  const isLocked = !!deal?.locked;
+
+  // Participar: desbloqueia a oportunidade (move p/ próxima etapa + anexa documentos).
+  const handleParticipate = async () => {
+    if (!deal) return;
+    await participate(deal.id);
+  };
 
   // Reabre um deal fechado, movendo-o para a primeira etapa ativa do funil (ou status 'qualification').
   const handleReopen = async () => {
@@ -444,6 +453,7 @@ export function DealModal() {
   // Move o deal para a etapa tocada na barra de etapas (ignora se já estiver nela).
   const handleStagePress = (stageId: string, idx: number) => {
     if (!deal || stageId === deal.stageId) return;
+    if (deal.locked) { showToast('Clique em "Participar" para liberar a movimentação.'); return; }
     moveDeal(deal.id, deal.stage, idx, deal.contactId, stageId);
   };
 
@@ -675,7 +685,11 @@ export function DealModal() {
                   {isWide && (
                     <Text style={s.headerValue}>{formatCurrency(deal.value)}</Text>
                   )}
-                  {isClosed ? (
+                  {isLocked ? (
+                    <Pressable style={s.participateBtn} onPress={handleParticipate}>
+                      <Text style={s.participateTxt}>🔓 Participar</Text>
+                    </Pressable>
+                  ) : isClosed ? (
                     <Pressable style={s.reopenBtn} onPress={handleReopen}>
                       <Text style={s.reopenTxt}>↩ Retomar</Text>
                     </Pressable>
@@ -886,6 +900,11 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.md, backgroundColor: '#16a34a',
   },
   wonTxt: { color: COLORS.white, fontSize: 12, fontWeight: '700' },
+  participateBtn: {
+    paddingHorizontal: SPACING.md, paddingVertical: 6,
+    borderRadius: RADIUS.md, backgroundColor: COLORS.primary,
+  },
+  participateTxt: { color: COLORS.white, fontSize: 12, fontWeight: '800' },
   lostBtn: {
     paddingHorizontal: SPACING.sm, paddingVertical: 6,
     borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: '#ef4444',

@@ -50,24 +50,12 @@ router.get('/', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/market-intelligence/opportunities — inbox de licitações abertas não convertidas
-router.get('/opportunities', auth, resolveScope, async (req, res) => {
+// POST /api/market-intelligence/opportunities/sync — cria deals BLOQUEADOS (etapa
+// "Oportunidade") para as licitações abertas ainda não convertidas. Idempotente.
+router.post('/opportunities/sync', auth, resolveScope, async (req, res) => {
   try {
-    res.json(await opportunities.listOpportunities(req.scope.companyId));
+    res.json(await opportunities.syncOpportunities(req.scope));
   } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// POST /api/market-intelligence/opportunities/confirm  body { controle } → cria o deal
-router.post('/opportunities/confirm', auth, resolveScope, async (req, res) => {
-  try {
-    const dealId = await opportunities.confirmParticipation(req.scope, req.body?.controle);
-    res.status(201).json({ ok: true, dealId });
-  } catch (e) {
-    if (e.code === 'DUP') return res.status(409).json({ error: e.message, dealId: e.dealId });
-    if (e.code === 'NF')  return res.status(404).json({ error: e.message });
-    if (e.code === 'BAD') return res.status(400).json({ error: e.message });
-    res.status(500).json({ error: e.message });
-  }
 });
 
 // GET /api/market-intelligence/:id/history — linha do tempo de uma licitação/item

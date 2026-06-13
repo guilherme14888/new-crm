@@ -3,6 +3,7 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { resolveScope, buildScopeFilter, canAccess } = require('../middleware/acl');
 const { audit } = require('../services/auditLog');
+const opportunities = require('../opportunities');
 
 /**
  * Formata um registro de deal do banco para o objeto de API.
@@ -23,6 +24,8 @@ function fmt(row) {
     closingReason: row.closing_reason ?? null,
     notes: row.notes ?? null,
     stageChangedAt: row.stage_changed_at ?? null,
+    locked: !!row.locked,
+    miControle: row.mi_controle ?? null,
     companyId: row.company_id,
     companyName: row.company_name ?? null,
     createdAt: row.created_at, updatedAt: row.updated_at,
@@ -139,6 +142,8 @@ router.patch('/:id/move', auth, resolveScope, async (req, res) => {
     if (!existing.length) return res.status(404).json({ error: 'Not found' });
     if (!canAccess(req.scope, existing[0]))
       return res.status(403).json({ error: 'Acesso negado' });
+    if (existing[0].locked)
+      return res.status(423).json({ error: 'Licitação bloqueada — clique em "Participar" para liberar a negociação.' });
 
     const { newStage, newStageId, newOrder } = req.body;
     await db.query(
@@ -165,6 +170,21 @@ router.delete('/:id', auth, resolveScope, async (req, res) => {
     audit(req, { action: 'delete', resource: 'deals', resourceId: req.params.id });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/deals/:id/participate — desbloqueia a oportunidade (move + copia docs)
+router.post('/:id/participate', auth, resolveScope, async (req, res) => {
+  try {
+    const [d] = await db.query('SELECT * FROM deals WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    if (!d.length) return res.status(404).json({ error: 'Not found' });
+    if (!canAccess(req.scope, d[0])) return res.status(403).json({ error: 'Acesso negado' });
+    const r = await opportunities.participate(req.scope, req.params.id);
+    audit(req, { action: 'update', resource: 'deals', resourceId: req.params.id, newValue: { participate: true } });
+    res.json(r);
+  } catch (e) {
+    if (e.code === 'NF') return res.status(404).json({ error: e.message });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════════

@@ -33,8 +33,9 @@ export function KanbanCard({
   const isWon  = deal.stage === 'closed_won';
   const isLost = deal.stage === 'closed_lost';
 
+  const isLocked = !!deal.locked;
   const pan = Gesture.Pan()
-    .enabled(!isFloating)
+    .enabled(!isFloating && !isLocked)   // oportunidade bloqueada não arrasta
     .minDistance(8)
     .onStart((e: { absoluteX: number; absoluteY: number; x: number; y: number }) => {
       scale.value = withSpring(1.05);
@@ -71,9 +72,11 @@ export function KanbanCard({
         isFloating && styles.floatingShadow,
         isWon  && styles.wonCard,
         isLost && styles.lostCard,
+        isLocked && styles.lockedCard,
       ]}>
         {isWon  && <Text style={styles.statusBadge}>✓ Ganho</Text>}
         {isLost && <Text style={[styles.statusBadge, styles.lostBadge]}>✗ Perdido</Text>}
+        {isLocked && <Text style={[styles.statusBadge, styles.lockedBadge]}>🔒 Oportunidade — toque p/ Participar</Text>}
         <Text style={styles.title} numberOfLines={2}>{deal.title}</Text>
         <Text style={[styles.value, isWon && styles.wonValue]}>{formatCurrency(deal.value)}</Text>
         <Text style={styles.contact} numberOfLines={1}>{contactName}</Text>
@@ -113,6 +116,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginBottom: 6,
   },
   lostBadge: { color: '#ef4444', backgroundColor: '#fee2e2' },
+  lockedCard: { borderLeftWidth: 3, borderLeftColor: '#64748b', backgroundColor: '#f8fafc' },
+  lockedBadge: { color: '#475569', backgroundColor: '#e2e8f0' },
   companyTag: {
     fontSize: 10, fontWeight: '600', color: '#6366f1',
     backgroundColor: '#eef2ff', alignSelf: 'flex-start',

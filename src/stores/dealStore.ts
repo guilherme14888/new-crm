@@ -5,6 +5,7 @@ import * as dealRepo from '../db/dealRepo';
 import * as activityRepo from '../db/activityRepo';
 import {
   apiGetDeals, apiCreateDeal, apiUpdateDeal, apiMoveDeal, apiDeleteDeal,
+  apiSyncOpportunities, apiParticipateDeal,
 } from '../services/apiDataService';
 import { now, startOfMonth } from '../utils/date';
 import { useUIStore } from './uiStore';
@@ -27,6 +28,8 @@ interface DealState {
   updateDeal: (id: string, patch: Partial<Deal>) => Promise<void>;
   moveDeal: (id: string, newStage: DealStage, newOrder: number, contactId: string, newStageId?: string) => Promise<void>;
   deleteDeal: (id: string) => Promise<void>;
+  syncOpportunities: () => Promise<number>;
+  participate: (id: string) => Promise<boolean>;
 }
 
 /**
@@ -213,6 +216,31 @@ export const useDealStore = create<DealState>((set, get) => ({
       set((s) => ({ deals: s.deals.filter((d) => d.id !== id) }));
     } catch {
       useUIStore.getState().showToast('Failed to delete deal');
+    }
+  },
+
+  // Cria deals bloqueados (etapa Oportunidade) p/ licitações abertas e recarrega.
+  syncOpportunities: async () => {
+    if (Platform.OS !== 'web') return 0;
+    try {
+      const { created } = await apiSyncOpportunities();
+      if (created > 0) await get().loadDeals();
+      return created;
+    } catch { return 0; }
+  },
+
+  // Participar: desbloqueia a oportunidade (move + copia documentos).
+  participate: async (id) => {
+    try {
+      const r = await apiParticipateDeal(id);
+      set((s) => ({
+        deals: s.deals.map((d) => (d.id === id ? { ...d, locked: false, stageId: r.stageId ?? d.stageId, syncStatus: 'pending_push' as const } : d)),
+      }));
+      useUIStore.getState().showToast('Você está participando — negociação liberada');
+      return true;
+    } catch (e: any) {
+      useUIStore.getState().showToast(e?.message ?? 'Erro ao participar');
+      return false;
     }
   },
 }));

@@ -82,6 +82,16 @@ export async function apiDeleteDeal(id: string): Promise<void> {
   await apiFetch(`/api/deals/${id}`, { method: 'DELETE' });
 }
 
+/** Sincroniza oportunidades: cria deals bloqueados (etapa Oportunidade) p/ licitações abertas. */
+export async function apiSyncOpportunities(): Promise<{ created: number }> {
+  return apiFetch('/api/market-intelligence/opportunities/sync', { method: 'POST' });
+}
+
+/** Participar: desbloqueia a oportunidade (move + copia documentos). */
+export async function apiParticipateDeal(id: string): Promise<{ ok: boolean; stageId?: string }> {
+  return apiFetch(`/api/deals/${id}/participate`, { method: 'POST' });
+}
+
 // ─── Funnels ──────────────────────────────────────────────────────────────────
 
 type ApiFunnelStage = {

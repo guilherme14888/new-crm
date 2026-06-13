@@ -4,7 +4,6 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useDealStore } from '../../../src/stores/dealStore';
-import { useMarketIntelStore } from '../../../src/stores/marketIntelStore';
 import { useContactStore } from '../../../src/stores/contactStore';
 import { useFunnelStore } from '../../../src/stores/funnelStore';
 import { useUIStore } from '../../../src/stores/uiStore';
@@ -22,7 +21,7 @@ import { Deal, FunnelStage } from '../../../src/types/models';
 const MASTER_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type ViewMode = 'list' | 'kanban' | 'oportunidades';
+type ViewMode = 'list' | 'kanban';
 type OwnerFilter = string; // 'all' | 'mine' | 'user:{id}' | 'team:{id}'
 type StatusFilter = 'all' | 'active' | 'won' | 'lost';
 type SortOption = 'created_desc' | 'created_asc' | 'value_desc' | 'value_asc' | 'name_asc';
@@ -50,9 +49,6 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
       </Pressable>
       <Pressable style={[vt.btn, mode === 'kanban' && vt.active]} onPress={() => onChange('kanban')}>
         <Text style={[vt.label, mode === 'kanban' && vt.activeLabel]}>🗂 Kanban</Text>
-      </Pressable>
-      <Pressable style={[vt.btn, mode === 'oportunidades' && vt.active]} onPress={() => onChange('oportunidades')}>
-        <Text style={[vt.label, mode === 'oportunidades' && vt.activeLabel]}>📥 Oportunidades</Text>
       </Pressable>
     </View>
   );
@@ -1206,82 +1202,6 @@ const sm = StyleSheet.create({
 
 // ─── Main screen ───────────────────────────────────────────────────────────────
 /** Tela principal de Licitações: orquestra filtros, resumo e as visualizações em lista e Kanban das negociações. */
-// ─── Oportunidades (inbox de licitações abertas) ─────────────────────────────
-/** Lista as licitações abertas (recebendo propostas) e permite confirmar participação. */
-function OpportunitiesView({ onConfirmed }: { onConfirmed: () => void }) {
-  const opps    = useMarketIntelStore((s) => s.opportunities);
-  const loading = useMarketIntelStore((s) => s.oppLoading);
-  const load    = useMarketIntelStore((s) => s.loadOpportunities);
-  const confirm = useMarketIntelStore((s) => s.confirmParticipation);
-  const [busy, setBusy] = useState<string | null>(null);
-  useEffect(() => { load(); }, []);
-
-  const fmtDate = (iso: string | null) => (iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—');
-  const doConfirm = async (controle: string) => {
-    setBusy(controle);
-    const id = await confirm(controle);
-    setBusy(null);
-    if (id) onConfirmed();
-  };
-
-  if (loading && !opps.length) {
-    return <View style={op.center}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={op.empty}>Carregando oportunidades…</Text></View>;
-  }
-  return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: SPACING.lg, gap: SPACING.md }}>
-      <Text style={op.head}>
-        {opps.length} licitação(ões) aberta(s) aguardando confirmação de participação
-      </Text>
-      {opps.length === 0 && (
-        <Text style={op.empty}>
-          Nenhuma licitação aberta pendente. As oportunidades aparecem aqui automaticamente conforme a
-          ingestão encontra editais "recebendo propostas" que casam suas palavras-chave.
-        </Text>
-      )}
-      {opps.map((o) => (
-        <View key={o.controle} style={op.card}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={op.title} numberOfLines={2}>{o.licitador || '—'}</Text>
-            <Text style={op.meta}>
-              {o.municipio ? `${o.municipio}/` : ''}{o.uf || '—'} · {o.modalidade || '—'} · Edital {o.nEdital || o.nProcesso || '—'}
-            </Text>
-            <Text style={op.prod} numberOfLines={1}>🧪 {o.produtos || '—'}</Text>
-            <View style={op.tags}>
-              <Text style={op.tag}>💰 {o.valorEstimado != null ? formatCurrency(Math.round(o.valorEstimado * 100)) : '—'}</Text>
-              <Text style={op.tag}>🗓 prazo {fmtDate(o.prazoEdital)}</Text>
-              <Text style={op.tag}>{o.itens} item(ns)</Text>
-              {o.urlSite ? (
-                <Text style={[op.tag, op.link]} onPress={() => Platform.OS === 'web' && (window as any).open(o.urlSite, '_blank')}>🔗 PNCP</Text>
-              ) : null}
-            </View>
-          </View>
-          <Pressable
-            style={[op.confirmBtn, busy === o.controle && { opacity: 0.6 }]}
-            disabled={busy === o.controle}
-            onPress={() => doConfirm(o.controle)}
-          >
-            <Text style={op.confirmTxt}>{busy === o.controle ? 'Confirmando…' : '✓ Confirmar participação'}</Text>
-          </Pressable>
-        </View>
-      ))}
-    </ScrollView>
-  );
-}
-const op = StyleSheet.create({
-  center:  { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
-  head:    { fontSize: FONTS.base, fontWeight: '700', color: COLORS.gray[700] },
-  empty:   { fontSize: FONTS.sm, color: COLORS.gray[500], textAlign: 'center', lineHeight: 20, padding: SPACING.lg },
-  card:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.gray[100], borderRadius: RADIUS.md, padding: SPACING.md, flexWrap: 'wrap' as any },
-  title:   { fontSize: FONTS.base, fontWeight: '800', color: COLORS.gray[900] },
-  meta:    { fontSize: FONTS.sm, color: COLORS.gray[500], marginTop: 2 },
-  prod:    { fontSize: FONTS.sm, color: COLORS.gray[700], marginTop: 4, fontWeight: '600' },
-  tags:    { flexDirection: 'row', flexWrap: 'wrap' as any, gap: SPACING.sm, marginTop: SPACING.sm },
-  tag:     { fontSize: FONTS.xs, color: COLORS.gray[600], backgroundColor: COLORS.gray[50], borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 3, fontWeight: '600' },
-  link:    { color: COLORS.primary, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-  confirmBtn: { backgroundColor: '#16a34a', borderRadius: RADIUS.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm + 2, alignSelf: 'center' },
-  confirmTxt: { color: COLORS.white, fontWeight: '800', fontSize: FONTS.sm },
-});
-
 export default function NegotiationsScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -1292,6 +1212,7 @@ export default function NegotiationsScreen() {
 
   const openDeal  = useUIStore((s) => s.openDeal);
   const loadDeals = useDealStore((s) => s.loadDeals);
+  const syncOpportunities = useDealStore((s) => s.syncOpportunities);
   const loadContacts = useContactStore((s) => s.loadContacts);
   const deals = useDealStore((s) => s.deals);
 
@@ -1304,7 +1225,11 @@ export default function NegotiationsScreen() {
   const loadFunnels = useFunnelStore((s) => s.loadFunnels);
   const teamMembers = useTeamStore((s) => s.teamMembers);
 
-  useEffect(() => { loadFunnels(); loadDeals(); loadContacts(); loadUsers(); }, [currentUser?.companyId]);
+  useEffect(() => {
+    loadFunnels(); loadContacts(); loadUsers();
+    // sincroniza oportunidades (cria cards bloqueados das licitações abertas) e carrega os deals
+    syncOpportunities().finally(() => loadDeals());
+  }, [currentUser?.companyId]);
 
   const isMaster = currentUser?.companyId === MASTER_COMPANY_ID;
 
@@ -1400,39 +1325,32 @@ export default function NegotiationsScreen() {
         </View>
       </View>
 
-      {/* Oportunidades: inbox de licitações abertas (sem filtros/summary de deals) */}
-      {viewMode === 'oportunidades' ? (
-        <OpportunitiesView onConfirmed={() => loadDeals()} />
+      {/* Filter toolbar */}
+      <FilterToolbar
+        filters={filters}
+        onChange={updateFilters}
+        selectedCompanyId={selectedCompanyId}
+        onSelectCompany={setSelectedCompanyId}
+        onOpenAdvanced={() => setShowAdvanced(true)}
+        activeFilterCount={activeFilterCount}
+      />
+
+      {/* Summary bar */}
+      <SummaryBar deals={filteredDeals} stages={stages} />
+
+      {/* Content */}
+      {viewMode === 'list' ? (
+        <ListView
+          deals={filteredDeals}
+          stages={stages}
+          users={users}
+          contactNames={contactNames}
+          onPress={(id) => openDeal(id)}
+        />
       ) : (
-        <>
-          {/* Filter toolbar */}
-          <FilterToolbar
-            filters={filters}
-            onChange={updateFilters}
-            selectedCompanyId={selectedCompanyId}
-            onSelectCompany={setSelectedCompanyId}
-            onOpenAdvanced={() => setShowAdvanced(true)}
-            activeFilterCount={activeFilterCount}
-          />
-
-          {/* Summary bar */}
-          <SummaryBar deals={filteredDeals} stages={stages} />
-
-          {/* Content */}
-          {viewMode === 'list' ? (
-            <ListView
-              deals={filteredDeals}
-              stages={stages}
-              users={users}
-              contactNames={contactNames}
-              onPress={(id) => openDeal(id)}
-            />
-          ) : (
-            <KanbanDragProvider contactIdForDeal={contactIdForDeal}>
-              <KanbanBoard stages={stages} dealsByStageId={dealsByStageId} wonDeals={wonDeals} lostDeals={lostDeals} contactNames={contactNames} />
-            </KanbanDragProvider>
-          )}
-        </>
+        <KanbanDragProvider contactIdForDeal={contactIdForDeal}>
+          <KanbanBoard stages={stages} dealsByStageId={dealsByStageId} wonDeals={wonDeals} lostDeals={lostDeals} contactNames={contactNames} />
+        </KanbanDragProvider>
       )}
 
       {/* Advanced filter modal */}
