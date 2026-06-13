@@ -1,3 +1,10 @@
+## [1.7.2](https://github.com/guilherme14888/crm-br4/compare/v1.7.1...v1.7.2) (2026-06-13)
+
+
+### Bug Fixes
+
+* rotulos do NE com linha-guia no mapa + calendario abre ao clicar nos filtros de data ([91edc91](https://github.com/guilherme14888/crm-br4/commit/91edc91333d3fa645e199f3a54beced3dff261ab))
+
 ## [1.7.1](https://github.com/guilherme14888/crm-br4/compare/v1.7.0...v1.7.1) (2026-06-12)
 
 
