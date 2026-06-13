@@ -76,12 +76,25 @@ export interface MarketKeyword {
   ativo: boolean;
 }
 
+/** Oportunidade (licitação aberta) ainda não convertida em negociação. */
+export interface Opportunity {
+  controle: string; miId: string;
+  licitador: string | null; uf: string | null; municipio: string | null;
+  modalidade: string | null; nEdital: string | null; nProcesso: string | null;
+  dataHoraCertame: string | null; prazoEdital: string | null; urlSite: string | null; nomeSite: string | null;
+  produtos: string | null; valorEstimado: number | null; itens: number;
+}
+
 interface MarketIntelState {
   rows: MarketIntelRow[];
   isLoading: boolean;
   loaded: boolean;
   loadedCompanyId: string | null;
   loadRows: (companyId?: string | null, force?: boolean) => Promise<void>;
+  opportunities: Opportunity[];
+  oppLoading: boolean;
+  loadOpportunities: () => Promise<void>;
+  confirmParticipation: (controle: string) => Promise<string | null>;
   sources: MarketIntelSource[];
   sourcesLoading: boolean;
   loadSources: () => Promise<void>;
@@ -115,6 +128,35 @@ export const useMarketIntelStore = create<MarketIntelState>((set, get) => ({
       useUIStore.getState().showToast('Erro ao carregar inteligência de mercado');
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  // ── Oportunidades (inbox de licitações abertas) ──────────────────────────────
+  opportunities: [],
+  oppLoading: false,
+  loadOpportunities: async () => {
+    set({ oppLoading: true });
+    try {
+      const opportunities = await apiFetch<Opportunity[]>('/api/market-intelligence/opportunities');
+      set({ opportunities });
+    } catch {
+      useUIStore.getState().showToast('Erro ao carregar oportunidades');
+    } finally {
+      set({ oppLoading: false });
+    }
+  },
+  // Confirma participação → cria o deal; remove a oportunidade do inbox. Retorna dealId.
+  confirmParticipation: async (controle) => {
+    try {
+      const r = await apiFetch<{ ok: boolean; dealId: string }>('/api/market-intelligence/opportunities/confirm', {
+        method: 'POST', body: JSON.stringify({ controle }),
+      });
+      set((s) => ({ opportunities: s.opportunities.filter((o) => o.controle !== controle) }));
+      useUIStore.getState().showToast('Participação confirmada — negociação criada');
+      return r.dealId;
+    } catch (e: any) {
+      useUIStore.getState().showToast(e?.message ?? 'Erro ao confirmar participação');
+      return null;
     }
   },
 

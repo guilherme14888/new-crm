@@ -167,4 +167,77 @@ router.delete('/:id', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+//  Arquivos do deal (aba "Arquivos") — edital/ata copiados + uploads manuais
+// ════════════════════════════════════════════════════════════════════════════
+const { v4: uuidv4 } = require('uuid');
+
+/** Carrega o deal e valida acesso; retorna a linha ou responde erro. */
+async function dealOr403(req, res) {
+  const [rows] = await db.query('SELECT * FROM deals WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+  if (!rows.length) { res.status(404).json({ error: 'Not found' }); return null; }
+  if (!canAccess(req.scope, rows[0])) { res.status(403).json({ error: 'Acesso negado' }); return null; }
+  return rows[0];
+}
+
+// GET /api/deals/:id/files — lista (sem o blob)
+router.get('/:id/files', auth, resolveScope, async (req, res) => {
+  try {
+    if (!(await dealOr403(req, res))) return;
+    const [files] = await db.query(
+      `SELECT id, file_name, mime_type, file_size, kind, viewable, created_at
+         FROM deal_files WHERE deal_id = ? ORDER BY kind, created_at`,
+      [req.params.id]
+    );
+    res.json(files.map((f) => ({
+      id: f.id, fileName: f.file_name, mimeType: f.mime_type, fileSize: f.file_size,
+      kind: f.kind || 'outro', viewable: !!f.viewable, createdAt: f.created_at,
+    })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/deals/:id/files/:fileId/content — serve os bytes (inline se PDF)
+router.get('/:id/files/:fileId/content', auth, resolveScope, async (req, res) => {
+  try {
+    if (!(await dealOr403(req, res))) return;
+    const [rows] = await db.query(
+      'SELECT file_name, mime_type, viewable, conteudo FROM deal_files WHERE id = ? AND deal_id = ?',
+      [req.params.fileId, req.params.id]
+    );
+    if (!rows.length || !rows[0].conteudo) return res.status(404).json({ error: 'Arquivo não encontrado' });
+    const f = rows[0];
+    res.setHeader('Content-Type', f.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `${f.viewable ? 'inline' : 'attachment'}; filename="${encodeURIComponent(f.file_name || 'arquivo')}"`);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(f.conteudo);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/deals/:id/files  body { fileName, mime, dataBase64 } — upload manual
+router.post('/:id/files', auth, resolveScope, async (req, res) => {
+  try {
+    if (!(await dealOr403(req, res))) return;
+    const { fileName, mime, dataBase64 } = req.body || {};
+    if (!fileName || !dataBase64) return res.status(400).json({ error: 'fileName e dataBase64 obrigatórios' });
+    const buf = Buffer.from(String(dataBase64).replace(/^data:[^;]+;base64,/, ''), 'base64');
+    const isPdf = buf.slice(0, 5).toString('latin1') === '%PDF-';
+    const id = uuidv4();
+    await db.query(
+      `INSERT INTO deal_files (id, deal_id, file_name, file_url, file_size, mime_type, uploaded_by, kind, viewable, conteudo)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [id, req.params.id, String(fileName).slice(0, 250), '', buf.length, mime || (isPdf ? 'application/pdf' : 'application/octet-stream'), req.scope.userId, 'outro', isPdf ? 1 : 0, buf]
+    );
+    res.status(201).json({ ok: true, id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/deals/:id/files/:fileId
+router.delete('/:id/files/:fileId', auth, resolveScope, async (req, res) => {
+  try {
+    if (!(await dealOr403(req, res))) return;
+    await db.query('DELETE FROM deal_files WHERE id = ? AND deal_id = ?', [req.params.fileId, req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

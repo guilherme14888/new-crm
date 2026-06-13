@@ -4,6 +4,7 @@ const auth   = require('../middleware/auth');
 const { resolveScope, buildCompanyFilter, requireRole } = require('../middleware/acl');
 const { SOURCE_DEFS } = require('../ingest/sources');
 const marketDocs = require('../marketDocs');
+const opportunities = require('../opportunities');
 const { v4: uuidv4 } = require('uuid');
 
 // Inteligência de Mercado — agora POR TENANT (company_id).
@@ -47,6 +48,26 @@ router.get('/', auth, resolveScope, async (req, res) => {
     );
     res.json(rows.map(fmt));
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/market-intelligence/opportunities — inbox de licitações abertas não convertidas
+router.get('/opportunities', auth, resolveScope, async (req, res) => {
+  try {
+    res.json(await opportunities.listOpportunities(req.scope.companyId));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/market-intelligence/opportunities/confirm  body { controle } → cria o deal
+router.post('/opportunities/confirm', auth, resolveScope, async (req, res) => {
+  try {
+    const dealId = await opportunities.confirmParticipation(req.scope, req.body?.controle);
+    res.status(201).json({ ok: true, dealId });
+  } catch (e) {
+    if (e.code === 'DUP') return res.status(409).json({ error: e.message, dealId: e.dealId });
+    if (e.code === 'NF')  return res.status(404).json({ error: e.message });
+    if (e.code === 'BAD') return res.status(400).json({ error: e.message });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // GET /api/market-intelligence/:id/history — linha do tempo de uma licitação/item

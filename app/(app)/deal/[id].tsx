@@ -70,7 +70,7 @@ export default function DealDetailScreen() {
       case 'history':   return <DealHistoryTab dealId={deal.id} contactId={deal.contactId} />;
       case 'tasks':     return <DealTasksTab dealId={deal.id} />;
       case 'products':  return <DealProductsTab dealId={deal.id} />;
-      case 'files':     return <DealFilesTab />;
+      case 'files':     return <DealFilesTab dealId={deal.id} />;
       case 'email':     return <DealEmailTab contact={contact} />;
       case 'proposals': return <DealProposalsTab />;
     }
