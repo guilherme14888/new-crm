@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/guilherme14888/crm-br4/compare/v1.9.0...v1.10.0) (2026-06-15)
+
+
+### Features
+
+* mapa de IM com drill-down por estado + bolinhas na coordenada da cidade ([dfbfda8](https://github.com/guilherme14888/crm-br4/commit/dfbfda81c7fab96ebed091e9ee3d6b4cdcf4c845))
+
 # [1.9.0](https://github.com/guilherme14888/crm-br4/compare/v1.8.0...v1.9.0) (2026-06-13)
 
 
