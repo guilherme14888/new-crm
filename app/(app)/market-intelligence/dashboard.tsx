@@ -4,6 +4,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
 import { useMarketIntelStore, MarketIntelRow } from '../../../src/stores/marketIntelStore';
 import { useAuthStore } from '../../../src/stores/authStore';
 import { BR_VIEW, BR_UF } from '../../../src/constants/brazilUf';
+import { BR_CITIES } from '../../../src/constants/brazilCities';
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Inteligência de Mercado — Portfólio de Compras Governamentais
@@ -356,6 +357,10 @@ const drf = StyleSheet.create({
 // ─── Mapa do Brasil (SVG web, geometria real por UF — ver src/constants/brazilUf) ─
 // Centróide projetado (x,y no viewBox) de cada UF — para posicionar os pontos.
 const UF_XY: Record<string, [number, number]> = Object.fromEntries(BR_UF.map((u) => [u.uf, [u.cx, u.cy]]));
+const UF_BB: Record<string, number[]> = Object.fromEntries(BR_UF.map((u) => [u.uf, u.bb]));
+const UF_BY: Record<string, typeof BR_UF[number]> = Object.fromEntries(BR_UF.map((u) => [u.uf, u]));
+/** Normaliza nome de cidade para casar com a chave de BR_CITIES ("UF|nome"). */
+const normCity = (s: string) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 
 // Rótulos deslocados (UFs pequenas/apertadas) com linha-guia, igual aos mapas usuais.
 const LABEL_OVERRIDE: Record<string, [number, number]> = {
@@ -397,6 +402,7 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
   const [fUf, setFUf]     = useState<Set<string>>(new Set());
   const [mFrom, setMFrom] = useState('');
   const [mTo, setMTo]     = useState('');
+  const [zoomUf, setZoomUf] = useState<string | null>(null);   // estado em zoom (drill-down)
   const colorOf = (name: string) => products.find((p) => p.name === name)?.color ?? '#7c3aed';
 
   const ufOpts = useMemo(() => Array.from(new Set(rows.map((r) => r.uf).filter(Boolean) as string[])).sort(), [rows]);
@@ -404,22 +410,29 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
     set((prev) => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
 
   const pts = useMemo(() => {
-    const perUf: Record<string, number> = {};
-    const out: { x: number; y: number; color: string }[] = [];
+    const dup: Record<string, number> = {};   // dispersa pontos sobre o MESMO local
+    const out: { x: number; y: number; color: string; city: string; prod: string }[] = [];
     for (const r of rows) {
       const uf = r.uf || '';
-      const c = UF_XY[uf]; if (!c) continue;
+      if (!UF_XY[uf]) continue;
+      if (zoomUf && uf !== zoomUf) continue;                       // em zoom: só o estado
+      if (!zoomUf && fUf.size && !fUf.has(uf)) continue;           // no Brasil: filtro de UF
       const prod = r.produtoCandidato || r.produto || '—';
       if (fProd.size && !fProd.has(prod)) continue;
-      if (fUf.size && !fUf.has(uf)) continue;
       if (mFrom || mTo) { const d = (r.dataHoraCertame || '').slice(0, 10); if (!d) continue; if (mFrom && d < mFrom) continue; if (mTo && d > mTo) continue; }
-      const k = perUf[uf] = (perUf[uf] ?? 0) + 1;
-      const ang = k * 2.399963; const rad = k === 1 ? 0 : 3 + Math.sqrt(k) * 2.4;   // espiral p/ separar pontos do mesmo estado
-      out.push({ x: c[0] + Math.cos(ang) * rad, y: c[1] + Math.sin(ang) * rad, color: colorOf(prod) });
-      if (out.length > 1500) break;
+      // coordenada EXATA da cidade; se não achar, cai no centróide do estado
+      const city = r.municipio ? BR_CITIES[`${uf}|${normCity(r.municipio)}`] : null;
+      const base = city || UF_XY[uf];
+      const exact = !!city;
+      const key = `${base[0]},${base[1]}`;
+      const k = dup[key] = (dup[key] ?? 0) + 1;
+      // espiral pequena para separar pontos coincidentes (raio menor quando é cidade exata)
+      const ang = k * 2.399963; const rad = k === 1 ? 0 : (exact ? 1.6 : 3) + Math.sqrt(k) * (exact ? 1.2 : 2.4);
+      out.push({ x: base[0] + Math.cos(ang) * rad, y: base[1] + Math.sin(ang) * rad, color: colorOf(prod), city: r.municipio || uf, prod });
+      if (out.length > 2500) break;
     }
     return out;
-  }, [rows, fProd, fUf, mFrom, mTo, products]);
+  }, [rows, fProd, fUf, mFrom, mTo, products, zoomUf]);
 
   const isWeb = Platform.OS === 'web';
   const WebInput: any = 'input';
@@ -474,21 +487,48 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
 
       {/* Mapa */}
       <View style={mp.mapWrap}>
-        {isWeb ? h('svg', { viewBox: `0 0 ${BR_VIEW.w} ${BR_VIEW.h}`, style: { width: '100%', maxWidth: 560 } },
-          // estados SEM cor — só contorno
-          BR_UF.map((u) => h('path', { key: u.uf, d: u.d, fill: '#ffffff', stroke: '#4b5563', strokeWidth: 0.8, fillRule: 'evenodd' })),
-          // rótulos das UFs (deslocados c/ linha-guia onde há aperto)
-          BR_UF.map((u) => {
-            const ov = LABEL_OVERRIDE[u.uf];
-            if (ov) return h('g', { key: `t${u.uf}` },
-              h('line', { x1: u.cx, y1: u.cy, x2: ov[0] - 1, y2: ov[1] - 3, stroke: '#9ca3af', strokeWidth: 0.6 }),
-              h('text', { x: ov[0], y: ov[1], fontSize: 11, fontWeight: 700, fill: '#374151', textAnchor: 'start' }, u.uf),
-            );
-            return h('text', { key: `t${u.uf}`, x: u.cx, y: u.cy + 3, fontSize: 11, fontWeight: 700, fill: '#374151', textAnchor: 'middle' }, u.uf);
-          }),
-          // pontos coloridos por produto (sobre o mapa)
-          pts.map((p, i) => h('circle', { key: i, cx: p.x.toFixed(1), cy: p.y.toFixed(1), r: 3.4, fill: p.color, fillOpacity: 0.85, stroke: '#fff', strokeWidth: 0.6 })),
-        ) : <Text style={tbl.empty}>Mapa disponível na versão web.</Text>}
+        {/* cabeçalho: voltar / dica de clique */}
+        <View style={mp.mapHead}>
+          {zoomUf ? (
+            <>
+              <Pressable style={mp.backBtn} onPress={() => setZoomUf(null)}><Text style={mp.backTxt}>← Brasil</Text></Pressable>
+              <Text style={mp.zoomTitle}>{zoomUf} · clique nas bolinhas para ver a cidade</Text>
+            </>
+          ) : (
+            <Text style={mp.hint}>Clique em um estado para ampliar e ver as cidades</Text>
+          )}
+        </View>
+        {(() => {
+          if (!isWeb) return <Text style={tbl.empty}>Mapa disponível na versão web.</Text>;
+          // viewBox: estado em zoom (bbox com folga) ou Brasil inteiro
+          let vb = `0 0 ${BR_VIEW.w} ${BR_VIEW.h}`, vw = BR_VIEW.w;
+          if (zoomUf && UF_BB[zoomUf]) {
+            const b = UF_BB[zoomUf]; const padX = (b[2] - b[0]) * 0.08, padY = (b[3] - b[1]) * 0.08;
+            const x = b[0] - padX, y = b[1] - padY, w = (b[2] - b[0]) + 2 * padX, ht = (b[3] - b[1]) + 2 * padY;
+            vb = `${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${ht.toFixed(1)}`; vw = Math.max(w, ht);
+          }
+          const r = Math.max(1.1, (3.4 * vw) / 560);   // mantém tamanho ~constante na tela
+          const sw = Math.max(0.3, (0.8 * vw) / 560);
+          const statesToDraw = zoomUf ? BR_UF.filter((u) => u.uf === zoomUf) : BR_UF;
+          return h('svg', { viewBox: vb, style: { width: '100%', maxWidth: 620, maxHeight: 560 } },
+            statesToDraw.map((u) => h('path', {
+              key: u.uf, d: u.d, fill: zoomUf ? '#f8fafc' : '#ffffff', stroke: '#4b5563', strokeWidth: sw, fillRule: 'evenodd',
+              ...(zoomUf ? {} : { onClick: () => setZoomUf(u.uf), style: { cursor: 'pointer' } }),
+            })),
+            // rótulos das UFs só no Brasil inteiro
+            zoomUf ? null : BR_UF.map((u) => {
+              const ov = LABEL_OVERRIDE[u.uf];
+              if (ov) return h('g', { key: `t${u.uf}`, onClick: () => setZoomUf(u.uf), style: { cursor: 'pointer' } },
+                h('line', { x1: u.cx, y1: u.cy, x2: ov[0] - 1, y2: ov[1] - 3, stroke: '#9ca3af', strokeWidth: 0.6 }),
+                h('text', { x: ov[0], y: ov[1], fontSize: 11, fontWeight: 700, fill: '#374151', textAnchor: 'start' }, u.uf),
+              );
+              return h('text', { key: `t${u.uf}`, x: u.cx, y: u.cy + 3, fontSize: 11, fontWeight: 700, fill: '#374151', textAnchor: 'middle', onClick: () => setZoomUf(u.uf), style: { cursor: 'pointer' } }, u.uf);
+            }),
+            // pontos coloridos por produto, na coordenada da cidade
+            pts.map((p, i) => h('circle', { key: i, cx: p.x.toFixed(1), cy: p.y.toFixed(1), r, fill: p.color, fillOpacity: 0.85, stroke: '#fff', strokeWidth: sw },
+              h('title', null, `${p.city} — ${p.prod}`))),
+          );
+        })()}
       </View>
     </View>
   );
@@ -1130,4 +1170,9 @@ const mp = StyleSheet.create({
   clearTxt: { fontSize: FONTS.sm, color: COLORS.gray[600], fontWeight: '600' },
   count:    { fontSize: FONTS.sm, color: COLORS.gray[500], fontWeight: '600', marginTop: SPACING.md },
   mapWrap:  { flex: 1, alignItems: 'center', justifyContent: 'flex-start' },
+  mapHead:  { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, alignSelf: 'stretch', marginBottom: SPACING.sm, flexWrap: 'wrap' as any },
+  backBtn:  { backgroundColor: COLORS.gray[100], borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: 6 },
+  backTxt:  { fontSize: FONTS.sm, color: COLORS.gray[700], fontWeight: '700' },
+  zoomTitle:{ fontSize: FONTS.sm, color: COLORS.gray[600], fontWeight: '600' },
+  hint:     { fontSize: FONTS.xs, color: COLORS.gray[400], fontStyle: 'italic' as any },
 });
