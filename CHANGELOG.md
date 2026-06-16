@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/guilherme14888/crm-br4/compare/v1.10.2...v1.11.0) (2026-06-16)
+
+
+### Features
+
+* ordenacao por coluna na Listagem (clique no cabecalho alterna asc/desc) ([6643c2b](https://github.com/guilherme14888/crm-br4/commit/6643c2b46d9fe245baf6c8088a1d9cde9e79c599))
+
 ## [1.10.2](https://github.com/guilherme14888/crm-br4/compare/v1.10.1...v1.10.2) (2026-06-16)
 
 
