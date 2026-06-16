@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/guilherme14888/crm-br4/compare/v1.10.1...v1.10.2) (2026-06-16)
+
+
+### Bug Fixes
+
+* worker de ingestao responde /health (Swarm matava o worker em loop) ([9523405](https://github.com/guilherme14888/crm-br4/commit/95234059bf615c1408f75f264a0150e44284f69f))
+
 ## [1.10.1](https://github.com/guilherme14888/crm-br4/compare/v1.10.0...v1.10.1) (2026-06-16)
 
 
