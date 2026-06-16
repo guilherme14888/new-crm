@@ -444,17 +444,17 @@ export default function MarketIntelligenceListagem() {
             <Text style={[s.th, { width: ACTION_W, textAlign: 'center' as any }]}>Ações</Text>
             {COLUMNS.map((c) => {
               const active = sort?.key === c.key;
-              const arrow = active ? (sort!.dir === 'asc' ? ' ▲' : ' ▼') : ' ↕';
+              const arrow = active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕';
               return (
-                <Text
+                <Pressable
                   key={String(c.key)}
                   onPress={() => toggleSort(c.key)}
-                  style={[s.th, s.thBtn, { width: c.w }, c.right && { textAlign: 'right' as any }, active && s.thActive]}
-                  numberOfLines={1}
+                  style={[s.thCell, { width: c.w }, c.right && { justifyContent: 'flex-end' as any }]}
                   {...({ title: `Ordenar por ${c.label}` } as any)}
                 >
-                  {c.label}<Text style={active ? s.thArrowActive : s.thArrow}>{arrow}</Text>
-                </Text>
+                  <Text style={[s.th, active && s.thActive]} numberOfLines={1}>{c.label}</Text>
+                  <Text style={active ? s.thArrowActive : s.thArrow}>{arrow}</Text>
+                </Pressable>
               );
             })}
           </View>
@@ -776,11 +776,11 @@ const s = StyleSheet.create({
 
   tableScroll: { flex: 1, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[100] },
   headRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8, borderBottomWidth: 2, borderBottomColor: COLORS.gray[200], backgroundColor: COLORS.gray[50] },
-  th:       { fontSize: 11, fontWeight: '800', color: COLORS.gray[600], paddingHorizontal: 4 },
-  thBtn:    { ...(Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } as any : {}) },
+  th:       { fontSize: 11, fontWeight: '800', color: COLORS.gray[600], flexShrink: 1 },
+  thCell:   { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 4, ...(Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } as any : {}) },
   thActive: { color: BRAND },
-  thArrow:      { fontSize: 9, color: COLORS.gray[300], fontWeight: '700' },
-  thArrowActive:{ fontSize: 10, color: BRAND, fontWeight: '900' },
+  thArrow:      { fontSize: 11, color: COLORS.gray[400], fontWeight: '700' },
+  thArrowActive:{ fontSize: 11, color: BRAND, fontWeight: '900' },
   row:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.gray[100] },
   rowAlt:   { backgroundColor: COLORS.gray[50] },
   td:       { fontSize: FONTS.sm, color: COLORS.gray[700], paddingHorizontal: 4 },
