@@ -677,6 +677,17 @@ export default function MarketIntelligenceScreen() {
     });
   };
 
+  // Isola um produto no gráfico (clique no legend): deixa só ele visível;
+  // clicar de novo no produto já isolado reverte para todos (igual ao mapa).
+  const soloProduct = (name: string) => {
+    setActiveProducts((prev) => {
+      const all = new Set(products.map((p) => p.name));
+      const cur = prev ?? all;
+      if (cur.size === 1 && cur.has(name)) return all; // já isolado → reverte
+      return new Set([name]);
+    });
+  };
+
   // ── Visão (padrão / executiva) ────────────────────────────────────────────────
   const [view, setView] = useState<'padrao' | 'executivo'>('padrao');
 
@@ -860,13 +871,26 @@ export default function MarketIntelligenceScreen() {
               </Panel>
 
               <Panel title="Produto Candidato — quantidade por mês">
+                {active.size < products.length && (
+                  <Pressable onPress={() => setActiveProducts(new Set(products.map((p) => p.name)))} style={s.legendReset}>
+                    <Text style={s.legendResetTxt}>↩ Mostrar todos ({products.length})</Text>
+                  </Pressable>
+                )}
                 <View style={s.legendWrap}>
-                  {products.map((p) => (
-                    <View key={p.name} style={s.legendItem}>
-                      <View style={[s.legendDot, { backgroundColor: p.color, opacity: active.has(p.name) ? 1 : 0.3 }]} />
-                      <Text style={[s.legendTxt, !active.has(p.name) && { opacity: 0.4 }]}>{p.name}</Text>
-                    </View>
-                  ))}
+                  {products.map((p) => {
+                    const on = active.has(p.name);
+                    return (
+                      <Pressable
+                        key={p.name}
+                        onPress={() => soloProduct(p.name)}
+                        style={[s.legendItem, s.legendItemBtn]}
+                        {...({ title: `Isolar ${p.name} no gráfico` } as any)}
+                      >
+                        <View style={[s.legendDot, { backgroundColor: p.color, opacity: on ? 1 : 0.3 }]} />
+                        <Text style={[s.legendTxt, on ? s.legendTxtOn : { opacity: 0.4 }]}>{p.name}</Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
                 <StreamChart months={months} byMonthProduct={byMonthProduct} products={products.filter((p) => active.has(p.name))} />
               </Panel>
@@ -1118,8 +1142,12 @@ const s = StyleSheet.create({
 
   legendWrap: { flexDirection: 'row', flexWrap: 'wrap' as any, gap: SPACING.md, marginBottom: SPACING.sm },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendItemBtn: { ...(Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } as any : {}) },
   legendDot:  { width: 9, height: 9, borderRadius: 5 },
   legendTxt:  { fontSize: 11, color: COLORS.gray[600], fontWeight: '600' },
+  legendTxtOn:{ color: COLORS.gray[800], fontWeight: '700' },
+  legendReset:{ alignSelf: 'flex-start', backgroundColor: COLORS.gray[100], borderRadius: RADIUS.full, paddingHorizontal: SPACING.md, paddingVertical: 4, marginBottom: SPACING.sm, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  legendResetTxt: { fontSize: 11, color: BRAND, fontWeight: '800' },
 
   descBox:     { borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.md, padding: SPACING.md, minHeight: 110, backgroundColor: COLORS.gray[50] },
   descHeader:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACING.sm },
