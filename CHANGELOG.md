@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/guilherme14888/crm-br4/compare/v1.10.0...v1.10.1) (2026-06-16)
+
+
+### Bug Fixes
+
+* agendador de ingestao auto-recuperavel (rede de seguranca a cada 30min) ([843089c](https://github.com/guilherme14888/crm-br4/commit/843089c704e0365347e0194cd4614da0b63c44fd))
+
 # [1.10.0](https://github.com/guilherme14888/crm-br4/compare/v1.9.0...v1.10.0) (2026-06-15)
 
 
