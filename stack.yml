@@ -79,6 +79,10 @@ services:
   ingest-worker:
     image: guilherme1488/br4licitacoes:latest
     command: node src/jobs/worker.js
+    # IMPORTANTE: o worker NÃO sobe HTTP, então o healthcheck da imagem (GET /health)
+    # falharia sempre e o Swarm mataria o container (SIGTERM) em loop. Desabilite-o:
+    healthcheck:
+      test: ["NONE"]
     environment:
       - TZ=America/Sao_Paulo
       # Banco (mesmas variáveis do painel do Portainer)
