@@ -170,6 +170,13 @@ export default function MarketIntelligenceListagem() {
   // Página atual da listagem (20 registros por página).
   const [page, setPage] = useState(1);
 
+  // Ordenação por coluna (clique no cabeçalho alterna crescente/decrescente).
+  const [sort, setSort] = useState<{ key: keyof MarketIntelRow; dir: 'asc' | 'desc' } | null>(null);
+  const toggleSort = (key: keyof MarketIntelRow) =>
+    setSort((prev) => (prev && prev.key === key
+      ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: 'asc' }));
+
   // Drawer aberto/fechado.
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Qual grupo de filtro está aberto no drawer (accordion: só um por vez).
@@ -297,15 +304,34 @@ export default function MarketIntelligenceListagem() {
     (applied.from || applied.to ? 1 : 0) +
     applied.cidade.size + applied.uf.size + applied.orgao.size + applied.proc.size + applied.produto.size;
 
+  // ── Ordenação (colunas right=numéricas; vazios sempre por último) ────────────
+  const sorted = useMemo(() => {
+    if (!sort) return filtered;
+    const col = COLUMNS.find((c) => c.key === sort.key);
+    const num = !!col?.right;
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const av = a[sort.key], bv = b[sort.key];
+      const ae = av == null || av === '', be = bv == null || bv === '';
+      if (ae && be) return 0;
+      if (ae) return 1;     // vazios no fim, independentemente da direção
+      if (be) return -1;
+      const cmp = num
+        ? Number(av) - Number(bv)
+        : String(av).localeCompare(String(bv), 'pt-BR', { numeric: true, sensitivity: 'base' });
+      return cmp * dir;
+    });
+  }, [filtered, sort]);
+
   // ── Paginação (20 por página) ────────────────────────────────────────────────
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  // volta à 1ª página sempre que a busca/filtros mudam o conjunto de resultados
-  useEffect(() => { setPage(1); }, [search, applied]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  // volta à 1ª página sempre que a busca/filtros/ordem mudam o conjunto de resultados
+  useEffect(() => { setPage(1); }, [search, applied, sort]);
   // mantém a página dentro do intervalo válido se o total diminuir
   const safePage = Math.min(page, totalPages);
   const pageRows = useMemo(
-    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [filtered, safePage]
+    () => sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [sorted, safePage]
   );
 
   // ── Ações ────────────────────────────────────────────────────────────────────
@@ -416,11 +442,21 @@ export default function MarketIntelligenceListagem() {
           {/* header */}
           <View style={s.headRow}>
             <Text style={[s.th, { width: ACTION_W, textAlign: 'center' as any }]}>Ações</Text>
-            {COLUMNS.map((c) => (
-              <Text key={String(c.key)} style={[s.th, { width: c.w }, c.right && { textAlign: 'right' as any }]} numberOfLines={1}>
-                {c.label}
-              </Text>
-            ))}
+            {COLUMNS.map((c) => {
+              const active = sort?.key === c.key;
+              const arrow = active ? (sort!.dir === 'asc' ? ' ▲' : ' ▼') : ' ↕';
+              return (
+                <Text
+                  key={String(c.key)}
+                  onPress={() => toggleSort(c.key)}
+                  style={[s.th, s.thBtn, { width: c.w }, c.right && { textAlign: 'right' as any }, active && s.thActive]}
+                  numberOfLines={1}
+                  {...({ title: `Ordenar por ${c.label}` } as any)}
+                >
+                  {c.label}<Text style={active ? s.thArrowActive : s.thArrow}>{arrow}</Text>
+                </Text>
+              );
+            })}
           </View>
           {/* corpo — apenas os 20 registros da página atual */}
           {filtered.length === 0 ? (
@@ -741,6 +777,10 @@ const s = StyleSheet.create({
   tableScroll: { flex: 1, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[100] },
   headRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8, borderBottomWidth: 2, borderBottomColor: COLORS.gray[200], backgroundColor: COLORS.gray[50] },
   th:       { fontSize: 11, fontWeight: '800', color: COLORS.gray[600], paddingHorizontal: 4 },
+  thBtn:    { ...(Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } as any : {}) },
+  thActive: { color: BRAND },
+  thArrow:      { fontSize: 9, color: COLORS.gray[300], fontWeight: '700' },
+  thArrowActive:{ fontSize: 10, color: BRAND, fontWeight: '900' },
   row:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.gray[100] },
   rowAlt:   { backgroundColor: COLORS.gray[50] },
   td:       { fontSize: FONTS.sm, color: COLORS.gray[700], paddingHorizontal: 4 },
