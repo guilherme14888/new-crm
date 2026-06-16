@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/guilherme14888/crm-br4/compare/v1.11.1...v1.12.0) (2026-06-16)
+
+
+### Features
+
+* clique no legend isola o produto no grafico mensal (solo/reverter) ([d48291e](https://github.com/guilherme14888/crm-br4/commit/d48291e82e96c2423be14f4ae2aa1c269cf70a52))
+
 ## [1.11.1](https://github.com/guilherme14888/crm-br4/compare/v1.11.0...v1.11.1) (2026-06-16)
 
 
