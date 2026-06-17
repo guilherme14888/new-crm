@@ -28,11 +28,10 @@ version: "3.8"
 
 services:
   sistema:
-    # IMPORTANTE: fixe SEMPRE a versão (ex.: :v1.12.0). O Swarm NÃO re-baixa a tag
-    # :latest num update (compara só o texto da referência e usa o cache do nó),
-    # então com :latest "atualizar" não muda nada. A cada release, troque o número
-    # aqui (veja a última em github releases) e dê update no stack.
-    image: guilherme1488/br4licitacoes:v1.12.0
+    # Fixe uma versão para reprodutibilidade (ex.: :v1.0.0) ou use :latest.
+    # NOTA: ao ver "nada mudou" após o deploy, primeiro dê um hard-refresh no
+    # navegador (Ctrl+Shift+R) — costuma ser cache do bundle web, não a imagem.
+    image: guilherme1488/br4licitacoes:latest
     environment:
       - PORT=3001
       - WEB_DIR=/app/backend/public
@@ -80,7 +79,7 @@ services:
   # ── Worker isolado de ingestão (MESMA imagem, sem HTTP, sem Traefik) ────────
   # Roda só o agendador (catch-up no boot + diário às 9h BRT). Mantenha 1 réplica.
   ingest-worker:
-    image: guilherme1488/br4licitacoes:v1.12.0   # mesma versão do serviço `sistema`
+    image: guilherme1488/br4licitacoes:latest
     command: node src/jobs/worker.js
     # IMPORTANTE: o worker NÃO sobe HTTP, então o healthcheck da imagem (GET /health)
     # falharia sempre e o Swarm mataria o container (SIGTERM) em loop. Desabilite-o:
