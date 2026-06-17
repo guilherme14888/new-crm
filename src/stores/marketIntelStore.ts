@@ -76,12 +76,40 @@ export interface MarketKeyword {
   ativo: boolean;
 }
 
+/** Métricas de uma varredura (saúde da coleta). */
+export interface CoverageRun {
+  runDate: string | null;
+  source: string;
+  enumerated: number;
+  preFiltered: number;
+  matched: number;
+  records: number;
+  inserted: number;
+  updated: number;
+  enumErrors: number;
+  byUf: Record<string, number>;
+  modalidades: string | null;
+  finishedAt: string | null;
+}
+export interface CoverageAlert { level: 'ok' | 'info' | 'warn' | 'error'; code: string; message: string }
+export interface CoverageData {
+  last: CoverageRun | null;
+  history: CoverageRun[];
+  baselineByUf: Record<string, number>;
+  lastRunDate: string | null;
+  today: string;
+  alerts: CoverageAlert[];
+}
+
 interface MarketIntelState {
   rows: MarketIntelRow[];
   isLoading: boolean;
   loaded: boolean;
   loadedCompanyId: string | null;
   loadRows: (companyId?: string | null, force?: boolean) => Promise<void>;
+  coverage: CoverageData | null;
+  coverageLoading: boolean;
+  loadCoverage: () => Promise<void>;
   sources: MarketIntelSource[];
   sourcesLoading: boolean;
   loadSources: () => Promise<void>;
@@ -115,6 +143,22 @@ export const useMarketIntelStore = create<MarketIntelState>((set, get) => ({
       useUIStore.getState().showToast('Erro ao carregar inteligência de mercado');
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  coverage: null,
+  coverageLoading: false,
+
+  // Carrega a saúde da coleta (varredura PNCP) do tenant logado.
+  loadCoverage: async () => {
+    set({ coverageLoading: true });
+    try {
+      const coverage = await apiFetch<CoverageData>('/api/market-intelligence/coverage');
+      set({ coverage });
+    } catch {
+      useUIStore.getState().showToast('Erro ao carregar a saúde da coleta');
+    } finally {
+      set({ coverageLoading: false });
     }
   },
 

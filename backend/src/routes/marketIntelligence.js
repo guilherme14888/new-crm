@@ -58,6 +58,98 @@ router.post('/opportunities/sync', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+//  Cobertura / Saúde da Coleta (monitoramento da varredura PNCP)
+// ════════════════════════════════════════════════════════════════════════════
+const todayBRT = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+const fmtBR = (d) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '—');
+
+/** Linha de cobertura do banco → objeto camelCase. */
+function fmtCov(r) {
+  let byUf = {};
+  try { byUf = r.by_uf ? (typeof r.by_uf === 'string' ? JSON.parse(r.by_uf) : r.by_uf) : {}; } catch { byUf = {}; }
+  return {
+    runDate: r.run_date ? String(r.run_date).slice(0, 10) : null,
+    source: r.source,
+    enumerated: Number(r.enumerated || 0),
+    preFiltered: Number(r.pre_filtered || 0),
+    matched: Number(r.matched || 0),
+    records: Number(r.records || 0),
+    inserted: Number(r.inserted || 0),
+    updated: Number(r.updated || 0),
+    enumErrors: Number(r.enum_errors || 0),
+    byUf,
+    modalidades: r.modalidades || null,
+    finishedAt: r.finished_at || null,
+  };
+}
+
+/** Deriva alertas de cobertura a partir do histórico + baseline. */
+function computeCoverageAlerts(history, lastRunDate) {
+  const alerts = [];
+  const last = history[0];
+  if (!last) {
+    alerts.push({ level: 'info', code: 'NO_SWEEP', message: 'Nenhuma varredura registrada ainda — assim que a coleta rodar (ou o PNCP voltar), as métricas aparecem aqui.' });
+    return alerts;
+  }
+  if (last.enumErrors > 0) alerts.push({ level: 'error', code: 'PNCP_ERRORS', message: `A última varredura teve ${last.enumErrors} erro(s) de enumeração — PNCP instável; a cobertura do dia pode estar incompleta.` });
+  if (last.enumerated === 0) alerts.push({ level: 'error', code: 'PNCP_DOWN', message: 'A última varredura não enumerou nenhuma contratação (PNCP indisponível?).' });
+  if (last.runDate && last.runDate !== todayBRT()) alerts.push({ level: 'warn', code: 'STALE', message: `A última varredura foi em ${fmtBR(last.runDate)} — ainda não rodou hoje.` });
+
+  // queda de volume vs. média das varreduras anteriores com dados
+  const prev = history.slice(1).filter((h) => h.records > 0).slice(0, 7);
+  if (prev.length >= 3) {
+    const avg = prev.reduce((a, h) => a + h.records, 0) / prev.length;
+    if (avg > 0 && last.records < avg * 0.5) {
+      alerts.push({ level: 'warn', code: 'LOW_VOLUME', message: `Volume da última varredura (${last.records}) ~${Math.round((1 - last.records / avg) * 100)}% abaixo da média recente (${Math.round(avg)}).` });
+    }
+  }
+
+  // UFs que apareciam nas últimas varreduras e sumiram na última
+  const trailing = new Set();
+  history.slice(1, 8).forEach((h) => Object.keys(h.byUf || {}).forEach((u) => trailing.add(u)));
+  const lastUfs = new Set(Object.keys(last.byUf || {}));
+  const missing = [...trailing].filter((u) => !lastUfs.has(u));
+  if (missing.length) alerts.push({ level: 'warn', code: 'UF_MISSING', message: `UF(s) que apareciam recentemente e sumiram na última varredura: ${missing.join(', ')}.` });
+
+  if (!alerts.length) alerts.push({ level: 'ok', code: 'OK', message: 'Cobertura saudável: última varredura completa, sem anomalias.' });
+  return alerts;
+}
+
+// GET /api/market-intelligence/coverage — saúde da coleta (varredura PNCP) do tenant
+router.get('/coverage', auth, resolveScope, async (req, res) => {
+  try {
+    const companyId = req.scope.companyId;
+    const [cov] = await db.query(
+      'SELECT * FROM market_intelligence_coverage WHERE company_id = ? ORDER BY run_date DESC LIMIT 30',
+      [companyId]
+    );
+    const history = cov.map(fmtCov);
+
+    const [ufRows] = await db.query(
+      "SELECT uf, COUNT(*) n FROM market_intelligence WHERE company_id = ? AND uf IS NOT NULL AND uf <> '' GROUP BY uf",
+      [companyId]
+    );
+    const baselineByUf = {};
+    for (const r of ufRows) baselineByUf[r.uf] = Number(r.n);
+
+    const [runLog] = await db.query(
+      "SELECT DATE_FORMAT(MAX(run_date),'%Y-%m-%d') d FROM market_intelligence_run_log WHERE company_id = ?",
+      [companyId]
+    );
+    const lastRunDate = (runLog[0] && runLog[0].d) || null;
+
+    res.json({
+      last: history[0] || null,
+      history,
+      baselineByUf,
+      lastRunDate,
+      today: todayBRT(),
+      alerts: computeCoverageAlerts(history, lastRunDate),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /api/market-intelligence/:id/history — linha do tempo de uma licitação/item
 // (transições de status/situação/posição/vencedor/preço). Escopo por tenant.
 router.get('/:id/history', auth, resolveScope, async (req, res) => {

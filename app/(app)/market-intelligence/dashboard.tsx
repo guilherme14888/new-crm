@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, useWindowDimensions, Platform, TextInput } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
-import { useMarketIntelStore, MarketIntelRow } from '../../../src/stores/marketIntelStore';
+import { useMarketIntelStore, MarketIntelRow, CoverageData } from '../../../src/stores/marketIntelStore';
 import { useAuthStore } from '../../../src/stores/authStore';
 import { BR_VIEW, BR_UF } from '../../../src/constants/brazilUf';
 import { BR_CITIES } from '../../../src/constants/brazilCities';
@@ -131,6 +131,154 @@ function Panel({ title, children, style }: { title: string; children: React.Reac
 const pn = StyleSheet.create({
   card:  { backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[100], padding: SPACING.md, marginBottom: SPACING.md },
   title: { fontSize: FONTS.lg, fontWeight: '800', color: COLORS.gray[800], marginBottom: SPACING.sm },
+});
+
+// ─── Cobertura / Saúde da Coleta ───────────────────────────────────────────────
+const ALERT_STYLE: Record<string, { bg: string; border: string; icon: string }> = {
+  ok:    { bg: '#f0fdf4', border: '#16a34a', icon: '✅' },
+  info:  { bg: '#eff6ff', border: '#1d4ed8', icon: 'ℹ️' },
+  warn:  { bg: '#fffbeb', border: '#d97706', icon: '⚠️' },
+  error: { bg: '#fef2f2', border: '#dc2626', icon: '⛔' },
+};
+const fmtCovDate = (d: string | null) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '—');
+
+function CovKpi({ label, value, accent, danger }: { label: string; value: number; accent?: boolean; danger?: boolean }) {
+  return (
+    <View style={cv.kpiCard}>
+      <Text style={[cv.kpiVal, accent && { color: BRAND }, danger && value > 0 && { color: '#dc2626' }]}>
+        {value.toLocaleString('pt-BR')}
+      </Text>
+      <Text style={cv.kpiLbl}>{label}</Text>
+    </View>
+  );
+}
+
+function CoverageView({ coverage, loading, onReload }: { coverage: CoverageData | null; loading: boolean; onReload: () => void }) {
+  if (loading && !coverage) {
+    return <Panel title="🛡️ Saúde da Coleta"><ActivityIndicator color={BRAND} /></Panel>;
+  }
+  if (!coverage) {
+    return <Panel title="🛡️ Saúde da Coleta"><Text style={cv.subtle}>Não foi possível carregar a saúde da coleta.</Text></Panel>;
+  }
+  const { last, history, baselineByUf, alerts } = coverage;
+  const ufKeys = Object.keys(baselineByUf).sort((a, b) => baselineByUf[b] - baselineByUf[a]);
+  const ufMax = Math.max(1, ...ufKeys.map((u) => baselineByUf[u]));
+
+  return (
+    <View>
+      <Panel title="🛡️ Saúde da Coleta — Varredura PNCP">
+        <Text style={cv.subtle}>
+          A varredura enumera TODAS as contratações publicadas no PNCP (a fonte legal que todos os portais são obrigados a alimentar) e
+          classifica os itens localmente — cobertura total sobre o que foi publicado. Os alertas abaixo apontam qualquer risco de lacuna.
+        </Text>
+        <View style={{ gap: 8, marginTop: SPACING.md }}>
+          {alerts.map((a, i) => {
+            const st = ALERT_STYLE[a.level] || ALERT_STYLE.info;
+            return (
+              <View key={i} style={[cv.alert, { backgroundColor: st.bg, borderLeftColor: st.border }]}>
+                <Text style={cv.alertIcon}>{st.icon}</Text>
+                <Text style={cv.alertTxt}>{a.message}</Text>
+              </View>
+            );
+          })}
+        </View>
+        <Pressable onPress={onReload} style={cv.reload} {...({ title: 'Recarregar' } as any)}>
+          <Text style={cv.reloadTxt}>↻ Atualizar</Text>
+        </Pressable>
+      </Panel>
+
+      <Panel title="Última varredura — funil de cobertura">
+        {last ? (
+          <>
+            <Text style={cv.subtle}>
+              Dia {fmtCovDate(last.runDate)} · modalidades {last.modalidades || '—'}
+              {last.finishedAt ? ` · concluída ${fmtCovDate(String(last.finishedAt))}` : ''}
+            </Text>
+            <View style={cv.kpiRow}>
+              <CovKpi label="Enumeradas" value={last.enumerated} />
+              <CovKpi label="Pós-medicamento" value={last.preFiltered} />
+              <CovKpi label="Com item casado" value={last.matched} />
+              <CovKpi label="Registros" value={last.records} accent />
+              <CovKpi label="Novos" value={last.inserted} accent />
+              <CovKpi label="Erros de enum." value={last.enumErrors} danger />
+            </View>
+            <Text style={cv.funnelNote}>
+              Funil: enumeradas → pré-filtro de medicamento → contratações com item do seu portfólio → registros gravados.
+              "Erros de enum." &gt; 0 indica instabilidade do PNCP na janela (cobertura possivelmente parcial — o catch-up recupera no próximo run).
+            </Text>
+          </>
+        ) : (
+          <Text style={cv.subtle}>Nenhuma varredura registrada ainda. Assim que a coleta rodar (ou o PNCP voltar), as métricas aparecem aqui.</Text>
+        )}
+      </Panel>
+
+      <Panel title="Cobertura por UF — base acumulada (referência de anomalia)">
+        {ufKeys.length === 0 ? (
+          <Text style={cv.subtle}>Sem dados por UF ainda.</Text>
+        ) : (
+          <View style={{ gap: 4 }}>
+            {ufKeys.map((u) => {
+              const baseN = baselineByUf[u];
+              const lastN = (last && last.byUf && last.byUf[u]) || 0;
+              return (
+                <View key={u} style={cv.ufRow}>
+                  <Text style={cv.ufName}>{u}</Text>
+                  <View style={cv.ufTrack}>
+                    <View style={[cv.ufFill, { width: `${(baseN / ufMax) * 100}%` }]} />
+                  </View>
+                  <Text style={cv.ufBase}>{baseN.toLocaleString('pt-BR')}</Text>
+                  <Text style={[cv.ufLast, lastN === 0 && { color: COLORS.gray[300] }]}>+{lastN}</Text>
+                </View>
+              );
+            })}
+            <Text style={cv.funnelNote}>Barras = total acumulado no banco por UF. "+N" = novos da última varredura. Uma UF com base alta e "+0" por vários dias é candidata a investigação.</Text>
+          </View>
+        )}
+      </Panel>
+
+      <Panel title="Histórico de varreduras (últimas 30)">
+        {history.length === 0 ? (
+          <Text style={cv.subtle}>Sem histórico ainda.</Text>
+        ) : (
+          <TableScroll minWidth={620}>
+            <View style={tbl.headerRow}>
+              <Th w={90}>Dia</Th><Th w={90} right>Enumeradas</Th><Th w={90} right>Medicamento</Th>
+              <Th w={80} right>Registros</Th><Th w={70} right>Novos</Th><Th w={70} right>Erros</Th>
+            </View>
+            {history.map((h, i) => (
+              <View key={i} style={[tbl.row, i % 2 === 1 && tbl.rowAlt]}>
+                <Td w={90}>{fmtCovDate(h.runDate)}</Td>
+                <Td w={90} right>{h.enumerated.toLocaleString('pt-BR')}</Td>
+                <Td w={90} right>{h.preFiltered.toLocaleString('pt-BR')}</Td>
+                <Td w={80} right>{h.records.toLocaleString('pt-BR')}</Td>
+                <Td w={70} right>{h.inserted.toLocaleString('pt-BR')}</Td>
+                <Td w={70} right color={h.enumErrors > 0 ? '#dc2626' : undefined}>{h.enumErrors}</Td>
+              </View>
+            ))}
+          </TableScroll>
+        )}
+      </Panel>
+    </View>
+  );
+}
+const cv = StyleSheet.create({
+  subtle:    { fontSize: 12, color: COLORS.gray[500], lineHeight: 17 },
+  alert:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderLeftWidth: 4, borderRadius: RADIUS.sm, paddingVertical: 8, paddingHorizontal: 10 },
+  alertIcon: { fontSize: 14 },
+  alertTxt:  { flex: 1, fontSize: 12.5, color: COLORS.gray[800], lineHeight: 17 },
+  reload:    { alignSelf: 'flex-start', marginTop: SPACING.sm, backgroundColor: COLORS.gray[100], borderRadius: RADIUS.full, paddingHorizontal: SPACING.md, paddingVertical: 5, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  reloadTxt: { fontSize: 11, color: BRAND, fontWeight: '800' },
+  kpiRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.md },
+  kpiCard:   { backgroundColor: COLORS.gray[50], borderRadius: RADIUS.md, paddingVertical: 10, paddingHorizontal: 14, minWidth: 110, flexGrow: 1, alignItems: 'center' },
+  kpiVal:    { fontSize: 22, fontWeight: '800', color: COLORS.gray[800] },
+  kpiLbl:    { fontSize: 11, color: COLORS.gray[500], marginTop: 2, textAlign: 'center' },
+  funnelNote:{ fontSize: 11, color: COLORS.gray[400], marginTop: SPACING.sm, lineHeight: 16 },
+  ufRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  ufName:    { width: 30, fontSize: 12, fontWeight: '700', color: COLORS.gray[700] },
+  ufTrack:   { flex: 1, height: 12, backgroundColor: COLORS.gray[100], borderRadius: RADIUS.full, overflow: 'hidden' },
+  ufFill:    { height: 12, backgroundColor: BRAND, borderRadius: RADIUS.full },
+  ufBase:    { width: 54, textAlign: 'right', fontSize: 12, color: COLORS.gray[700], fontWeight: '700' },
+  ufLast:    { width: 40, textAlign: 'right', fontSize: 12, color: '#16a34a', fontWeight: '700' },
 });
 
 // ─── Stacked columns by month ──────────────────────────────────────────────────
@@ -542,6 +690,9 @@ export default function MarketIntelligenceScreen() {
   const isLoading = useMarketIntelStore((s) => s.isLoading);
   const loaded    = useMarketIntelStore((s) => s.loaded);
   const loadRows  = useMarketIntelStore((s) => s.loadRows);
+  const coverage        = useMarketIntelStore((s) => s.coverage);
+  const coverageLoading = useMarketIntelStore((s) => s.coverageLoading);
+  const loadCoverage    = useMarketIntelStore((s) => s.loadCoverage);
   const companyId = useAuthStore((s) => s.user?.companyId);
 
   // recarrega ao trocar de tenant (a empresa ativa muda → backend re-escopa)
@@ -689,7 +840,10 @@ export default function MarketIntelligenceScreen() {
   };
 
   // ── Visão (padrão / executiva) ────────────────────────────────────────────────
-  const [view, setView] = useState<'padrao' | 'executivo'>('padrao');
+  const [view, setView] = useState<'padrao' | 'executivo' | 'cobertura'>('padrao');
+
+  // Carrega a saúde da coleta ao abrir a aba Cobertura (e ao trocar de tenant).
+  useEffect(() => { if (view === 'cobertura') loadCoverage(); }, [view, companyId]);
 
   // ── KPIs executivos (reagem aos filtros do topo) ──────────────────────────────
   const kpis = useMemo(() => {
@@ -751,7 +905,7 @@ export default function MarketIntelligenceScreen() {
               <Text style={s.kicker}>STATUS REPORT / INTELIGÊNCIA DE MERCADO</Text>
               <Text style={s.title}>Portfólio de Compras Governamentais</Text>
               <View style={s.viewToggle}>
-                {([['padrao', '📊 Padrão'], ['executivo', '📈 Executivo']] as const).map(([v, lbl]) => (
+                {([['padrao', '📊 Padrão'], ['executivo', '📈 Executivo'], ['cobertura', '🛡️ Cobertura']] as const).map(([v, lbl]) => (
                   <Pressable key={v} style={[s.viewBtn, view === v && s.viewBtnActive]} onPress={() => setView(v)}>
                     <Text style={[s.viewBtnTxt, view === v && s.viewBtnTxtActive]}>{lbl}</Text>
                   </Pressable>
@@ -953,7 +1107,7 @@ export default function MarketIntelligenceScreen() {
               </Panel>
             </View>
           </View>
-          ) : (
+          ) : view === 'executivo' ? (
           /* ─── Visão Executiva ─────────────────────────────────────────── */
           <View>
             {/* KPIs */}
@@ -1064,6 +1218,9 @@ export default function MarketIntelligenceScreen() {
               <BrazilMap rows={filtered} products={products} narrow={narrow} />
             </Panel>
           </View>
+          ) : (
+          /* ─── Cobertura / Saúde da Coleta ──────────────────────────────── */
+          <CoverageView coverage={coverage} loading={coverageLoading} onReload={loadCoverage} />
           )}
 
           {/* ─── Footer ───────────────────────────────────────────────────── */}

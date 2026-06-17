@@ -48,6 +48,27 @@ async function logRun(companyId, runDate, status, inserted, updated) {
   );
 }
 
+/** Grava as métricas de cobertura de uma varredura (por empresa, dia, fonte). */
+async function logCoverage(companyId, runDate, source, m = {}) {
+  await db.query(
+    `INSERT INTO market_intelligence_coverage
+       (id, company_id, run_date, source, enumerated, pre_filtered, matched, records,
+        inserted, updated, enum_errors, by_uf, modalidades, finished_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())
+     ON DUPLICATE KEY UPDATE
+       enumerated=VALUES(enumerated), pre_filtered=VALUES(pre_filtered), matched=VALUES(matched),
+       records=VALUES(records), inserted=VALUES(inserted), updated=VALUES(updated),
+       enum_errors=VALUES(enum_errors), by_uf=VALUES(by_uf), modalidades=VALUES(modalidades),
+       finished_at=NOW()`,
+    [
+      uuidv4(), companyId, runDate, source || 'pncp_sweep',
+      m.enumerados || 0, m.preFiltrados || 0, m.comItemCasado || 0, m.records || 0,
+      m.inserted || 0, m.updated || 0, m.enumErros || 0,
+      m.byUf ? JSON.stringify(m.byUf) : null, m.modalidades || null,
+    ]
+  );
+}
+
 async function loadKeywords(companyId) {
   const [rows] = await db.query(
     `SELECT termo, produto_candidato AS produtoCandidato, contexto, negativos
@@ -134,10 +155,13 @@ async function runIngest(opts = {}) {
         if (typeof c.sweep === 'function') {
           // Varredura completa: enumera tudo e devolve registros já agrupados por
           // keyword; cada grupo passa pelo mesmo filtro de relevância (T0–T3).
+          const sweepStats = {};
+          const before = { inserted: st.inserted, updated: st.updated };
+          let records = 0;
           try {
-            const sweepStats = {};
             const groups = await c.sweep(keywords, { delay: opts.delay, config, runDate, stats: sweepStats });
             for (const g of groups) {
+              records += g.records.length;
               const relevant = await filterRelevant(g.records, g.kw, companyId, st);
               await upsertAll(relevant);
             }
@@ -146,6 +170,14 @@ async function runIngest(opts = {}) {
             st.errors++;
             console.error(`[ingest] ${c.name} · sweep falhou: ${e.message}`);
           }
+          // Persiste a COBERTURA do dia (base do painel de saúde da coleta).
+          try {
+            await logCoverage(companyId, runDate, c.key, {
+              ...sweepStats, records,
+              inserted: st.inserted - before.inserted,
+              updated: st.updated - before.updated,
+            });
+          } catch (e) { console.error(`[ingest] logCoverage falhou: ${e.message}`); }
         }
       }
 

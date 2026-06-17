@@ -133,6 +133,7 @@ async function sweep(keywords, opts = {}) {
 
   const stats = opts.stats || {};
   stats.enumerados = 0; stats.preFiltrados = 0; stats.comItemCasado = 0; stats.enumErros = 0;
+  stats.byUf = {}; stats.modalidades = modalidades.join(',');
   const byKw = new Map(); // termo → { kw, records: [] }
   const seenCompra = new Set(); // evita reprocessar mesma contratação entre modalidades
 
@@ -169,6 +170,8 @@ async function sweep(keywords, opts = {}) {
         const g = byKw.get(kw.termo) || { kw, records: [] };
         g.records.push(record);
         byKw.set(kw.termo, g);
+        const uf = record.uf || '??';
+        stats.byUf[uf] = (stats.byUf[uf] || 0) + 1;
       }
       await sleep(Math.round(delay / 2));
     }
