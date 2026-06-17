@@ -999,13 +999,26 @@ export default function MarketIntelligenceScreen() {
                 </Panel>
 
                 <Panel title="Produto Candidato — quantidade por mês">
+                  {active.size < products.length && (
+                    <Pressable onPress={() => setActiveProducts(new Set(products.map((p) => p.name)))} style={s.legendReset}>
+                      <Text style={s.legendResetTxt}>↩ Mostrar todos ({products.length})</Text>
+                    </Pressable>
+                  )}
                   <View style={s.legendWrap}>
-                    {products.filter((p) => active.has(p.name)).map((p) => (
-                      <View key={p.name} style={s.legendItem}>
-                        <View style={[s.legendDot, { backgroundColor: p.color }]} />
-                        <Text style={s.legendTxt}>{p.name}</Text>
-                      </View>
-                    ))}
+                    {products.map((p) => {
+                      const on = active.has(p.name);
+                      return (
+                        <Pressable
+                          key={p.name}
+                          onPress={() => toggleProduct(p.name)}
+                          style={[s.legendItem, s.legendItemBtn]}
+                          {...({ title: `${on ? 'Ocultar' : 'Mostrar'} ${p.name} no gráfico` } as any)}
+                        >
+                          <View style={[s.legendDot, { backgroundColor: p.color, opacity: on ? 1 : 0.3 }]} />
+                          <Text style={[s.legendTxt, on ? s.legendTxtOn : { opacity: 0.4 }]}>{p.name}</Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                   <LineChart months={months} byMonthProduct={byMonthProduct} products={products.filter((p) => active.has(p.name))} />
                 </Panel>
