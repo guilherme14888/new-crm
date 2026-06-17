@@ -8,8 +8,16 @@ const db = require('../db');
 const SOURCE_DEFS = [
   {
     key: 'pncp', name: 'PNCP', mode: 'keyword', implemented: true,
-    note: 'API pública oficial — não requer credenciais.',
+    note: 'API pública oficial (busca textual) — não requer credenciais.',
     fields: [],
+  },
+  {
+    key: 'pncp_sweep', name: 'PNCP-Sweep', mode: 'sweep', implemented: true,
+    note: 'Varredura COMPLETA do PNCP (enumeração por data+modalidade) — garante cobertura, não depende de busca por palavra-chave. Sem credenciais.',
+    fields: [
+      { key: 'modalidades', label: 'Modalidades (códigos, ex.: 6,8,9,4)', placeholder: '6,8,9,4' },
+      { key: 'lookbackDays', label: 'Dias de janela (cobre atraso de publicação)', placeholder: '3' },
+    ],
   },
   {
     key: 'licitaja', name: 'Licitaja', mode: 'keyword', implemented: true,

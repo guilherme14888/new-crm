@@ -131,6 +131,22 @@ async function runIngest(opts = {}) {
             console.error(`[ingest] ${c.name} · collect falhou: ${e.message}`);
           }
         }
+        if (typeof c.sweep === 'function') {
+          // Varredura completa: enumera tudo e devolve registros já agrupados por
+          // keyword; cada grupo passa pelo mesmo filtro de relevância (T0–T3).
+          try {
+            const sweepStats = {};
+            const groups = await c.sweep(keywords, { delay: opts.delay, config, runDate, stats: sweepStats });
+            for (const g of groups) {
+              const relevant = await filterRelevant(g.records, g.kw, companyId, st);
+              await upsertAll(relevant);
+            }
+            st.swept = (st.swept || 0) + (sweepStats.preFiltrados || 0);
+          } catch (e) {
+            st.errors++;
+            console.error(`[ingest] ${c.name} · sweep falhou: ${e.message}`);
+          }
+        }
       }
 
       // registra a execução do dia para este tenant (para o catch-up reconhecer)
