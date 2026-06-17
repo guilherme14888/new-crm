@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/guilherme14888/crm-br4/compare/v1.13.0...v1.14.0) (2026-06-17)
+
+
+### Features
+
+* **ingest:** varredura completa do PNCP (cobertura garantida) + auditoria ([d5ea522](https://github.com/guilherme14888/crm-br4/commit/d5ea522b265fee8e2457364a488c83e89b3e710a))
+
 # [1.13.0](https://github.com/guilherme14888/crm-br4/compare/v1.12.0...v1.13.0) (2026-06-17)
 
 
