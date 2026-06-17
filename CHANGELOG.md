@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/guilherme14888/crm-br4/compare/v1.14.0...v1.15.0) (2026-06-17)
+
+
+### Features
+
+* **market-intel:** painel de Cobertura / Saude da Coleta (monitoramento da varredura) ([64fd1ca](https://github.com/guilherme14888/crm-br4/commit/64fd1ca041ef7009e5c038619467e791a92e1969))
+
 # [1.14.0](https://github.com/guilherme14888/crm-br4/compare/v1.13.0...v1.14.0) (2026-06-17)
 
 
