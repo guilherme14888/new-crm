@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/guilherme14888/crm-br4/compare/v1.12.0...v1.13.0) (2026-06-17)
+
+
+### Features
+
+* legenda clicavel filtra produtos no grafico mensal (visao executiva) ([16cf673](https://github.com/guilherme14888/crm-br4/commit/16cf6739a08d7bce4abbbcfb3511ef56cd124013))
+
 # [1.12.0](https://github.com/guilherme14888/crm-br4/compare/v1.11.1...v1.12.0) (2026-06-16)
 
 
