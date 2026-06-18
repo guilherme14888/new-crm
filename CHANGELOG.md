@@ -1,3 +1,10 @@
+## [1.23.1](https://github.com/guilherme14888/crm-br4/compare/v1.23.0...v1.23.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* **kanban:** lazy-load 10-em-10 deterministico (corta os DADOS, nao so a renderizacao) ([b73210f](https://github.com/guilherme14888/crm-br4/commit/b73210f97cb500edc442ef90f7a59e74732d6058))
+
 # [1.23.0](https://github.com/guilherme14888/crm-br4/compare/v1.22.0...v1.23.0) (2026-06-18)
 
 
