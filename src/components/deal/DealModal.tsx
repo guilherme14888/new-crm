@@ -798,7 +798,7 @@ export function DealModal() {
                 {leftPanel}
                 <View style={{ borderTopWidth: 1, borderTopColor: COLORS.gray[100] }}>
                   {tabBar}
-                  <View style={{ minHeight: 420 }}>{tabContent()}</View>
+                  <View style={{ minHeight: 420, paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: SPACING.md }}>{tabContent()}</View>
                 </View>
               </ScrollView>
             )}
@@ -992,7 +992,7 @@ const s = StyleSheet.create({
   tabActive:   { borderBottomColor: COLORS.primary },
   tabTxt:      { fontSize: FONTS.sm, fontWeight: '600', color: COLORS.gray[400] },
   tabTxtActive:{ color: COLORS.primary },
-  tabContent:  { flex: 1 },
+  tabContent:  { flex: 1, paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: SPACING.md },
 
   // Lost modal
   lostOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
