@@ -57,7 +57,7 @@ async function cacheGetMany(keys) {
 async function cacheSetMany(entries) {
   if (!entries.length) return;
   const values = entries.map(() => '(?,?,?,?,?)').join(',');
-  const params = entries.flatMap((e) => [e.key, e.companyId, e.termo, e.verdict ? 1 : 0, MODEL]);
+  const params = entries.flatMap((e) => [e.key, e.companyId, e.termo, e.verdict ? 1 : 0, e.model || 'na']);
   await db.query(
     `INSERT IGNORE INTO market_intelligence_relevance_cache (cache_key, company_id, termo, verdict, model) VALUES ${values}`,
     params
@@ -140,6 +140,7 @@ async function filterRelevant(records, keyword, companyId, stats = {}) {
   const ai = await loadAiConfig(companyId);
   const useAI = !!ai.apiKey && (ai.source === 'tenant' || AI_ON_ENV);
   if (!useAI) { stats.kept = (stats.kept || 0) + survivors.length; return survivors; }
+  const aiModelId = `${ai.provider}:${ai.model}`; // p/ registrar no cache qual modelo gerou o veredito
 
   // T1 cache exato
   const keys = survivors.map((r) => hashKey(companyId, keyword.termo, descOf(r)));
@@ -170,7 +171,7 @@ async function filterRelevant(records, keyword, companyId, stats = {}) {
         if (v === null) { remaining.push(i); }
         else {
           decided.set(i, v);
-          toPersist.push({ key: keys[i], companyId, termo: keyword.termo, verdict: v });
+          toPersist.push({ key: keys[i], companyId, termo: keyword.termo, verdict: v, model: aiModelId });
         }
       }
       stats.semanticHits = (stats.semanticHits || 0) + (undecided.length - remaining.length);
@@ -187,7 +188,7 @@ async function filterRelevant(records, keyword, companyId, stats = {}) {
     group.forEach((i, k) => {
       const v = verdicts[k];
       decided.set(i, v);
-      toPersist.push({ key: keys[i], companyId, termo: keyword.termo, verdict: v });
+      toPersist.push({ key: keys[i], companyId, termo: keyword.termo, verdict: v, model: aiModelId });
       if (EMBED_ON && survivors[i].__vecText) toPersistVec.push({ desc: descOf(survivors[i]), verdict: v, vecText: survivors[i].__vecText });
     });
   }
