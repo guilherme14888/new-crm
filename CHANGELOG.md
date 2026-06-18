@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/guilherme14888/crm-br4/compare/v1.15.1...v1.16.0) (2026-06-18)
+
+
+### Features
+
+* **market-intel:** governanca de contexto das palavras-chave + assistente de IA ([bf96a83](https://github.com/guilherme14888/crm-br4/commit/bf96a83ed70d630fde0cd901ab46129e38278dd6))
+
 ## [1.15.1](https://github.com/guilherme14888/crm-br4/compare/v1.15.0...v1.15.1) (2026-06-18)
 
 
