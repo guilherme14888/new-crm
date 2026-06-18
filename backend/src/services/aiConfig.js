@@ -4,6 +4,11 @@
 
 const db = require('./../db');
 
+// IA é configurada de forma GLOBAL (uma vez), pela empresa Default/master, e usada
+// por todos os tenants na captação de licitações. O menu só aparece para admins
+// da empresa Default.
+const MASTER_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+
 // Provedores suportados: rótulo p/ a UI, modelo default e variável de ambiente de fallback.
 const PROVIDERS = {
   anthropic: { label: 'Anthropic (Claude)',   defaultModel: 'claude-haiku-4-5-20251001', envKey: 'ANTHROPIC_API_KEY' },
@@ -17,9 +22,11 @@ const DEFAULT_PROVIDER = 'anthropic';
 
 function defOf(provider) { return PROVIDERS[provider] || PROVIDERS[DEFAULT_PROVIDER]; }
 
-async function readRow(companyId) {
+// Config global → sempre lida/gravada sob a empresa master (o companyId recebido
+// é ignorado de propósito: a IA é única para todo o sistema).
+async function readRow() {
   try {
-    const [r] = await db.query('SELECT provider, api_key, model, updated_at FROM market_intelligence_ai WHERE company_id = ?', [companyId]);
+    const [r] = await db.query('SELECT provider, api_key, model, updated_at FROM market_intelligence_ai WHERE company_id = ?', [MASTER_COMPANY_ID]);
     return r[0] || null;
   } catch { return null; }
 }
@@ -29,8 +36,8 @@ async function readRow(companyId) {
  * houver chave salva, cai no .env do provedor escolhido (ou anthropic).
  * @returns {Promise<{provider, apiKey, model, source:'tenant'|'env'|'none'}>}
  */
-async function loadAiConfig(companyId) {
-  const row = await readRow(companyId);
+async function loadAiConfig(_companyId) {
+  const row = await readRow();
   const provider = (row && row.provider) || DEFAULT_PROVIDER;
   const def = defOf(provider);
   const model = (row && row.model) || def.defaultModel;
@@ -44,9 +51,9 @@ async function loadAiConfig(companyId) {
 }
 
 /** Versão pública (para a UI) — NUNCA devolve a chave, só se existe. */
-async function getAiConfigPublic(companyId) {
-  const row = await readRow(companyId);
-  const eff = await loadAiConfig(companyId);
+async function getAiConfigPublic(_companyId) {
+  const row = await readRow();
+  const eff = await loadAiConfig();
   return {
     provider: (row && row.provider) || DEFAULT_PROVIDER,
     model: (row && row.model) || '',
@@ -58,9 +65,9 @@ async function getAiConfigPublic(companyId) {
 }
 
 /** Salva/atualiza a config do tenant. Se apiKey vier vazio, mantém a chave atual. */
-async function saveAiConfig(companyId, { provider, apiKey, model }) {
+async function saveAiConfig(_companyId, { provider, apiKey, model }) {
   if (provider && !PROVIDERS[provider]) throw new Error(`Provedor inválido: ${provider}`);
-  const row = await readRow(companyId);
+  const row = await readRow();
   const finalProvider = provider || (row && row.provider) || DEFAULT_PROVIDER;
   // chave: usa a nova se informada; senão mantém a existente (não apaga ao trocar modelo)
   const finalKey = (apiKey !== undefined && apiKey !== null && String(apiKey).trim() !== '')
@@ -72,9 +79,9 @@ async function saveAiConfig(companyId, { provider, apiKey, model }) {
     `INSERT INTO market_intelligence_ai (company_id, provider, api_key, model)
      VALUES (?,?,?,?)
      ON DUPLICATE KEY UPDATE provider=VALUES(provider), api_key=VALUES(api_key), model=VALUES(model)`,
-    [companyId, finalProvider, finalKey, finalModel]
+    [MASTER_COMPANY_ID, finalProvider, finalKey, finalModel]
   );
-  return getAiConfigPublic(companyId);
+  return getAiConfigPublic();
 }
 
 module.exports = { PROVIDERS, DEFAULT_PROVIDER, loadAiConfig, getAiConfigPublic, saveAiConfig };

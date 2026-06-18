@@ -18,6 +18,12 @@ export interface FinanceCompany {
   activeLicenses: number;
   paymentProvider: string | null;
   paymentProviderRef: string | null;
+  trialDays: number | null;
+  trialStartsAt: string | null;
+  onTrial?: boolean;
+  trialExpired?: boolean;
+  trialDaysLeft?: number | null;
+  trialEndsAt?: string | null;
 }
 
 export interface CompanyInvoice {
@@ -66,7 +72,7 @@ interface FinanceState {
   loadCompanies: () => Promise<void>;
   loadDetail: (companyId: string) => Promise<CompanyDetail | null>;
 
-  updateBilling: (companyId: string, patch: Partial<Pick<FinanceCompany, 'billingDay' | 'blockGraceDays' | 'licensePriceCents' | 'purchasedLicenses'>>) => Promise<void>;
+  updateBilling: (companyId: string, patch: Partial<Pick<FinanceCompany, 'billingDay' | 'blockGraceDays' | 'licensePriceCents' | 'purchasedLicenses'>> & { trialDays?: number | null; trialStart?: boolean }) => Promise<void>;
 
   block: (companyId: string, reason?: string) => Promise<void>;
   unblock: (companyId: string) => Promise<void>;

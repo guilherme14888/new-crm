@@ -1539,8 +1539,8 @@ export default function SettingsScreen() {
           </Pressable>
         )}
 
-        {/* Inteligência Artificial — opens modal (admin/manager) */}
-        {(user?.role === 'admin' || user?.role === 'manager') && (
+        {/* Inteligência Artificial — config GLOBAL: só admin da empresa Default */}
+        {user?.role === 'admin' && user?.companyId === '00000000-0000-0000-0000-000000000001' && (
           <Pressable onPress={() => setAiConfigVisible(true)}>
             <Card style={styles.card}>
               <View style={styles.menuItem}>

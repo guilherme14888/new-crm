@@ -12,6 +12,9 @@ type AuthUserResponse = {
   companyId: string;
   companyName: string | null;
   teamId: string | null;
+  onTrial?: boolean;
+  trialDaysLeft?: number | null;
+  trialEndsAt?: string | null;
 };
 
 /** Converte a resposta de usuário da API de autenticação para o modelo User do frontend. */
@@ -26,6 +29,9 @@ function mapUser(u: AuthUserResponse): User {
     companyId: u.companyId,
     companyName: u.companyName ?? null,
     teamId: u.teamId ?? null,
+    onTrial: u.onTrial ?? false,
+    trialDaysLeft: u.trialDaysLeft ?? null,
+    trialEndsAt: u.trialEndsAt ?? null,
   };
 }
 

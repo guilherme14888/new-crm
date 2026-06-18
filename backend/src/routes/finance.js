@@ -16,6 +16,7 @@ const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/acl');
+const { trialStatus } = require('../services/trial');
 const { v4: uuidv4 } = require('uuid');
 
 const MASTER_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
@@ -41,6 +42,9 @@ function fmtCompany(r) {
     activeLicenses: Number(r.active_licenses ?? 0),
     paymentProvider: r.payment_provider ?? null,
     paymentProviderRef: r.payment_provider_ref ?? null,
+    trialDays: r.trial_days != null ? Number(r.trial_days) : null,
+    trialStartsAt: r.trial_starts_at ?? null,
+    ...trialStatus(r),  // onTrial, trialExpired, trialDaysLeft, trialEndsAt
   };
 }
 
@@ -195,7 +199,7 @@ router.get('/companies/:id', auth, requireAdmin, async (req, res) => {
 // PATCH /api/admin/finance/companies/:id
 // Atualiza configurações financeiras (billing_day, grace, preço, licenças contratadas)
 router.patch('/companies/:id', auth, requireAdmin, async (req, res) => {
-  const { billingDay, blockGraceDays, licensePriceCents, purchasedLicenses } = req.body;
+  const { billingDay, blockGraceDays, licensePriceCents, purchasedLicenses, trialDays, trialStart } = req.body;
   const sets = [], vals = [];
   if (billingDay !== undefined) {
     const d = Math.max(1, Math.min(31, parseInt(billingDay, 10) || 5));
@@ -211,6 +215,13 @@ router.patch('/companies/:id', auth, requireAdmin, async (req, res) => {
   if (purchasedLicenses !== undefined) {
     sets.push('purchased_licenses = ?'); vals.push(Math.max(0, parseInt(purchasedLicenses, 10) || 0));
   }
+  // Período de teste: trialDays<=0/null limpa o trial; trialStart=true (re)inicia a contagem agora.
+  if (trialDays !== undefined) {
+    const td = parseInt(trialDays, 10);
+    if (!td || td <= 0) { sets.push('trial_days = NULL'); sets.push('trial_starts_at = NULL'); }
+    else { sets.push('trial_days = ?'); vals.push(Math.min(3650, td)); }
+  }
+  if (trialStart) { sets.push('trial_starts_at = NOW()'); }
   if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
   vals.push(req.params.id);
   try {

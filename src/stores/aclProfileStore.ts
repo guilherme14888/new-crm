@@ -14,6 +14,16 @@ export interface ACLPermissions {
   funnels_manage: boolean;
   roles_manage: boolean;
   settings_access: boolean;
+  // Inteligência de Mercado / Licitações
+  market_intelligence_access: boolean;
+  keywords_manage: boolean;
+  portals_manage: boolean;
+  ai_config_manage: boolean;
+  coverage_view: boolean;
+  ingestion_trigger: boolean;
+  // Financeiro
+  billing_manage: boolean;
+  trial_manage: boolean;
 }
 
 export const DEFAULT_PERMISSIONS: ACLPermissions = {
@@ -28,6 +38,14 @@ export const DEFAULT_PERMISSIONS: ACLPermissions = {
   funnels_manage: false,
   roles_manage: false,
   settings_access: false,
+  market_intelligence_access: false,
+  keywords_manage: false,
+  portals_manage: false,
+  ai_config_manage: false,
+  coverage_view: false,
+  ingestion_trigger: false,
+  billing_manage: false,
+  trial_manage: false,
 };
 
 export const PERMISSION_LABELS: Record<keyof ACLPermissions, string> = {
@@ -42,6 +60,14 @@ export const PERMISSION_LABELS: Record<keyof ACLPermissions, string> = {
   funnels_manage: 'Gerenciar funis de venda',
   roles_manage: 'Gerenciar níveis de acesso (ACL)',
   settings_access: 'Acessar configurações',
+  market_intelligence_access: 'Acessar Inteligência de Mercado',
+  keywords_manage: 'Gerenciar palavras-chave (busca de licitações)',
+  portals_manage: 'Gerenciar portais / API Externa',
+  ai_config_manage: 'Gerenciar Inteligência Artificial',
+  coverage_view: 'Ver cobertura / saúde da coleta',
+  ingestion_trigger: 'Disparar coleta de licitações',
+  billing_manage: 'Gerenciar Financeiro',
+  trial_manage: 'Gerenciar período de teste',
 };
 
 export interface ACLProfile {

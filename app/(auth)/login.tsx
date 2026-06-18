@@ -46,6 +46,12 @@ export default function LoginScreen() {
             <Text style={s.blockTitle}>Cobrança em aberto</Text>
             <Text style={s.blockTxt}>{error}</Text>
           </View>
+        ) : error.toLowerCase().includes('período de teste') ? (
+          <View style={s.blockBox}>
+            <Text style={s.blockIcon}>⛔</Text>
+            <Text style={s.blockTitle}>Período de teste encerrado</Text>
+            <Text style={s.blockTxt}>{error}</Text>
+          </View>
         ) : (
           <View style={s.errorBox}>
             <Text style={s.errorTxt}>⚠  {error}</Text>

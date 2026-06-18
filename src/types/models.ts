@@ -217,6 +217,10 @@ export interface User {
   companyId: string;
   companyName: string | null;
   teamId: string | null;
+  // Período de teste do tenant ativo (preenchido por /auth/me e login)
+  onTrial?: boolean;
+  trialDaysLeft?: number | null;
+  trialEndsAt?: string | null;
 }
 
 export interface CRMUser extends User {

@@ -425,26 +425,33 @@ router.patch('/sources/:key', auth, resolveScope, requireRole('manager'), async 
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-//  Inteligência Artificial — provedor/chave por tenant (gerente+ pode editar)
+//  Inteligência Artificial — config GLOBAL, só admin da empresa Default/master
 // ════════════════════════════════════════════════════════════════════════════
+// A IA é única para todo o sistema (uma chave usada por todos os tenants na
+// captação). Por isso, só administradores da empresa Default podem ver/editar.
+function requireMasterAdmin(req, res, next) {
+  if (req.scope && req.scope.isMaster && req.scope.role === 'admin') return next();
+  return res.status(403).json({ error: 'Disponível apenas para administradores da empresa Default.' });
+}
+
 // GET — estado atual (NUNCA devolve a chave, só se existe) + lista de provedores.
-router.get('/ai', auth, resolveScope, requireRole('manager'), async (req, res) => {
+router.get('/ai', auth, resolveScope, requireMasterAdmin, async (req, res) => {
   try {
-    res.json(await getAiConfigPublic(req.scope.companyId));
+    res.json(await getAiConfigPublic());
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // PATCH — salva provedor / chave / modelo. Chave vazia mantém a atual.
-router.patch('/ai', auth, resolveScope, requireRole('manager'), async (req, res) => {
+router.patch('/ai', auth, resolveScope, requireMasterAdmin, async (req, res) => {
   const { provider, apiKey, model } = req.body || {};
   try {
-    res.json(await saveAiConfig(req.scope.companyId, { provider, apiKey, model }));
+    res.json(await saveAiConfig(null, { provider, apiKey, model }));
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 // POST /ai/models — lista os modelos disponíveis para a chave (usa a chave enviada
 // ou, se vazia, a já salva). Permite popular a lista suspensa antes de salvar.
-router.post('/ai/models', auth, resolveScope, requireRole('manager'), async (req, res) => {
+router.post('/ai/models', auth, resolveScope, requireMasterAdmin, async (req, res) => {
   const { provider, apiKey } = req.body || {};
   try {
     let key = apiKey && String(apiKey).trim();
@@ -461,9 +468,9 @@ router.post('/ai/models', auth, resolveScope, requireRole('manager'), async (req
 });
 
 // POST /ai/test — valida a config fazendo uma chamada mínima ao provedor.
-router.post('/ai/test', auth, resolveScope, requireRole('manager'), async (req, res) => {
+router.post('/ai/test', auth, resolveScope, requireMasterAdmin, async (req, res) => {
   try {
-    const ai = await loadAiConfig(req.scope.companyId);
+    const ai = await loadAiConfig();
     if (!ai.apiKey) return res.status(503).json({ ok: false, error: 'Nenhuma chave configurada (nem no .env).' });
     const txt = await chat({
       provider: ai.provider, apiKey: ai.apiKey, model: ai.model,

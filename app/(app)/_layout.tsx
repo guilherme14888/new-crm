@@ -3,6 +3,7 @@ import { Stack, Redirect } from 'expo-router';
 import { useAuthStore } from '../../src/stores/authStore';
 import { Sidebar, HamburgerButton } from '../../src/components/layout/Sidebar';
 import { DealModal } from '../../src/components/deal/DealModal';
+import { TrialBanner } from '../../src/components/layout/TrialBanner';
 import { COLORS } from '../../src/constants/theme';
 
 /** Barra superior mobile: renderiza o botão hambúrguer apenas em telas estreitas (largura < 768). */
@@ -22,6 +23,7 @@ function WebLayout() {
       <Sidebar />
       <View style={styles.main}>
         <MobileTopBar />
+        <TrialBanner />
         <View style={styles.content}>
           <Stack screenOptions={{ headerShown: false }} />
         </View>
@@ -35,6 +37,7 @@ function WebLayout() {
 function MobileLayout() {
   return (
     <>
+      <TrialBanner />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="deal/[id]" options={{ headerShown: false }} />

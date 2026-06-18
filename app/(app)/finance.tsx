@@ -161,6 +161,7 @@ function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onC
   const [graceDays, setGraceDays]                 = useState(String(c.blockGraceDays));
   const [pricePerLicense, setPricePerLicense]     = useState((c.licensePriceCents / 100).toFixed(2));
   const [purchasedLicenses, setPurchasedLicenses] = useState(String(c.purchasedLicenses));
+  const [trialDays, setTrialDays]                 = useState(c.trialDays != null ? String(c.trialDays) : '');
 
   const [invoiceForm, setInvoiceForm] = useState({
     periodStart: '', periodEnd: '', dueDate: '', licenses: '', notes: '',
@@ -176,8 +177,9 @@ function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onC
       setGraceDays(String(d.company.blockGraceDays));
       setPricePerLicense((d.company.licensePriceCents / 100).toFixed(2));
       setPurchasedLicenses(String(d.company.purchasedLicenses));
+      setTrialDays(d.company.trialDays != null ? String(d.company.trialDays) : '');
     }
-  }, [d?.company.id, d?.company.licensePriceCents, d?.company.purchasedLicenses, d?.company.billingDay, d?.company.blockGraceDays]);
+  }, [d?.company.id, d?.company.licensePriceCents, d?.company.purchasedLicenses, d?.company.billingDay, d?.company.blockGraceDays, d?.company.trialDays, d?.company.trialStartsAt]);
 
   /** Persiste a configuração de cobrança (vencimento, tolerância, preço e licenças contratadas). */
   const saveBilling = async () => {
@@ -188,6 +190,15 @@ function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onC
       purchasedLicenses: parseInt(purchasedLicenses, 10) || 0,
     });
   };
+
+  /** Inicia/reinicia o período de teste com os dias informados (contagem começa agora). */
+  const startTrial = async () => {
+    const td = parseInt(trialDays, 10);
+    if (!td || td <= 0) { if (Platform.OS === 'web') window.alert('Informe os dias de teste'); return; }
+    await updateBilling(company.id, { trialDays: td, trialStart: true });
+  };
+  /** Encerra/limpa o período de teste da empresa. */
+  const clearTrial = async () => { await updateBilling(company.id, { trialDays: 0 }); };
 
   /** Exibe uma confirmação (web/nativo) e executa a ação assíncrona se confirmada. */
   const confirmThenRun = (msg: string, fn: () => Promise<void>) => {
@@ -291,6 +302,34 @@ function FinanceDetailModal({ company, onClose }: { company: FinanceCompany; onC
                   <Text style={{ color: COLORS.danger, fontWeight: '700' }}>  ·  excedeu o contrato</Text>
                 ) : null}
               </Text>
+            </View>
+
+            {/* Período de teste */}
+            <View style={dm.card}>
+              <Text style={dm.cardTitle}>Período de teste</Text>
+              <View style={dm.formRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={dm.label}>Dias de teste</Text>
+                  <TextInput style={dm.input} value={trialDays} onChangeText={setTrialDays} keyboardType="numeric" placeholder="ex.: 15" />
+                </View>
+                <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+                  <Pressable style={dm.primaryBtn} onPress={startTrial}>
+                    <Text style={dm.primaryBtnTxt}>{c.trialStartsAt ? 'Reiniciar período' : 'Iniciar período'}</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <Text style={[dm.help, c.trialExpired ? { color: COLORS.danger, fontWeight: '700' } : c.onTrial ? { color: '#b45309', fontWeight: '700' } : null]}>
+                {c.onTrial
+                  ? `Em teste — faltam ${c.trialDaysLeft} dia(s)${c.trialEndsAt ? ` (termina ${new Date(c.trialEndsAt).toLocaleDateString('pt-BR')})` : ''}.`
+                  : c.trialExpired
+                    ? 'Período de teste expirado — usuários não-admin estão bloqueados no login.'
+                    : 'Sem período de teste ativo. Informe os dias e clique em Iniciar.'}
+              </Text>
+              {(c.onTrial || c.trialExpired) && (
+                <Pressable onPress={clearTrial}>
+                  <Text style={{ color: COLORS.primary, fontWeight: '700', fontSize: FONTS.sm, marginTop: SPACING.sm }}>Encerrar período de teste</Text>
+                </Pressable>
+              )}
             </View>
 
             {/* Invoices */}

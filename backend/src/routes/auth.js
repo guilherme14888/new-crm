@@ -6,8 +6,10 @@ const authMw  = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/acl');
 const { audit } = require('../services/auditLog');
 const finance = require('./finance');
+const { trialStatus } = require('../services/trial');
 
 const COMPANY_BLOCKED_MSG = 'Existe uma cobrança em aberto, entre em contato com nosso setor financeiro para resolver.';
+const TRIAL_EXPIRED_MSG = 'Seu período de teste foi encerrado. Entre em contato com o setor financeiro para continuar utilizando o sistema.';
 
 /** Gera um JWT assinado com os dados do usuário e a empresa ativa informada. */
 function makeToken(user, activeCompanyId) {
@@ -25,7 +27,8 @@ function makeToken(user, activeCompanyId) {
 }
 
 /** Serializa um usuário para o cliente, expondo apenas campos seguros (sem hash de senha). */
-function safeUser(u, activeCompanyId, companyName = null) {
+function safeUser(u, activeCompanyId, companyName = null, trialSrc = u) {
+  const t = trialStatus(trialSrc || {});
   return {
     id:          u.id,
     email:       u.email,
@@ -35,6 +38,9 @@ function safeUser(u, activeCompanyId, companyName = null) {
     companyId:   activeCompanyId ?? u.company_id,
     companyName: companyName ?? u.company_name ?? null,
     teamId:      u.team_id ?? null,
+    onTrial:       t.onTrial,
+    trialDaysLeft: t.trialDaysLeft,
+    trialEndsAt:   t.trialEndsAt,
   };
 }
 
@@ -44,7 +50,7 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios' });
   try {
     const [rows] = await db.query(
-      `SELECT u.*, c.name AS company_name
+      `SELECT u.*, c.name AS company_name, c.trial_starts_at, c.trial_days
        FROM users u LEFT JOIN companies c ON c.id = u.company_id
        WHERE u.email = ? AND u.is_active = 1 LIMIT 1`, [email]
     );
@@ -66,6 +72,11 @@ router.post('/login', async (req, res) => {
           reason: company.blocked_reason ?? null,
         });
       }
+      // Período de teste expirado → bloqueia o login (admins seguem passando).
+      const t = trialStatus(user);
+      if (t.trialExpired && user.role !== 'admin') {
+        return res.status(403).json({ error: TRIAL_EXPIRED_MSG, code: 'trial_expired' });
+      }
     }
 
     await db.query('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id]);
@@ -82,7 +93,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', authMw, async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT u.*, c.name AS company_name
+      `SELECT u.*, c.name AS company_name, c.trial_starts_at, c.trial_days
        FROM users u LEFT JOIN companies c ON c.id = ?
        WHERE u.id = ? LIMIT 1`,
       [req.user.company_id, req.user.id]
@@ -118,7 +129,8 @@ router.post('/switch-company', authMw, async (req, res) => {
       token,
       activeCompanyId: companyId,
       company: { id: companies[0].id, name: companies[0].name },
-      user: safeUser(userRows[0], companyId, companies[0].name),
+      // trial reflete a empresa para a qual trocou (companies[0] tem as colunas trial_*)
+      user: safeUser(userRows[0], companyId, companies[0].name, companies[0]),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
