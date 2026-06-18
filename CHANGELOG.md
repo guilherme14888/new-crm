@@ -1,3 +1,10 @@
+## [1.24.1](https://github.com/guilherme14888/crm-br4/compare/v1.24.0...v1.24.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* **ai-config:** chave cifrada no banco (AES-GCM) + corrige mismatch de provedor ([bdd6416](https://github.com/guilherme14888/crm-br4/commit/bdd6416a3eef0573cb23a8c9e6cf0b27c8e7a04f))
+
 # [1.24.0](https://github.com/guilherme14888/crm-br4/compare/v1.23.1...v1.24.0) (2026-06-18)
 
 
