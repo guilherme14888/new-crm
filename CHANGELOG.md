@@ -1,3 +1,10 @@
+# [1.22.0](https://github.com/guilherme14888/crm-br4/compare/v1.21.0...v1.22.0) (2026-06-18)
+
+
+### Features
+
+* **acl:** enforcement fase 2 — companies/billing/trial e leads_* ([aeb167d](https://github.com/guilherme14888/crm-br4/commit/aeb167dfa696b8136fdf2bb81a297d03a9f18913))
+
 # [1.21.0](https://github.com/guilherme14888/crm-br4/compare/v1.20.0...v1.21.0) (2026-06-18)
 
 
