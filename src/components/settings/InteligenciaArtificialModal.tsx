@@ -127,8 +127,13 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
   if (model && !models.includes(model)) { modelOptions.push({ value: model, label: model }); seen.add(model); }
   for (const m of models) if (!seen.has(m)) { modelOptions.push({ value: m, label: m }); seen.add(m); }
 
+  // Só consideramos "chave salva" se o provedor selecionado for o mesmo já salvo
+  // (trocar de provedor exige nova chave — a antiga é limpa ao salvar).
+  const savedHere = !!cfg?.hasKey && provider === cfg?.provider;
+
   const statusTxt = !cfg ? ''
-    : cfg.source === 'tenant' ? 'Ativo: usando a chave salva aqui.'
+    : (cfg.hasKey && provider !== cfg.provider) ? 'Você trocou de provedor — cole a chave deste provedor e clique em Salvar (a chave anterior será substituída).'
+    : savedHere && cfg.source === 'tenant' ? 'Ativo: usando a chave salva aqui (criptografada no servidor).'
     : cfg.source === 'env'    ? 'Usando a chave do ambiente (.env) como fallback.'
     : 'Nenhuma chave configurada — a IA está desligada (a captação ainda funciona, mas sem filtro de contexto por IA).';
 
@@ -160,12 +165,12 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
                 />
 
                 <Text style={[st.label, { marginTop: SPACING.md }]}>Chave da API</Text>
-                <Text style={st.hint}>{cfg?.hasKey ? 'Já existe uma chave salva. Preencha apenas se quiser substituir.' : 'Cole a chave — os modelos disponíveis serão buscados automaticamente.'}</Text>
+                <Text style={st.hint}>{savedHere ? 'Já existe uma chave salva (criptografada). Preencha apenas se quiser substituir.' : 'Cole a chave deste provedor — os modelos serão buscados automaticamente.'}</Text>
                 <TextInput
                   style={st.input}
                   value={apiKey}
                   onChangeText={setApiKey}
-                  placeholder={cfg?.hasKey ? '•••••••••• (chave salva)' : 'cole a chave da API aqui'}
+                  placeholder={savedHere ? '•••••••••• (chave salva)' : 'cole a chave da API aqui'}
                   placeholderTextColor={COLORS.gray[400]}
                   secureTextEntry
                   autoCapitalize="none"
