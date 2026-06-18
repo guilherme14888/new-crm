@@ -6,6 +6,8 @@ const { SOURCE_DEFS } = require('../ingest/sources');
 const marketDocs = require('../marketDocs');
 const opportunities = require('../opportunities');
 const { suggestContext } = require('../services/keywordContext');
+const { getAiConfigPublic, saveAiConfig, loadAiConfig } = require('../services/aiConfig');
+const { chat } = require('../services/llm');
 const { v4: uuidv4 } = require('uuid');
 
 // Inteligência de Mercado — agora POR TENANT (company_id).
@@ -267,7 +269,7 @@ router.post('/keywords/suggest', auth, resolveScope, async (req, res) => {
   const { termo, produtoCandidato, negocio } = req.body || {};
   if (!termo || !termo.trim()) return res.status(400).json({ error: 'termo é obrigatório' });
   try {
-    const out = await suggestContext({ termo: termo.trim(), produto: produtoCandidato, negocio });
+    const out = await suggestContext(req.scope.companyId, { termo: termo.trim(), produto: produtoCandidato, negocio });
     res.json(out);
   } catch (e) {
     const code = e.code === 'AI_OFF' ? 503 : 502;
@@ -420,6 +422,37 @@ router.patch('/sources/:key', auth, resolveScope, requireRole('manager'), async 
     );
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Inteligência Artificial — provedor/chave por tenant (gerente+ pode editar)
+// ════════════════════════════════════════════════════════════════════════════
+// GET — estado atual (NUNCA devolve a chave, só se existe) + lista de provedores.
+router.get('/ai', auth, resolveScope, requireRole('manager'), async (req, res) => {
+  try {
+    res.json(await getAiConfigPublic(req.scope.companyId));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH — salva provedor / chave / modelo. Chave vazia mantém a atual.
+router.patch('/ai', auth, resolveScope, requireRole('manager'), async (req, res) => {
+  const { provider, apiKey, model } = req.body || {};
+  try {
+    res.json(await saveAiConfig(req.scope.companyId, { provider, apiKey, model }));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// POST /ai/test — valida a config fazendo uma chamada mínima ao provedor.
+router.post('/ai/test', auth, resolveScope, requireRole('manager'), async (req, res) => {
+  try {
+    const ai = await loadAiConfig(req.scope.companyId);
+    if (!ai.apiKey) return res.status(503).json({ ok: false, error: 'Nenhuma chave configurada (nem no .env).' });
+    const txt = await chat({
+      provider: ai.provider, apiKey: ai.apiKey, model: ai.model,
+      system: 'Responda apenas com a palavra OK.', user: 'teste de conexão', maxTokens: 8,
+    });
+    res.json({ ok: true, provider: ai.provider, model: ai.model, source: ai.source, reply: (txt || '').trim().slice(0, 40) });
+  } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
 module.exports = router;

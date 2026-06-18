@@ -101,6 +101,18 @@ export interface CoverageData {
   alerts: CoverageAlert[];
 }
 
+/** Provedor de IA disponível na lista suspensa. */
+export interface AiProviderOpt { key: string; label: string; defaultModel: string }
+/** Estado público da config de IA do tenant (a chave nunca trafega). */
+export interface AiConfig {
+  provider: string;
+  model: string;
+  hasKey: boolean;
+  source: 'tenant' | 'env' | 'none';
+  updatedAt?: string | null;
+  providers: AiProviderOpt[];
+}
+
 interface MarketIntelState {
   rows: MarketIntelRow[];
   isLoading: boolean;
@@ -110,6 +122,11 @@ interface MarketIntelState {
   coverage: CoverageData | null;
   coverageLoading: boolean;
   loadCoverage: () => Promise<void>;
+  aiConfig: AiConfig | null;
+  aiConfigLoading: boolean;
+  loadAiConfig: () => Promise<void>;
+  saveAiConfig: (patch: { provider?: string; apiKey?: string; model?: string }) => Promise<void>;
+  testAiConfig: () => Promise<{ ok: boolean; provider?: string; model?: string; source?: string; reply?: string; error?: string }>;
   sources: MarketIntelSource[];
   sourcesLoading: boolean;
   loadSources: () => Promise<void>;
@@ -144,6 +161,39 @@ export const useMarketIntelStore = create<MarketIntelState>((set, get) => ({
       useUIStore.getState().showToast('Erro ao carregar inteligência de mercado');
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  aiConfig: null,
+  aiConfigLoading: false,
+
+  // Provedor de IA do tenant (Configurações → Inteligência Artificial).
+  loadAiConfig: async () => {
+    set({ aiConfigLoading: true });
+    try {
+      const aiConfig = await apiFetch<AiConfig>('/api/market-intelligence/ai');
+      set({ aiConfig });
+    } catch {
+      useUIStore.getState().showToast('Erro ao carregar a configuração de IA');
+    } finally {
+      set({ aiConfigLoading: false });
+    }
+  },
+  saveAiConfig: async (patch) => {
+    try {
+      const aiConfig = await apiFetch<AiConfig>('/api/market-intelligence/ai', { method: 'PATCH', body: JSON.stringify(patch) });
+      set({ aiConfig });
+      useUIStore.getState().showToast('Configuração de IA salva');
+    } catch (e: any) {
+      useUIStore.getState().showToast(e?.message ?? 'Erro ao salvar a IA');
+      throw e;
+    }
+  },
+  testAiConfig: async () => {
+    try {
+      return await apiFetch<{ ok: boolean }>('/api/market-intelligence/ai/test', { method: 'POST' });
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? 'Falha no teste de conexão' };
     }
   },
 

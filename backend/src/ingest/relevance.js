@@ -13,10 +13,13 @@ const crypto = require('crypto');
 const db = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const { embed, EMBED_ON, toVecText } = require('./embeddings');
+const { chat } = require('../services/llm');
+const { loadAiConfig } = require('../services/aiConfig');
 
-const AI_ON = String(process.env.INGEST_AI_RELEVANCE || 'false').toLowerCase() === 'true'
-  && !!process.env.ANTHROPIC_API_KEY;
-const MODEL = process.env.INGEST_AI_MODEL || 'claude-haiku-4-5-20251001';
+// Toggle por ambiente: permite USAR a chave do .env (fallback) na relevância.
+// Se o tenant configurar um provedor na UI (Configurações → IA), a relevância liga
+// para ESSE provedor independente deste toggle.
+const AI_ON_ENV = String(process.env.INGEST_AI_RELEVANCE || 'false').toLowerCase() === 'true';
 const BATCH_SIZE = parseInt(process.env.INGEST_AI_BATCH || '25', 10);
 // distância cosine máxima para reaproveitar veredito semântico (0 = idêntico)
 const SEM_THRESHOLD = parseFloat(process.env.INGEST_SEM_THRESHOLD || '0.12');
@@ -93,7 +96,7 @@ const SYSTEM_RULES =
   'Responda SOMENTE um JSON array, um objeto por item, no formato ' +
   '[{"i":0,"r":true},{"i":1,"r":false}] — sem nenhum texto fora do JSON.';
 
-async function classifyBatchLLM(items, keyword) {
+async function classifyBatchLLM(items, keyword, ai) {
   const lista = items.map((it, i) => `${i}) ${normDesc(descOf(it)).slice(0, 200)}`).join('\n');
   const userMsg =
     `CONTEXTO DO NEGÓCIO: ${keyword.contexto || '(não informado)'}\n` +
@@ -101,24 +104,13 @@ async function classifyBatchLLM(items, keyword) {
     `ITENS:\n${lista}\n\n` +
     `Classifique cada item (r=true se pertence ao contexto do negócio).`;
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: Math.min(20 + items.length * 12, 1024),
-      // bloco de regras é constante → cache_control reaproveita os tokens de entrada
-      system: [{ type: 'text', text: SYSTEM_RULES, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: userMsg }],
-    }),
-  });
-  if (!res.ok) throw new Error(`Anthropic ${res.status}`);
-  const data = await res.json();
-  const txt = (data?.content?.[0]?.text || '').trim();
+  // Usa o provedor de IA configurado pelo tenant (Anthropic, OpenAI, Gemini, Grok, DeepSeek).
+  const txt = (await chat({
+    provider: ai.provider, apiKey: ai.apiKey, model: ai.model,
+    system: SYSTEM_RULES, user: userMsg,
+    maxTokens: Math.min(20 + items.length * 12, 1024),
+  })).trim();
+
   const m = txt.match(/\[[\s\S]*\]/);
   const verdicts = new Array(items.length).fill(true); // default permissivo em erro de parse
   if (m) {
@@ -141,7 +133,13 @@ async function filterRelevant(records, keyword, companyId, stats = {}) {
   // T0
   let survivors = records.filter((r) => passesNegatives(descOf(r), negatives));
   stats.skippedNeg = (stats.skippedNeg || 0) + (records.length - survivors.length);
-  if (!AI_ON || !survivors.length) { stats.kept = (stats.kept || 0) + survivors.length; return survivors; }
+  if (!survivors.length) { stats.kept = (stats.kept || 0) + survivors.length; return survivors; }
+
+  // Provedor de IA do tenant (ou fallback .env). Liga se houver chave salva pelo
+  // tenant, ou se o toggle de ambiente permitir usar a chave do .env.
+  const ai = await loadAiConfig(companyId);
+  const useAI = !!ai.apiKey && (ai.source === 'tenant' || AI_ON_ENV);
+  if (!useAI) { stats.kept = (stats.kept || 0) + survivors.length; return survivors; }
 
   // T1 cache exato
   const keys = survivors.map((r) => hashKey(companyId, keyword.termo, descOf(r)));
@@ -184,7 +182,7 @@ async function filterRelevant(records, keyword, companyId, stats = {}) {
   for (const group of chunk(stillUndecided, BATCH_SIZE)) {
     const items = group.map((i) => survivors[i]);
     let verdicts;
-    try { verdicts = await classifyBatchLLM(items, keyword); stats.aiCalls = (stats.aiCalls || 0) + 1; }
+    try { verdicts = await classifyBatchLLM(items, keyword, ai); stats.aiCalls = (stats.aiCalls || 0) + 1; }
     catch (e) { verdicts = items.map(() => true); stats.aiErrors = (stats.aiErrors || 0) + 1; }
     group.forEach((i, k) => {
       const v = verdicts[k];
@@ -211,4 +209,4 @@ async function isRelevant(record, keyword) {
   return passesNegatives(descOf(record), parseNegatives(keyword.negativos));
 }
 
-module.exports = { parseNegatives, passesNegatives, filterRelevant, isRelevant, AI_ON, EMBED_ON };
+module.exports = { parseNegatives, passesNegatives, filterRelevant, isRelevant, AI_ON_ENV, EMBED_ON };

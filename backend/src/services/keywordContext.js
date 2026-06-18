@@ -5,10 +5,11 @@
 //   • negativos — termos de itens que compartilham a palavra mas NÃO interessam
 //     (homônimos / usos adjacentes), para descarte determinístico barato (camada T0).
 //
-// Reusa o mesmo acesso à API da Anthropic já usado em ingest/relevance.js
-// (fetch + x-api-key + anthropic-version), sem novas dependências.
+// Usa o provedor de IA configurado pelo tenant nas Configurações (services/aiConfig)
+// via cliente agnóstico (services/llm) — Anthropic, OpenAI, Gemini, Grok ou DeepSeek.
 
-const MODEL = process.env.KEYWORD_SUGGEST_MODEL || process.env.INGEST_AI_MODEL || 'claude-haiku-4-5-20251001';
+const { chat } = require('./llm');
+const { loadAiConfig } = require('./aiConfig');
 
 const SYSTEM = [
   'Você ajuda a configurar a captação automática de licitações públicas no Brasil.',
@@ -27,50 +28,38 @@ const SYSTEM = [
 ].join('\n');
 
 /**
- * @param {object} p  { termo, produto?, negocio? }
+ * @param {string} companyId  tenant (define qual provedor/chave usar)
+ * @param {object} p          { termo, produto?, negocio? }
  * @returns {Promise<{ contexto: string, negativos: string }>}  negativos como CSV
  */
-async function suggestContext({ termo, produto, negocio }) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    const e = new Error('Sugestão por IA indisponível: configure ANTHROPIC_API_KEY.');
+async function suggestContext(companyId, { termo, produto, negocio }) {
+  const ai = await loadAiConfig(companyId);
+  if (!ai.apiKey) {
+    const e = new Error('Sugestão por IA indisponível: configure um provedor de IA em Configurações → Inteligência Artificial.');
     e.code = 'AI_OFF';
     throw e;
   }
+
   const userMsg =
     `TERMO BUSCADO: ${termo}\n` +
     `RÓTULO/PRODUTO: ${produto || '(não informado)'}\n` +
     `NEGÓCIO DO FORNECEDOR: ${negocio || '(não informado — infira pelo termo/produto)'}\n\n` +
     'Gere o contexto do negócio e a lista de negativos.';
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 600,
-      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: userMsg }],
-    }),
-  });
-  if (!res.ok) throw new Error(`Anthropic ${res.status}`);
-  const data = await res.json();
-  const txt = (data && data.content && data.content[0] && data.content[0].text || '').trim();
+  const txt = (await chat({
+    provider: ai.provider, apiKey: ai.apiKey, model: ai.model,
+    system: SYSTEM, user: userMsg, maxTokens: 600,
+  })).trim();
+
   const m = txt.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('Resposta da IA sem JSON reconhecível.');
-
   let parsed;
   try { parsed = JSON.parse(m[0]); } catch { throw new Error('Resposta da IA não é JSON válido.'); }
-  const contexto = String(parsed.contexto || '').trim();
-  const neg = Array.isArray(parsed.negativos)
-    ? parsed.negativos
-    : String(parsed.negativos || '').split(',');
-  const negativos = neg.map((s) => String(s).trim()).filter(Boolean).join(', ');
 
+  const contexto = String(parsed.contexto || '').trim();
+  const neg = Array.isArray(parsed.negativos) ? parsed.negativos : String(parsed.negativos || '').split(',');
+  const negativos = neg.map((s) => String(s).trim()).filter(Boolean).join(', ');
   return { contexto, negativos };
 }
 
-module.exports = { suggestContext, MODEL };
+module.exports = { suggestContext };
