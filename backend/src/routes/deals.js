@@ -212,6 +212,29 @@ router.post('/:id/participate', auth, resolveScope, async (req, res) => {
 //  Arquivos do deal (aba "Arquivos") — edital/ata copiados + uploads manuais
 // ════════════════════════════════════════════════════════════════════════════
 const { v4: uuidv4 } = require('uuid');
+const marketDocs = require('../marketDocs');
+
+/** Lista os arquivos de edital/ata do PNCP da licitação de origem (mi_controle). */
+async function pncpFilesFor(deal) {
+  if (!deal.mi_controle) return [];
+  let ctrl = null;
+  try {
+    const [mi] = await db.query('SELECT url_site FROM market_intelligence WHERE pncp_controle = ? LIMIT 1', [deal.mi_controle]);
+    if (mi.length) ctrl = marketDocs.parseControle(mi[0].url_site);
+  } catch { return []; }
+  if (!ctrl) return [];
+  const out = [];
+  for (const tipo of ['edital', 'ata']) {
+    try {
+      const files = await marketDocs.listFiles(deal.company_id, deal.mi_controle, tipo, ctrl);
+      files.forEach((f) => out.push({
+        id: `pncp:${tipo}:${f.idx}`, fileName: f.name, mimeType: f.mime, fileSize: f.size,
+        kind: tipo, viewable: !!f.viewable, url: null, source: 'pncp', createdAt: null,
+      }));
+    } catch { /* tipo indisponível no PNCP — ignora */ }
+  }
+  return out;
+}
 
 /** Carrega o deal e valida acesso; retorna a linha ou responde erro. */
 async function dealOr403(req, res) {
@@ -221,29 +244,56 @@ async function dealOr403(req, res) {
   return rows[0];
 }
 
-// GET /api/deals/:id/files — lista (sem o blob)
+// GET /api/deals/:id/files — lista (sem o blob): edital/ata do PNCP + uploads/links
 router.get('/:id/files', auth, resolveScope, async (req, res) => {
   try {
-    if (!(await dealOr403(req, res))) return;
+    const deal = await dealOr403(req, res);
+    if (!deal) return;
     const [files] = await db.query(
-      `SELECT id, file_name, mime_type, file_size, kind, viewable, created_at
+      `SELECT id, file_name, mime_type, file_size, kind, viewable, file_url, created_at
          FROM deal_files WHERE deal_id = ? ORDER BY kind, created_at`,
       [req.params.id]
     );
-    res.json(files.map((f) => ({
+    const dealFiles = files.map((f) => ({
       id: f.id, fileName: f.file_name, mimeType: f.mime_type, fileSize: f.file_size,
-      kind: f.kind || 'outro', viewable: !!f.viewable, createdAt: f.created_at,
-    })));
+      kind: f.kind || 'outro', viewable: !!f.viewable,
+      url: f.file_url || null, source: 'deal', createdAt: f.created_at,
+    }));
+    // edital/ata do PNCP sempre presentes (não removíveis); à frente os uploads.
+    let pncp = [];
+    try { pncp = await pncpFilesFor(deal); } catch { /* best-effort */ }
+    res.json([...pncp, ...dealFiles]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/deals/:id/files/:fileId/content — serve os bytes (inline se PDF)
+// GET /api/deals/:id/files/:fileId/content — serve os bytes (inline se PDF).
+// Para ids "pncp:tipo:idx", busca/serve o edital/ata do PNCP (cache).
 router.get('/:id/files/:fileId/content', auth, resolveScope, async (req, res) => {
   try {
-    if (!(await dealOr403(req, res))) return;
+    const deal = await dealOr403(req, res);
+    if (!deal) return;
+    const fid = req.params.fileId;
+
+    if (fid.startsWith('pncp:')) {
+      const [, tipo, idxStr] = fid.split(':');
+      const idx = parseInt(idxStr, 10) || 0;
+      let ctrl = null;
+      if (deal.mi_controle) {
+        const [mi] = await db.query('SELECT url_site FROM market_intelligence WHERE pncp_controle = ? LIMIT 1', [deal.mi_controle]);
+        if (mi.length) ctrl = marketDocs.parseControle(mi[0].url_site);
+      }
+      if (!ctrl) return res.status(404).json({ error: 'Documento indisponível' });
+      const f = await marketDocs.getFile(deal.company_id, deal.mi_controle, tipo, idx, ctrl);
+      if (!f) return res.status(404).json({ error: 'Documento indisponível no PNCP' });
+      res.setHeader('Content-Type', f.mime || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `${f.viewable ? 'inline' : 'attachment'}; filename="${encodeURIComponent(f.filename || 'documento')}"`);
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      return res.send(f.buf);
+    }
+
     const [rows] = await db.query(
       'SELECT file_name, mime_type, viewable, conteudo FROM deal_files WHERE id = ? AND deal_id = ?',
-      [req.params.fileId, req.params.id]
+      [fid, req.params.id]
     );
     if (!rows.length || !rows[0].conteudo) return res.status(404).json({ error: 'Arquivo não encontrado' });
     const f = rows[0];
@@ -254,19 +304,37 @@ router.get('/:id/files/:fileId/content', auth, resolveScope, async (req, res) =>
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/deals/:id/files  body { fileName, mime, dataBase64 } — upload manual
+// POST /api/deals/:id/files — anexa um arquivo: categoria (kind) + nome + arquivo
+// (dataBase64) OU link externo (url).
 router.post('/:id/files', auth, resolveScope, async (req, res) => {
   try {
     if (!(await dealOr403(req, res))) return;
-    const { fileName, mime, dataBase64 } = req.body || {};
-    if (!fileName || !dataBase64) return res.status(400).json({ error: 'fileName e dataBase64 obrigatórios' });
+    const { fileName, name, mime, dataBase64, url, kind } = req.body || {};
+    const nm = String(name || fileName || '').trim();
+    // categoria livre, normalizada (edital/ata/proposta/contrato/outro…)
+    const k = (String(kind || 'outro').toLowerCase().replace(/[^a-z0-9_]+/g, '').slice(0, 30)) || 'outro';
+    const id = uuidv4();
+
+    // Link externo
+    if (url && String(url).trim()) {
+      const u = String(url).trim().slice(0, 1000);
+      const viewable = /\.pdf(\?|$)/i.test(u) ? 1 : 0;
+      await db.query(
+        `INSERT INTO deal_files (id, deal_id, file_name, file_url, file_size, mime_type, uploaded_by, kind, viewable, conteudo)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [id, req.params.id, (nm || u).slice(0, 250), u, 0, viewable ? 'application/pdf' : 'text/uri-list', req.scope.userId, k, viewable, null]
+      );
+      return res.status(201).json({ ok: true, id });
+    }
+
+    // Upload de arquivo
+    if (!nm || !dataBase64) return res.status(400).json({ error: 'Informe o nome e o arquivo (ou um link externo).' });
     const buf = Buffer.from(String(dataBase64).replace(/^data:[^;]+;base64,/, ''), 'base64');
     const isPdf = buf.slice(0, 5).toString('latin1') === '%PDF-';
-    const id = uuidv4();
     await db.query(
       `INSERT INTO deal_files (id, deal_id, file_name, file_url, file_size, mime_type, uploaded_by, kind, viewable, conteudo)
        VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [id, req.params.id, String(fileName).slice(0, 250), '', buf.length, mime || (isPdf ? 'application/pdf' : 'application/octet-stream'), req.scope.userId, 'outro', isPdf ? 1 : 0, buf]
+      [id, req.params.id, nm.slice(0, 250), '', buf.length, mime || (isPdf ? 'application/pdf' : 'application/octet-stream'), req.scope.userId, k, isPdf ? 1 : 0, buf]
     );
     res.status(201).json({ ok: true, id });
   } catch (e) { res.status(500).json({ error: e.message }); }
