@@ -18,8 +18,18 @@ function dueStatus(c: FinanceCompany): { label: string; color: string } {
   return { label: 'Em dia', color: COLORS.success };
 }
 
-/** Tela financeira (admin): KPIs, lista de empresas tenants com licenças/cobranças e modal de detalhe. */
+const MASTER_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+
+/** Roteia a tela de Financeiro: empresa Default vê o painel admin (gerencia todas
+ *  as empresas); demais empresas veem o autoatendimento das próprias licenças. */
 export default function FinanceScreen() {
+  const user = useAuthStore((s) => s.user);
+  if (user && user.companyId !== MASTER_COMPANY_ID) return <TenantFinanceScreen />;
+  return <AdminFinanceScreen />;
+}
+
+/** Tela financeira (admin Default): KPIs, lista de empresas tenants com licenças/cobranças e modal de detalhe. */
+function AdminFinanceScreen() {
   const user = useAuthStore((s) => s.user);
   const { companies, isLoading, loadCompanies } = useFinanceStore();
 
@@ -481,6 +491,128 @@ function LicensePurchaseRow({ purchase, onConfirm }: { purchase: LicensePurchase
     </View>
   );
 }
+
+// ─── Autoatendimento do tenant (empresa não-Default) ──────────────────────────
+/** Dashboard de licenças da própria empresa: contratadas, em uso, valor unitário
+ *  (definido pela Default) e botão para contratar mais licenças. */
+function TenantFinanceScreen() {
+  const { mySummary, loadMySummary, contractLicenses } = useFinanceStore();
+  const [showBuy, setShowBuy] = useState(false);
+  const [qty, setQty] = useState('1');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { loadMySummary(); }, []);
+
+  const c = mySummary?.company;
+  const purchases = mySummary?.licensePurchases ?? [];
+  const unit = c?.licensePriceCents ?? 0;
+  const contracted = c?.purchasedLicenses ?? 0;
+  const active = c?.activeLicenses ?? 0;
+  const monthly = contracted * unit;
+  const buyQty = Math.max(1, parseInt(qty, 10) || 0);
+
+  const handleBuy = async () => {
+    setBusy(true);
+    try { await contractLicenses(buyQty); setShowBuy(false); setQty('1'); }
+    catch { if (Platform.OS === 'web') window.alert('Não foi possível enviar o pedido.'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <ScrollView style={ts.screen} contentContainerStyle={{ padding: SPACING.lg }}>
+      <Text style={ts.title}>Licenças</Text>
+      <Text style={ts.sub}>{c?.name ?? 'Sua empresa'}</Text>
+
+      {c?.isBlocked && (
+        <View style={ts.alert}><Text style={ts.alertTxt}>⛔  Acesso bloqueado — entre em contato com o setor financeiro.</Text></View>
+      )}
+      {c?.onTrial && (
+        <View style={ts.trial}><Text style={ts.trialTxt}>⏳  Período de teste — faltam {c.trialDaysLeft} dia(s).</Text></View>
+      )}
+
+      <View style={ts.kpiRow}>
+        <View style={ts.kpi}><Text style={ts.kpiVal}>{contracted}</Text><Text style={ts.kpiLbl}>Licenças contratadas</Text></View>
+        <View style={ts.kpi}><Text style={ts.kpiVal}>{active}</Text><Text style={ts.kpiLbl}>Licenças em uso</Text></View>
+        <View style={ts.kpi}><Text style={ts.kpiVal}>{formatCents(unit)}</Text><Text style={ts.kpiLbl}>Valor por licença</Text></View>
+        <View style={ts.kpi}><Text style={ts.kpiVal}>{formatCents(monthly)}</Text><Text style={ts.kpiLbl}>Total mensal</Text></View>
+      </View>
+
+      {contracted > 0 && active > contracted && (
+        <Text style={ts.warn}>⚠  Você usa {active} licenças, acima das {contracted} contratadas. Contrate mais para regularizar.</Text>
+      )}
+
+      <Pressable style={ts.buyBtn} onPress={() => setShowBuy(true)}>
+        <Text style={ts.buyTxt}>+  Contratar mais licenças</Text>
+      </Pressable>
+
+      <Text style={ts.section}>Pedidos de contratação</Text>
+      {purchases.length === 0 && <Text style={ts.muted}>Nenhum pedido ainda.</Text>}
+      {purchases.map((p) => (
+        <View key={p.id} style={ts.pRow}>
+          <Text style={ts.pQty}>{p.quantity} licença(s)</Text>
+          <Text style={ts.pVal}>{formatCents(p.totalCents)}</Text>
+          <Text style={[ts.pStatus, { color: p.status === 'paid' ? COLORS.success : COLORS.gray[500] }]}>
+            {p.status === 'paid' ? 'Confirmado' : p.status === 'pending' ? 'Aguardando confirmação' : p.status}
+          </Text>
+        </View>
+      ))}
+
+      <Modal visible={showBuy} transparent animationType="fade" onRequestClose={() => setShowBuy(false)}>
+        <View style={ts.overlay}>
+          <Pressable style={ts.backdrop} onPress={() => setShowBuy(false)} />
+          <View style={ts.sheet}>
+            <Text style={ts.mTitle}>Contratar licenças</Text>
+            <Text style={ts.label}>Quantidade</Text>
+            <TextInput style={ts.input} value={qty} onChangeText={setQty} keyboardType="numeric" placeholder="1" />
+            <Text style={ts.total}>Total: {formatCents(buyQty * unit)}  ·  {formatCents(unit)} por licença</Text>
+            <Text style={ts.muted}>O pedido é enviado para confirmação do setor financeiro.</Text>
+            <View style={ts.mBtns}>
+              <Pressable style={ts.cancel} onPress={() => setShowBuy(false)}><Text style={ts.cancelTxt}>Cancelar</Text></Pressable>
+              <Pressable style={[ts.confirm, busy && { opacity: 0.5 }]} onPress={handleBuy} disabled={busy}>
+                <Text style={ts.confirmTxt}>{busy ? 'Enviando…' : 'Contratar'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
+  );
+}
+
+const ts = StyleSheet.create({
+  screen:   { flex: 1, backgroundColor: COLORS.gray[50] },
+  title:    { fontSize: FONTS['2xl'], fontWeight: '800', color: COLORS.gray[900] },
+  sub:      { fontSize: FONTS.base, color: COLORS.gray[500], marginTop: 2, marginBottom: SPACING.lg },
+  alert:    { backgroundColor: '#fef2f2', borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.md, borderWidth: 1, borderColor: '#fecaca' },
+  alertTxt: { color: COLORS.danger, fontWeight: '700', fontSize: FONTS.sm },
+  trial:    { backgroundColor: '#fffbeb', borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.md, borderWidth: 1, borderColor: '#fcd34d' },
+  trialTxt: { color: '#92400e', fontWeight: '700', fontSize: FONTS.sm },
+  kpiRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md },
+  kpi:      { flexGrow: 1, minWidth: 150, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[100], padding: SPACING.lg },
+  kpiVal:   { fontSize: FONTS.xl, fontWeight: '800', color: COLORS.gray[900] },
+  kpiLbl:   { fontSize: FONTS.sm, color: COLORS.gray[500], marginTop: 4 },
+  warn:     { color: '#b45309', fontWeight: '700', fontSize: FONTS.sm, marginTop: SPACING.md },
+  buyBtn:   { marginTop: SPACING.lg, alignSelf: 'flex-start', backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  buyTxt:   { color: COLORS.white, fontWeight: '800', fontSize: FONTS.base },
+  section:  { fontSize: FONTS.lg, fontWeight: '800', color: COLORS.gray[800], marginTop: SPACING.xl, marginBottom: SPACING.sm },
+  muted:    { fontSize: FONTS.sm, color: COLORS.gray[400] },
+  pRow:     { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[100], paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, marginBottom: SPACING.xs },
+  pQty:     { flex: 1, fontSize: FONTS.base, color: COLORS.gray[800], fontWeight: '600' },
+  pVal:     { fontSize: FONTS.base, color: COLORS.gray[700], fontWeight: '700' },
+  pStatus:  { fontSize: FONTS.sm, fontWeight: '700', width: 170, textAlign: 'right' },
+  overlay:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  backdrop: { position: 'absolute' as any, inset: 0, backgroundColor: 'rgba(0,0,0,0.5)' } as any,
+  sheet:    { width: 420, maxWidth: '92%' as any, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: SPACING.xl },
+  mTitle:   { fontSize: FONTS.xl, fontWeight: '800', color: COLORS.gray[900], marginBottom: SPACING.md },
+  label:    { fontSize: FONTS.sm, fontWeight: '600', color: COLORS.gray[700], marginBottom: 4 },
+  input:    { borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, fontSize: FONTS.lg, color: COLORS.gray[900] },
+  total:    { fontSize: FONTS.base, color: COLORS.gray[800], fontWeight: '700', marginTop: SPACING.md },
+  mBtns:    { flexDirection: 'row', justifyContent: 'flex-end', gap: SPACING.sm, marginTop: SPACING.lg },
+  cancel:   { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: COLORS.gray[100] },
+  cancelTxt:{ color: COLORS.gray[600], fontWeight: '600' },
+  confirm:  { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: COLORS.primary },
+  confirmTxt:{ color: COLORS.white, fontWeight: '700' },
+});
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 

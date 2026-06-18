@@ -379,6 +379,56 @@ router.post('/license-purchases/:id/confirm', auth, requireAdmin, async (req, re
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── Autoatendimento do tenant (qualquer usuário autenticado, sua própria empresa) ──
+// Empresas que NÃO são a Default veem um resumo das suas licenças e podem contratar
+// mais. O preço unitário é o que a Default configurou para a empresa.
+
+// GET /my-summary — resumo de licenças/cobrança da própria empresa.
+router.get('/my-summary', auth, async (req, res) => {
+  const companyId = req.user.company_id;
+  if (!companyId) return res.status(400).json({ error: 'Sem empresa ativa' });
+  try {
+    const [crows] = await db.query(
+      `SELECT c.*, COALESCE(u.active_count, 0) AS active_licenses
+         FROM companies c
+         LEFT JOIN (
+           SELECT company_id, COUNT(*) AS active_count FROM users WHERE is_active = 1 GROUP BY company_id
+         ) u ON u.company_id = c.id
+        WHERE c.id = ?`,
+      [companyId]
+    );
+    if (!crows.length) return res.status(404).json({ error: 'Empresa não encontrada' });
+    const [purchases] = await db.query(
+      `SELECT * FROM company_license_purchases WHERE company_id = ? ORDER BY created_at DESC LIMIT 20`,
+      [companyId]
+    );
+    res.json({ company: fmtCompany(crows[0]), licensePurchases: purchases.map(fmtLicensePurchase) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /my-summary/license-purchases — a empresa contrata N licenças (pedido pendente).
+// Preço unitário = license_price_cents definido pela Default. A confirmação do
+// pagamento (gateway/manual) incrementa as licenças contratadas.
+router.post('/my-summary/license-purchases', auth, async (req, res) => {
+  const companyId = req.user.company_id;
+  const q = Math.max(1, parseInt(req.body?.quantity, 10) || 0);
+  if (!companyId) return res.status(400).json({ error: 'Sem empresa ativa' });
+  if (!q) return res.status(400).json({ error: 'Informe a quantidade de licenças' });
+  try {
+    const [crows] = await db.query('SELECT license_price_cents FROM companies WHERE id = ?', [companyId]);
+    if (!crows.length) return res.status(404).json({ error: 'Empresa não encontrada' });
+    const p = Number(crows[0].license_price_cents || 0); // preço definido pela Default
+    const id = uuidv4();
+    await db.query(
+      `INSERT INTO company_license_purchases (id, company_id, quantity, unit_price_cents, total_cents)
+       VALUES (?, ?, ?, ?, ?)`,
+      [id, companyId, q, p, q * p]
+    );
+    const [rows] = await db.query('SELECT * FROM company_license_purchases WHERE id = ?', [id]);
+    res.status(201).json(fmtLicensePurchase(rows[0]));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
 module.exports.reconcileBlock = reconcileBlock;
 module.exports.reconcileAll   = reconcileAll;

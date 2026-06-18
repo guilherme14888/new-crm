@@ -221,6 +221,8 @@ export interface User {
   onTrial?: boolean;
   trialDaysLeft?: number | null;
   trialEndsAt?: string | null;
+  // Permissões do perfil ACL (null = sem restrição / admin). Usado p/ filtrar menus.
+  permissions?: Record<string, boolean> | null;
 }
 
 export interface CRMUser extends User {

@@ -12,7 +12,7 @@ import { useCustomFieldStore } from '../../src/stores/customFieldStore';
 import { useProductStore } from '../../src/stores/productStore';
 import { useCRMUserStore } from '../../src/stores/crmUserStore';
 import { useTeamStore, Team, TeamMember } from '../../src/stores/teamStore';
-import { useACLProfileStore, ACLProfile, ACLPermissions, DEFAULT_PERMISSIONS, PERMISSION_LABELS } from '../../src/stores/aclProfileStore';
+import { useACLProfileStore, ACLProfile, ACLPermissions, DEFAULT_PERMISSIONS, PERMISSION_LABELS, MENU_PERMISSION_KEYS } from '../../src/stores/aclProfileStore';
 import { useCompanyStore, Company } from '../../src/stores/companyStore';
 import { useCompanyAttrStore, AttrKey, CompanyAttr } from '../../src/stores/companyAttrStore';
 import { useCitiesStore } from '../../src/stores/citiesStore';
@@ -1175,6 +1175,10 @@ const acl = StyleSheet.create({
   checkboxActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkmark:      { color: COLORS.white, fontSize: 13, fontWeight: '700', marginTop: -1 },
   permLabel:      { fontSize: FONTS.sm, color: COLORS.gray[700], flex: 1 },
+  toggle:         { width: 42, height: 24, borderRadius: 12, backgroundColor: COLORS.gray[300], padding: 3, justifyContent: 'center' },
+  toggleOn:       { backgroundColor: COLORS.primary },
+  knob:           { width: 18, height: 18, borderRadius: 9, backgroundColor: COLORS.white },
+  knobOn:         { alignSelf: 'flex-end' },
   footer:         { flexDirection: 'row', justifyContent: 'flex-end', gap: SPACING.sm, padding: SPACING.lg, borderTopWidth: 1, borderTopColor: COLORS.gray[100] },
   cancelBtn:      { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: COLORS.gray[100] },
   cancelTxt:      { color: COLORS.gray[600], fontWeight: '600' },
@@ -2505,7 +2509,9 @@ export default function SettingsScreen() {
               />
 
               <Text style={acl.sectionLabel}>Permissões</Text>
-              {(Object.keys(PERMISSION_LABELS) as (keyof ACLPermissions)[]).map((key) => (
+              {(Object.keys(PERMISSION_LABELS) as (keyof ACLPermissions)[])
+                .filter((key) => !MENU_PERMISSION_KEYS.includes(key))
+                .map((key) => (
                 <Pressable
                   key={key}
                   style={acl.permRow}
@@ -2517,6 +2523,22 @@ export default function SettingsScreen() {
                   <Text style={acl.permLabel}>{PERMISSION_LABELS[key]}</Text>
                 </Pressable>
               ))}
+
+              <Text style={[acl.sectionLabel, { marginTop: SPACING.lg }]}>Menus visíveis na barra lateral</Text>
+              <Text style={{ fontSize: FONTS.xs, color: COLORS.gray[400], marginBottom: SPACING.sm }}>
+                Desligue para ocultar o menu deste perfil.
+              </Text>
+              {MENU_PERMISSION_KEYS.map((key) => {
+                const on = aclPerms[key] !== false;
+                return (
+                  <Pressable key={key} style={acl.permRow} onPress={() => setAclPerms((p) => ({ ...p, [key]: !on }))}>
+                    <Text style={[acl.permLabel, { flex: 1 }]}>{PERMISSION_LABELS[key]}</Text>
+                    <View style={[acl.toggle, on && acl.toggleOn]}>
+                      <View style={[acl.knob, on && acl.knobOn]} />
+                    </View>
+                  </Pressable>
+                );
+              })}
 
               <Text style={[acl.sectionLabel, { marginTop: SPACING.lg }]}>Funis com acesso</Text>
               <Text style={{ fontSize: FONTS.xs, color: COLORS.gray[400], marginBottom: SPACING.sm }}>

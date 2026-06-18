@@ -12,24 +12,24 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme';
 export const SIDEBAR_W  = 220;
 export const SIDEBAR_COL = 64;
 
-interface NavItem { label: string; icon: string; href: string; children?: NavItem[] }
+interface NavItem { label: string; icon: string; href: string; children?: NavItem[]; menuKey?: string }
 
 const BASE_NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard',     icon: '📊', href: '/(app)/(tabs)/dashboard' },
-  { label: 'Órgãos',         icon: '👥', href: '/(app)/(tabs)/contacts' },
-  { label: 'Boletim',       icon: '📰', href: '/(app)/boletim' },
-  { label: 'Licitações',   icon: '🤝', href: '/(app)/(tabs)/negotiations' },
-  { label: 'Relatórios',    icon: '📈', href: '/(app)/reports' },
+  { label: 'Dashboard',     icon: '📊', href: '/(app)/(tabs)/dashboard', menuKey: 'menu_dashboard' },
+  { label: 'Órgãos',         icon: '👥', href: '/(app)/(tabs)/contacts', menuKey: 'menu_contacts' },
+  { label: 'Boletim',       icon: '📰', href: '/(app)/boletim', menuKey: 'menu_boletim' },
+  { label: 'Licitações',   icon: '🤝', href: '/(app)/(tabs)/negotiations', menuKey: 'menu_negotiations' },
+  { label: 'Relatórios',    icon: '📈', href: '/(app)/reports', menuKey: 'menu_reports' },
   {
-    label: 'Inteligência de Mercado', icon: '🧠', href: '/(app)/market-intelligence',
+    label: 'Inteligência de Mercado', icon: '🧠', href: '/(app)/market-intelligence', menuKey: 'menu_market_intelligence',
     children: [
       { label: 'Dashboard', icon: '📊', href: '/(app)/market-intelligence/dashboard' },
       { label: 'Listagem',  icon: '📋', href: '/(app)/market-intelligence/listagem' },
     ],
   },
 ];
-const SETTINGS_NAV: NavItem = { label: 'Configurações', icon: '⚙️', href: '/(app)/settings' };
-const FINANCE_NAV: NavItem  = { label: 'Financeiro',     icon: '💰', href: '/(app)/finance'  };
+const SETTINGS_NAV: NavItem = { label: 'Configurações', icon: '⚙️', href: '/(app)/settings', menuKey: 'menu_settings' };
+const FINANCE_NAV: NavItem  = { label: 'Financeiro',     icon: '💰', href: '/(app)/finance', menuKey: 'menu_finance' };
 
 // ─── Company Switcher Modal ───────────────────────────────────────────────────
 /** Modal para alternar entre empresas/tenants: lista as empresas disponíveis e troca o contexto recarregando dados. */
@@ -241,11 +241,15 @@ export function Sidebar() {
   const setMobileOpen   = useUIStore((s) => s.setSidebarMobileOpen);
 
   const isAdmin         = user?.role === 'admin';
+  const canFinance      = user?.role === 'admin' || user?.role === 'manager';
+  // Visibilidade por perfil ACL: menu aparece a menos que explicitamente desligado.
+  const perms = user?.permissions;
+  const menuVisible = (key?: string) => !key || !perms || perms[key] !== false;
   const NAV_ITEMS = [
     ...BASE_NAV_ITEMS,
     SETTINGS_NAV,                       // sempre visível (configurações por tenant)
-    ...(isAdmin ? [FINANCE_NAV] : []),
-  ];
+    ...(canFinance ? [FINANCE_NAV] : []),
+  ].filter((item) => menuVisible(item.menuKey));
 
   const [menuOpen, setMenuOpen]                   = useState(false);
   const [showCompanySwitcher, setShowCompanySwitcher] = useState(false);

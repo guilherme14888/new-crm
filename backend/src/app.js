@@ -29,6 +29,7 @@ app.use('/api/companies',        require('./routes/companies'));
 app.use('/api/company-attrs',    require('./routes/companyAttributes'));
 app.use('/api/locations',        require('./routes/locations'));
 app.use('/api/admin/finance',    require('./routes/finance'));
+app.use('/api/finance',          require('./routes/finance'));  // autoatendimento do tenant (/my-summary)
 app.use('/api/payment-webhooks', require('./routes/paymentWebhooks'));
 app.use('/api/acl-profiles',     require('./routes/aclProfiles'));
 app.use('/api/market-intelligence', require('./routes/marketIntelligence'));

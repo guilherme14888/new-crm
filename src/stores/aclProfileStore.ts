@@ -24,7 +24,22 @@ export interface ACLPermissions {
   // Financeiro
   billing_manage: boolean;
   trial_manage: boolean;
+  // Visibilidade dos menus da barra lateral (true = visível)
+  menu_dashboard: boolean;
+  menu_contacts: boolean;
+  menu_boletim: boolean;
+  menu_negotiations: boolean;
+  menu_reports: boolean;
+  menu_market_intelligence: boolean;
+  menu_settings: boolean;
+  menu_finance: boolean;
 }
+
+/** Chaves de visibilidade de menu (renderizadas como toggles, default visível). */
+export const MENU_PERMISSION_KEYS: (keyof ACLPermissions)[] = [
+  'menu_dashboard', 'menu_contacts', 'menu_boletim', 'menu_negotiations',
+  'menu_reports', 'menu_market_intelligence', 'menu_settings', 'menu_finance',
+];
 
 export const DEFAULT_PERMISSIONS: ACLPermissions = {
   leads_delete: false,
@@ -46,6 +61,14 @@ export const DEFAULT_PERMISSIONS: ACLPermissions = {
   ingestion_trigger: false,
   billing_manage: false,
   trial_manage: false,
+  menu_dashboard: true,
+  menu_contacts: true,
+  menu_boletim: true,
+  menu_negotiations: true,
+  menu_reports: true,
+  menu_market_intelligence: true,
+  menu_settings: true,
+  menu_finance: true,
 };
 
 export const PERMISSION_LABELS: Record<keyof ACLPermissions, string> = {
@@ -68,6 +91,14 @@ export const PERMISSION_LABELS: Record<keyof ACLPermissions, string> = {
   ingestion_trigger: 'Disparar coleta de licitações',
   billing_manage: 'Gerenciar Financeiro',
   trial_manage: 'Gerenciar período de teste',
+  menu_dashboard: 'Dashboard',
+  menu_contacts: 'Órgãos',
+  menu_boletim: 'Boletim',
+  menu_negotiations: 'Licitações',
+  menu_reports: 'Relatórios',
+  menu_market_intelligence: 'Inteligência de Mercado',
+  menu_settings: 'Configurações',
+  menu_finance: 'Financeiro',
 };
 
 export interface ACLProfile {

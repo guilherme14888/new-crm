@@ -27,7 +27,7 @@ function makeToken(user, activeCompanyId) {
 }
 
 /** Serializa um usuário para o cliente, expondo apenas campos seguros (sem hash de senha). */
-function safeUser(u, activeCompanyId, companyName = null, trialSrc = u) {
+function safeUser(u, activeCompanyId, companyName = null, trialSrc = u, permissions = null) {
   const t = trialStatus(trialSrc || {});
   return {
     id:          u.id,
@@ -35,13 +35,25 @@ function safeUser(u, activeCompanyId, companyName = null, trialSrc = u) {
     displayName: u.display_name,
     avatarUrl:   u.avatar_url,
     role:        u.role,
+    aclProfileId: u.acl_profile_id ?? null,
     companyId:   activeCompanyId ?? u.company_id,
     companyName: companyName ?? u.company_name ?? null,
     teamId:      u.team_id ?? null,
     onTrial:       t.onTrial,
     trialDaysLeft: t.trialDaysLeft,
     trialEndsAt:   t.trialEndsAt,
+    permissions,            // {chave: bool} do perfil ACL; null = sem restrição (admin/sem perfil)
   };
+}
+
+/** Carrega as permissões do perfil ACL do usuário. Admin → null (tudo liberado). */
+async function loadPermissions(u) {
+  if (!u || u.role === 'admin' || !u.acl_profile_id) return null;
+  try {
+    const [r] = await db.query('SELECT permissions FROM acl_profiles WHERE id = ?', [u.acl_profile_id]);
+    if (!r.length) return null;
+    return typeof r[0].permissions === 'string' ? JSON.parse(r[0].permissions) : (r[0].permissions || null);
+  } catch { return null; }
 }
 
 // POST /api/auth/login — autentica por email/senha, valida bloqueio da empresa e retorna token + usuário
@@ -83,7 +95,8 @@ router.post('/login', async (req, res) => {
 
     const token = makeToken(user, user.company_id);
     audit(req, { action: 'login', resource: 'users', resourceId: user.id });
-    res.json({ token, user: safeUser(user, user.company_id) });
+    const permissions = await loadPermissions(user);
+    res.json({ token, user: safeUser(user, user.company_id, null, user, permissions) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -99,7 +112,8 @@ router.get('/me', authMw, async (req, res) => {
       [req.user.company_id, req.user.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Usuário não encontrado' });
-    res.json(safeUser(rows[0], req.user.company_id));
+    const permissions = await loadPermissions(rows[0]);
+    res.json(safeUser(rows[0], req.user.company_id, null, rows[0], permissions));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -125,12 +139,13 @@ router.post('/switch-company', authMw, async (req, res) => {
     const [userRows] = await db.query('SELECT * FROM users WHERE id = ?', [req.user.id]);
     const token = makeToken(userRows[0], companyId);
     audit(req, { action: 'switch_company', resource: 'companies', resourceId: companyId });
+    const permissions = await loadPermissions(userRows[0]);
     res.json({
       token,
       activeCompanyId: companyId,
       company: { id: companies[0].id, name: companies[0].name },
       // trial reflete a empresa para a qual trocou (companies[0] tem as colunas trial_*)
-      user: safeUser(userRows[0], companyId, companies[0].name, companies[0]),
+      user: safeUser(userRows[0], companyId, companies[0].name, companies[0], permissions),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -180,7 +195,8 @@ router.patch('/me', authMw, async (req, res) => {
   try {
     await db.query(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, vals);
     const [rows] = await db.query('SELECT * FROM users WHERE id = ?', [req.user.id]);
-    res.json(safeUser(rows[0], req.user.company_id));
+    const permissions = await loadPermissions(rows[0]);
+    res.json(safeUser(rows[0], req.user.company_id, null, rows[0], permissions));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -83,6 +83,11 @@ interface FinanceState {
 
   createLicensePurchase: (companyId: string, data: { quantity: number; unitPriceCents: number }) => Promise<LicensePurchase>;
   confirmLicensePurchase: (purchaseId: string, data?: { paymentProvider?: string; paymentProviderRef?: string }) => Promise<void>;
+
+  // Autoatendimento do tenant (empresa não-Default)
+  mySummary: { company: FinanceCompany; licensePurchases: LicensePurchase[] } | null;
+  loadMySummary: () => Promise<void>;
+  contractLicenses: (quantity: number) => Promise<void>;
 }
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
@@ -176,5 +181,24 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     });
     await get().loadDetail(updated.companyId);
     await get().loadCompanies();
+  },
+
+  // ── Autoatendimento (empresa não-Default) ──
+  mySummary: null,
+
+  /** Carrega o resumo de licenças da própria empresa do usuário. */
+  loadMySummary: async () => {
+    try {
+      const d = await apiFetch<{ company: FinanceCompany; licensePurchases: LicensePurchase[] }>('/api/finance/my-summary');
+      set({ mySummary: d });
+    } catch { /* sem acesso/erro — ignora */ }
+  },
+
+  /** Cria um pedido de contratação de N licenças para a própria empresa. */
+  contractLicenses: async (quantity) => {
+    await apiFetch('/api/finance/my-summary/license-purchases', {
+      method: 'POST', body: JSON.stringify({ quantity }),
+    });
+    await get().loadMySummary();
   },
 }));

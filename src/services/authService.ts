@@ -15,6 +15,7 @@ type AuthUserResponse = {
   onTrial?: boolean;
   trialDaysLeft?: number | null;
   trialEndsAt?: string | null;
+  permissions?: Record<string, boolean> | null;
 };
 
 /** Converte a resposta de usuário da API de autenticação para o modelo User do frontend. */
@@ -32,6 +33,7 @@ function mapUser(u: AuthUserResponse): User {
     onTrial: u.onTrial ?? false,
     trialDaysLeft: u.trialDaysLeft ?? null,
     trialEndsAt: u.trialEndsAt ?? null,
+    permissions: u.permissions ?? null,
   };
 }
 
