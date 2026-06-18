@@ -1,3 +1,10 @@
+# [1.21.0](https://github.com/guilherme14888/crm-br4/compare/v1.20.0...v1.21.0) (2026-06-18)
+
+
+### Features
+
+* **acl:** liga o enforcement das permissoes (requirePermission, fail-safe) ([073b7e8](https://github.com/guilherme14888/crm-br4/commit/073b7e8f860d1fcee533d4a462058d732c07ebff))
+
 # [1.20.0](https://github.com/guilherme14888/crm-br4/compare/v1.19.0...v1.20.0) (2026-06-18)
 
 
