@@ -1,3 +1,10 @@
+## [1.18.1](https://github.com/guilherme14888/crm-br4/compare/v1.18.0...v1.18.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* **ingest:** corrige relevancia com provedor configuravel (MODEL removido) ([6342b21](https://github.com/guilherme14888/crm-br4/commit/6342b21d16c9ea0d26068fc27bbafc39870a4e06))
+
 # [1.18.0](https://github.com/guilherme14888/crm-br4/compare/v1.17.0...v1.18.0) (2026-06-18)
 
 
