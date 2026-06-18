@@ -865,6 +865,7 @@ const s = StyleSheet.create({
   },
   modal: {
     backgroundColor: COLORS.white, overflow: 'hidden',
+    padding: 5,   // margem geral: conteúdo não cola nas bordas/pontas do modal
     shadowColor: '#000', shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.28, shadowRadius: 48, elevation: 24,
   },
