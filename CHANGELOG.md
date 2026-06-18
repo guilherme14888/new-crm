@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/guilherme14888/crm-br4/compare/v1.18.1...v1.19.0) (2026-06-18)
+
+
+### Features
+
+* IA global (Default-only), expansao do ACL e periodo de teste por tenant ([40d9841](https://github.com/guilherme14888/crm-br4/commit/40d98410fa85e5a58b77a440d4b20b5d5f5f35f4))
+
 ## [1.18.1](https://github.com/guilherme14888/crm-br4/compare/v1.18.0...v1.18.1) (2026-06-18)
 
 
