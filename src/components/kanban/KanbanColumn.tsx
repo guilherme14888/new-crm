@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, Dimensions, Platform } from 'react-native';
 import { Deal } from '../../types/models';
 import { FunnelStage } from '../../types/models';
@@ -45,6 +45,26 @@ export function KanbanColumn({
 
   const typeIcon = stage.type === 'won' ? '✓' : stage.type === 'lost' ? '✗' : '';
 
+  // Renderização incremental: começa com 10 cartões e carrega +10 ao rolar perto
+  // do fim. Como a própria lista de dados fica pequena (não só a renderização),
+  // a coluna não trava mesmo com centenas de cartões — independe da virtualização.
+  const STEP = 10;
+  const [visible, setVisible] = useState(STEP);
+  const prevLen = useRef(deals.length);
+  useEffect(() => {
+    // ao receber novos cartões (ex.: soltar um card aqui), revela-os
+    if (deals.length > prevLen.current) setVisible((v) => Math.min(deals.length, v + STEP));
+    else if (deals.length < visible) setVisible(Math.max(STEP, deals.length));
+    prevLen.current = deals.length;
+  }, [deals.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = deals.slice(0, visible);
+  const handleScroll = (e: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 160) {
+      setVisible((v) => (v < deals.length ? Math.min(v + STEP, deals.length) : v));
+    }
+  };
+
   const colRef = useRef<View>(null);
   // Retorna os limites atuais (x e largura) da coluna na web via getBoundingClientRect; null em outras plataformas.
   const getLiveBounds = (): { x: number; width: number } | null => {
@@ -86,7 +106,7 @@ export function KanbanColumn({
       {/* FlatList virtualiza: renderiza ~10 cartões e vai carregando de 10 em 10
           conforme rola (sem travar quando a coluna tem centenas de cartões). */}
       <FlatList
-        data={deals}
+        data={shown}
         keyExtractor={(d) => d.id}
         renderItem={({ item: deal }) => (
           <KanbanCard
@@ -102,12 +122,16 @@ export function KanbanColumn({
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator
         nestedScrollEnabled
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         initialNumToRender={10}
         maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={30}
         windowSize={11}
         removeClippedSubviews={false}
         ListEmptyComponent={<Text style={styles.empty}>Solte aqui</Text>}
+        ListFooterComponent={visible < deals.length ? (
+          <Text style={styles.more}>Carregando… ({visible}/{deals.length})</Text>
+        ) : null}
       />
     </View>
   );
@@ -168,6 +192,7 @@ const styles = StyleSheet.create({
     } : {}),
   },
   list: { padding: SPACING.sm, paddingBottom: SPACING.xl },
+  more: { textAlign: 'center', color: COLORS.gray[400], fontSize: FONTS.sm, paddingVertical: SPACING.sm },
   empty: {
     textAlign: 'center',
     color: COLORS.gray[300],

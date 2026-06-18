@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, Dimensions } from 'react-native';
 import { Deal } from '../../types/models';
 import { StageConfig } from '../../types/models';
@@ -19,6 +19,22 @@ interface Props {
 export function FunnelStage({ stage, deals, contactNames, onDealPress }: Props) {
   const totalValue = deals.reduce((sum, d) => sum + d.value, 0);
 
+  // Renderização incremental: 10 cartões e +10 ao rolar perto do fim.
+  const STEP = 10;
+  const [visible, setVisible] = useState(STEP);
+  const prevLen = useRef(deals.length);
+  useEffect(() => {
+    if (deals.length < visible) setVisible(Math.max(STEP, deals.length));
+    prevLen.current = deals.length;
+  }, [deals.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = deals.slice(0, visible);
+  const handleScroll = (e: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 160) {
+      setVisible((v) => (v < deals.length ? Math.min(v + STEP, deals.length) : v));
+    }
+  };
+
   return (
     <View style={[styles.column, { borderTopColor: stage.color }]}>
       <View style={styles.header}>
@@ -30,7 +46,7 @@ export function FunnelStage({ stage, deals, contactNames, onDealPress }: Props) 
         <Text style={styles.total}>{formatCurrency(totalValue)}</Text>
       </View>
       <FlatList
-        data={deals}
+        data={shown}
         keyExtractor={(d) => d.id}
         renderItem={({ item }) => (
           <FunnelDealCard
@@ -41,11 +57,15 @@ export function FunnelStage({ stage, deals, contactNames, onDealPress }: Props) 
         )}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.list}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         initialNumToRender={10}
         maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={30}
         windowSize={11}
         ListEmptyComponent={<Text style={styles.empty}>No deals</Text>}
+        ListFooterComponent={visible < deals.length ? (
+          <Text style={styles.more}>Carregando… ({visible}/{deals.length})</Text>
+        ) : null}
       />
     </View>
   );
@@ -76,5 +96,6 @@ const styles = StyleSheet.create({
   count: { fontSize: FONTS.sm, color: COLORS.gray[500] },
   total: { fontSize: FONTS.sm, fontWeight: '600', color: COLORS.gray[700] },
   list: { padding: SPACING.sm, paddingBottom: SPACING.xl },
+  more: { textAlign: 'center', color: COLORS.gray[400], paddingVertical: SPACING.sm, fontSize: FONTS.sm },
   empty: { textAlign: 'center', color: COLORS.gray[400], paddingVertical: SPACING.xl, fontSize: FONTS.sm },
 });
