@@ -1,3 +1,10 @@
+## [1.15.1](https://github.com/guilherme14888/crm-br4/compare/v1.15.0...v1.15.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* **ingest:** varredura PNCP resiliente a 429 (sem truncamento silencioso) ([7e0c5d6](https://github.com/guilherme14888/crm-br4/commit/7e0c5d6f89a4e865e4be3343c84b617b729f9053))
+
 # [1.15.0](https://github.com/guilherme14888/crm-br4/compare/v1.14.0...v1.15.0) (2026-06-17)
 
 
