@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
-const { requireAdmin } = require('../middleware/acl');
+const { requireMasterPermission } = require('../middleware/acl');
 const { v4: uuidv4 } = require('uuid');
 
 /** Serializa uma linha de empresa para o formato JSON da API, incluindo IDs de produtos vinculados. */
@@ -70,7 +70,7 @@ async function seedDefaultPipeline(companyId) {
 }
 
 // GET /api/companies — lista todas as empresas com contagem de usuários e produtos vinculados (admin)
-router.get('/', auth, requireAdmin, async (req, res) => {
+router.get('/', auth, requireMasterPermission('companies_manage'), async (req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT c.*, COUNT(u.id) AS user_count
@@ -95,7 +95,7 @@ router.get('/', auth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/companies — cria uma empresa, vincula produtos e popula o pipeline padrão (admin)
-router.post('/', auth, requireAdmin, async (req, res) => {
+router.post('/', auth, requireMasterPermission('companies_manage'), async (req, res) => {
   const {
     name, slug, plan = 'starter', cnpj,
     city, state, porteId, fornecimentoId, eixoId, segmentoId, produtoIds,
@@ -127,7 +127,7 @@ router.post('/', auth, requireAdmin, async (req, res) => {
 });
 
 // PATCH /api/companies/:id — atualiza campos da empresa e ressincroniza produtos vinculados (admin)
-router.patch('/:id', auth, requireAdmin, async (req, res) => {
+router.patch('/:id', auth, requireMasterPermission('companies_manage'), async (req, res) => {
   const {
     name, slug, plan, cnpj, isActive,
     city, state, porteId, fornecimentoId, eixoId, segmentoId, produtoIds,
@@ -166,7 +166,7 @@ router.patch('/:id', auth, requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/companies/:id — exclui a empresa (se sem usuários ativos) em cascata com funis e motivos (admin)
-router.delete('/:id', auth, requireAdmin, async (req, res) => {
+router.delete('/:id', auth, requireMasterPermission('companies_manage'), async (req, res) => {
   try {
     const [users] = await db.query(
       'SELECT COUNT(*) AS c FROM users WHERE company_id = ? AND is_active = 1', [req.params.id]

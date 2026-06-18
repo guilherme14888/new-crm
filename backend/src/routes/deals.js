@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
-const { resolveScope, buildScopeFilter, canAccess } = require('../middleware/acl');
+const { resolveScope, buildScopeFilter, buildCompanyFilter, canAccess, requirePermission, hasPermission, permissionDenied } = require('../middleware/acl');
 const { audit } = require('../services/auditLog');
 const opportunities = require('../opportunities');
 
@@ -39,7 +39,9 @@ function fmt(row) {
  * Filtra por company_id e owner_id conforme a função e escopo.
  */
 router.get('/', auth, resolveScope, async (req, res) => {
-  const { where, params } = buildScopeFilter(req.scope, 'd');
+  // leads_view_all: enxerga toda a empresa (ignora restrição de equipe/dono)
+  const viewAll = await hasPermission(req, 'leads_view_all');
+  const { where, params } = viewAll ? buildCompanyFilter(req.scope, 'd') : buildScopeFilter(req.scope, 'd');
   try {
     const [rows] = await db.query(
       `SELECT d.*, c.name AS company_name FROM deals d LEFT JOIN companies c ON c.id = d.company_id WHERE d.deleted_at IS NULL AND ${where} ORDER BY d.stage_order`,
@@ -146,6 +148,16 @@ router.patch('/:id/move', auth, resolveScope, async (req, res) => {
       return res.status(423).json({ error: 'Licitação bloqueada — clique em "Participar" para liberar a negociação.' });
 
     const { newStage, newStageId, newOrder } = req.body;
+    // Reabrir negociação GANHA (won → não-won) exige leads_reopen_won. Restritivo:
+    // só barra quem tem perfil com a flag desligada (sem perfil/admin passam).
+    try {
+      const newSid = newStageId ?? newStage;
+      const [stypes] = await db.query('SELECT id, type FROM funnel_stages WHERE id IN (?, ?)', [existing[0].stage_id, newSid]);
+      const typeOf = (id) => (stypes.find((s) => s.id === id) || {}).type;
+      if (typeOf(existing[0].stage_id) === 'won' && typeOf(newSid) !== 'won' && await permissionDenied(req, 'leads_reopen_won')) {
+        return res.status(403).json({ error: 'Sem permissão para reabrir negociações ganhas (mover para em andamento).' });
+      }
+    } catch { /* tipo indeterminado → não bloqueia */ }
     await db.query(
       `UPDATE deals SET stage = ?, stage_id = ?, stage_order = ?, stage_changed_at = NOW() WHERE id = ?`,
       [newStage, newStageId ?? newStage, newOrder, req.params.id]
@@ -160,7 +172,7 @@ router.patch('/:id/move', auth, resolveScope, async (req, res) => {
  * Soft delete — marca deal como deletado (deleted_at = NOW()).
  * Dados permanecem no banco para auditoria.
  */
-router.delete('/:id', auth, resolveScope, async (req, res) => {
+router.delete('/:id', auth, resolveScope, requirePermission('leads_delete'), async (req, res) => {
   try {
     const [existing] = await db.query('SELECT * FROM deals WHERE id = ?', [req.params.id]);
     if (!existing.length) return res.status(404).json({ error: 'Not found' });

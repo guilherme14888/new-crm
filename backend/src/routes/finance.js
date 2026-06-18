@@ -15,7 +15,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
-const { requireAdmin } = require('../middleware/acl');
+const { requireMasterPermission, hasPermission } = require('../middleware/acl');
 const { trialStatus } = require('../services/trial');
 const { v4: uuidv4 } = require('uuid');
 
@@ -143,7 +143,7 @@ async function reconcileAll() {
 
 // GET /api/admin/finance/companies
 // Lista todas as empresas (exceto master/default) com info de cobrança
-router.get('/companies', auth, requireAdmin, async (_req, res) => {
+router.get('/companies', auth, requireMasterPermission('billing_manage'), async (_req, res) => {
   try {
     await reconcileAll();
     const [rows] = await db.query(
@@ -165,7 +165,7 @@ router.get('/companies', auth, requireAdmin, async (_req, res) => {
 
 // GET /api/admin/finance/companies/:id
 // Detalhe + faturas + compras de licenças
-router.get('/companies/:id', auth, requireAdmin, async (req, res) => {
+router.get('/companies/:id', auth, requireMasterPermission('billing_manage'), async (req, res) => {
   try {
     await reconcileBlock(req.params.id);
     const [crows] = await db.query(
@@ -198,8 +198,12 @@ router.get('/companies/:id', auth, requireAdmin, async (req, res) => {
 
 // PATCH /api/admin/finance/companies/:id
 // Atualiza configurações financeiras (billing_day, grace, preço, licenças contratadas)
-router.patch('/companies/:id', auth, requireAdmin, async (req, res) => {
+router.patch('/companies/:id', auth, requireMasterPermission('billing_manage'), async (req, res) => {
   const { billingDay, blockGraceDays, licensePriceCents, purchasedLicenses, trialDays, trialStart } = req.body;
+  // Período de teste exige a permissão específica trial_manage (além de billing_manage).
+  if ((trialDays !== undefined || trialStart) && !(await hasPermission(req, 'trial_manage'))) {
+    return res.status(403).json({ error: 'Sem permissão para gerenciar o período de teste.' });
+  }
   const sets = [], vals = [];
   if (billingDay !== undefined) {
     const d = Math.max(1, Math.min(31, parseInt(billingDay, 10) || 5));
@@ -231,7 +235,7 @@ router.patch('/companies/:id', auth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/admin/finance/companies/:id/block — bloqueio manual
-router.post('/companies/:id/block', auth, requireAdmin, async (req, res) => {
+router.post('/companies/:id/block', auth, requireMasterPermission('billing_manage'), async (req, res) => {
   const reason = (req.body?.reason ?? 'manual').slice(0, 255);
   try {
     await db.query(
@@ -243,7 +247,7 @@ router.post('/companies/:id/block', auth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/admin/finance/companies/:id/unblock — desbloqueio manual
-router.post('/companies/:id/unblock', auth, requireAdmin, async (req, res) => {
+router.post('/companies/:id/unblock', auth, requireMasterPermission('billing_manage'), async (req, res) => {
   try {
     await db.query(
       `UPDATE companies SET is_blocked = 0, blocked_at = NULL, blocked_reason = NULL WHERE id = ?`,
@@ -256,7 +260,7 @@ router.post('/companies/:id/unblock', auth, requireAdmin, async (req, res) => {
 // POST /api/admin/finance/companies/:id/invoices — gerar fatura mensal
 // Body: { periodStart, periodEnd, dueDate, licensesBilled?, unitPriceCents? }
 // Se omitido, usa licenças ativas atuais e preço configurado na empresa.
-router.post('/companies/:id/invoices', auth, requireAdmin, async (req, res) => {
+router.post('/companies/:id/invoices', auth, requireMasterPermission('billing_manage'), async (req, res) => {
   const companyId = req.params.id;
   let { periodStart, periodEnd, dueDate, licensesBilled, unitPriceCents, notes } = req.body;
   try {
@@ -287,7 +291,7 @@ router.post('/companies/:id/invoices', auth, requireAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/finance/invoices/:id — atualizar fatura
-router.patch('/invoices/:id', auth, requireAdmin, async (req, res) => {
+router.patch('/invoices/:id', auth, requireMasterPermission('billing_manage'), async (req, res) => {
   const { status, paidAt, paymentMethod, paymentProvider, paymentProviderRef, notes, dueDate } = req.body;
   const sets = [], vals = [];
   if (status !== undefined)             { sets.push('status = ?');                vals.push(status); }
@@ -310,7 +314,7 @@ router.patch('/invoices/:id', auth, requireAdmin, async (req, res) => {
 
 // POST /api/admin/finance/invoices/:id/pay — marcar como paga
 // (este endpoint é o que o webhook do gateway chamaria)
-router.post('/invoices/:id/pay', auth, requireAdmin, async (req, res) => {
+router.post('/invoices/:id/pay', auth, requireMasterPermission('billing_manage'), async (req, res) => {
   const { paymentMethod, paymentProvider, paymentProviderRef } = req.body;
   try {
     await db.query(
@@ -333,7 +337,7 @@ router.post('/invoices/:id/pay', auth, requireAdmin, async (req, res) => {
 // Inicia uma compra de licenças extras. Devolve o registro pendente —
 // integração com gateway real preenche payment_provider_ref e dispara
 // webhook que faz o POST /payments para confirmar.
-router.post('/companies/:id/license-purchases', auth, requireAdmin, async (req, res) => {
+router.post('/companies/:id/license-purchases', auth, requireMasterPermission('billing_manage'), async (req, res) => {
   const { quantity, unitPriceCents } = req.body;
   const q = Math.max(1, parseInt(quantity, 10) || 0);
   const p = Math.max(0, parseInt(unitPriceCents, 10) || 0);
@@ -353,7 +357,7 @@ router.post('/companies/:id/license-purchases', auth, requireAdmin, async (req, 
 // POST /api/admin/finance/license-purchases/:id/confirm
 // Confirma compra (manual ou via webhook do gateway).
 // Atualiza purchased_licenses na empresa e marca a compra como paga.
-router.post('/license-purchases/:id/confirm', auth, requireAdmin, async (req, res) => {
+router.post('/license-purchases/:id/confirm', auth, requireMasterPermission('billing_manage'), async (req, res) => {
   const { paymentProvider, paymentProviderRef } = req.body;
   try {
     const [rows] = await db.query('SELECT * FROM company_license_purchases WHERE id = ?', [req.params.id]);

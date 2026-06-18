@@ -50,22 +50,44 @@ function requireRole(...allowed) {
  *
  * @example router.post('/', auth, requireRole('manager'), requirePermission('teams_manage'), handler)
  */
+/** Carrega (e cacheia em req) as permissões do perfil ACL do usuário; null se sem perfil. */
+async function _loadPerms(req) {
+  if (req._aclPerms !== undefined) return req._aclPerms;
+  try {
+    const [r] = await db.query(
+      'SELECT p.permissions FROM users u JOIN acl_profiles p ON p.id = u.acl_profile_id WHERE u.id = ?',
+      [req.user.id]
+    );
+    req._aclPerms = r.length
+      ? (typeof r[0].permissions === 'string' ? JSON.parse(r[0].permissions) : (r[0].permissions || null))
+      : null;
+  } catch { req._aclPerms = null; }
+  return req._aclPerms;
+}
+
+/** GRANT: admin → true; perfil concede a chave (===true) → true; senão false (sem perfil = não concedido). */
+async function hasPermission(req, key) {
+  if (!req || !req.user) return false;
+  if (req.user.role === 'admin') return true;
+  const p = await _loadPerms(req);
+  return !!(p && p[key] === true);
+}
+
+/** RESTRICT: true se o perfil DESLIGA explicitamente a chave (===false). Admin/sem-perfil → false (não bloqueia). */
+async function permissionDenied(req, key) {
+  if (!req || !req.user || req.user.role === 'admin') return false;
+  const p = await _loadPerms(req);
+  return !!(p && p[key] === false);
+}
+
+// Restrict-only (camada com requireRole): nega só se a permissão estiver explicitamente off.
 function requirePermission(...keys) {
   const need = keys.flat();
   return async (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Não autenticado' });
     if (req.user.role === 'admin') return next();
     try {
-      if (req._aclPerms === undefined) {
-        const [r] = await db.query(
-          'SELECT p.permissions FROM users u JOIN acl_profiles p ON p.id = u.acl_profile_id WHERE u.id = ?',
-          [req.user.id]
-        );
-        req._aclPerms = r.length
-          ? (typeof r[0].permissions === 'string' ? JSON.parse(r[0].permissions) : (r[0].permissions || null))
-          : null;
-      }
-      const perms = req._aclPerms;
+      const perms = await _loadPerms(req);
       if (!perms) return next(); // sem perfil → não restringe
       for (const k of need) {
         if (perms[k] === false) {
@@ -75,6 +97,33 @@ function requirePermission(...keys) {
       return next();
     } catch {
       return next(); // fail-open
+    }
+  };
+}
+
+/**
+ * Grant-only para funções de OPERADOR (empresa Default): admin → passa; senão
+ * exige estar na empresa Default E ter TODAS as permissões concedidas. Não afrouxa
+ * para tenants-cliente (continuam barrados como no requireAdmin original).
+ */
+function requireMasterPermission(...keys) {
+  const need = keys.flat();
+  return async (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Não autenticado' });
+    if (req.user.role === 'admin') return next();
+    if (req.user.company_id !== MASTER_COMPANY_ID) {
+      return res.status(403).json({ error: 'Disponível apenas para administradores da empresa Default.' });
+    }
+    try {
+      const perms = await _loadPerms(req);
+      for (const k of need) {
+        if (!(perms && perms[k] === true)) {
+          return res.status(403).json({ error: 'Permissão insuficiente para esta ação.', required: k });
+        }
+      }
+      return next();
+    } catch {
+      return res.status(403).json({ error: 'Permissão insuficiente para esta ação.' });
     }
   };
 }
@@ -257,6 +306,9 @@ function canAssignRole(assignerRole, targetRole) {
 module.exports = {
   requireRole,
   requirePermission,
+  requireMasterPermission,
+  hasPermission,
+  permissionDenied,
   resolveScope,
   buildScopeFilter,
   buildCompanyFilter,
