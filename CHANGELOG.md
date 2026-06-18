@@ -1,3 +1,10 @@
+# [1.24.0](https://github.com/guilherme14888/crm-br4/compare/v1.23.1...v1.24.0) (2026-06-18)
+
+
+### Features
+
+* **deal-files:** edital/ata do PNCP na aba Arquivos + categoria, nome e link no anexar ([2893e45](https://github.com/guilherme14888/crm-br4/commit/2893e4529736ed3a8544939d17138f8b12ba25cc))
+
 ## [1.23.1](https://github.com/guilherme14888/crm-br4/compare/v1.23.0...v1.23.1) (2026-06-18)
 
 
