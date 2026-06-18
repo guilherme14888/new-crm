@@ -6,11 +6,12 @@ const db = require('./../db');
 
 // Provedores suportados: rótulo p/ a UI, modelo default e variável de ambiente de fallback.
 const PROVIDERS = {
-  anthropic: { label: 'Anthropic (Claude)', defaultModel: 'claude-haiku-4-5-20251001', envKey: 'ANTHROPIC_API_KEY' },
-  openai:    { label: 'OpenAI (GPT)',        defaultModel: 'gpt-4o-mini',               envKey: 'OPENAI_API_KEY'    },
-  gemini:    { label: 'Google (Gemini)',     defaultModel: 'gemini-2.0-flash',          envKey: 'GEMINI_API_KEY'    },
-  grok:      { label: 'xAI (Grok)',          defaultModel: 'grok-2-latest',             envKey: 'XAI_API_KEY'       },
-  deepseek:  { label: 'DeepSeek',            defaultModel: 'deepseek-chat',             envKey: 'DEEPSEEK_API_KEY'  },
+  anthropic: { label: 'Anthropic (Claude)',   defaultModel: 'claude-haiku-4-5-20251001', envKey: 'ANTHROPIC_API_KEY' },
+  openai:    { label: 'OpenAI (GPT)',          defaultModel: 'gpt-4o-mini',               envKey: 'OPENAI_API_KEY'    },
+  gemini:    { label: 'Google (Gemini)',       defaultModel: 'gemini-2.0-flash',          envKey: 'GEMINI_API_KEY'    },
+  grok:      { label: 'xAI (Grok)',            defaultModel: 'grok-2-latest',             envKey: 'XAI_API_KEY'       },
+  groq:      { label: 'Groq (Llama/Mixtral)',  defaultModel: 'llama-3.3-70b-versatile',   envKey: 'GROQ_API_KEY'      },
+  deepseek:  { label: 'DeepSeek',              defaultModel: 'deepseek-chat',             envKey: 'DEEPSEEK_API_KEY'  },
 };
 const DEFAULT_PROVIDER = 'anthropic';
 

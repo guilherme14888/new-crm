@@ -127,6 +127,7 @@ interface MarketIntelState {
   loadAiConfig: () => Promise<void>;
   saveAiConfig: (patch: { provider?: string; apiKey?: string; model?: string }) => Promise<void>;
   testAiConfig: () => Promise<{ ok: boolean; provider?: string; model?: string; source?: string; reply?: string; error?: string }>;
+  fetchAiModels: (input: { provider: string; apiKey?: string }) => Promise<string[]>;
   sources: MarketIntelSource[];
   sourcesLoading: boolean;
   loadSources: () => Promise<void>;
@@ -195,6 +196,10 @@ export const useMarketIntelStore = create<MarketIntelState>((set, get) => ({
     } catch (e: any) {
       return { ok: false, error: e?.message ?? 'Falha no teste de conexão' };
     }
+  },
+  fetchAiModels: async (input) => {
+    const r = await apiFetch<{ models: string[] }>('/api/market-intelligence/ai/models', { method: 'POST', body: JSON.stringify(input) });
+    return r.models || [];
   },
 
   coverage: null,

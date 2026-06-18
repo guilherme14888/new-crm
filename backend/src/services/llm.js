@@ -8,11 +8,29 @@
 // Bases compatíveis com a API da OpenAI (mesmo corpo/headers).
 const OPENAI_COMPAT_BASE = {
   openai:   'https://api.openai.com/v1',
-  grok:     'https://api.x.ai/v1',
+  grok:     'https://api.x.ai/v1',          // xAI (Grok)
+  groq:     'https://api.groq.com/openai/v1', // Groq (Llama/Mixtral) — inferência rápida
   deepseek: 'https://api.deepseek.com/v1',
 };
 
 const TIMEOUT_MS = 40000;
+
+async function getJson(url, headers = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { headers, signal: ctrl.signal });
+    const text = await res.text();
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = JSON.parse(text); msg = (j.error && (j.error.message || j.error)) || j.message || msg; } catch {}
+      throw new Error(String(msg).slice(0, 300));
+    }
+    return text ? JSON.parse(text) : {};
+  } finally {
+    clearTimeout(t);
+  }
+}
 
 async function postJson(url, headers, body) {
   const ctrl = new AbortController();
@@ -97,4 +115,43 @@ async function chat({ provider, apiKey, model, system, user, maxTokens = 600 }) 
   throw new Error(`Provedor de IA desconhecido: ${p}`);
 }
 
-module.exports = { chat, OPENAI_COMPAT_BASE };
+/**
+ * Lista os modelos disponíveis para a chave informada, no provedor dado.
+ * @param {object} p { provider, apiKey }
+ * @returns {Promise<string[]>} ids de modelo (filtrados p/ chat onde aplicável)
+ */
+async function listModels({ provider, apiKey }) {
+  if (!apiKey) {
+    const e = new Error('Informe a chave para listar os modelos.');
+    e.code = 'AI_OFF';
+    throw e;
+  }
+  const p = provider || 'anthropic';
+
+  // Gemini: lista por query-key; filtra os que suportam generateContent.
+  if (p === 'gemini') {
+    const data = await getJson(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+    const ids = (data.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m) => String(m.name || '').replace(/^models\//, ''));
+    return [...new Set(ids.filter(Boolean))].sort();
+  }
+
+  // Anthropic: /v1/models (x-api-key).
+  if (p === 'anthropic') {
+    const data = await getJson('https://api.anthropic.com/v1/models', { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' });
+    const ids = (data.data || []).map((m) => m.id).filter(Boolean);
+    return [...new Set(ids)].sort();
+  }
+
+  // OpenAI / Grok / Groq / DeepSeek: /models (Bearer).
+  const base = OPENAI_COMPAT_BASE[p];
+  if (!base) throw new Error(`Provedor de IA desconhecido: ${p}`);
+  const data = await getJson(`${base}/models`, { Authorization: `Bearer ${apiKey}` });
+  let ids = (data.data || []).map((m) => m.id).filter(Boolean);
+  // OpenAI devolve embeddings/tts/etc. — mantém só os de chat.
+  if (p === 'openai') ids = ids.filter((id) => /^(gpt-|o1|o3|o4|chatgpt)/i.test(id));
+  return [...new Set(ids)].sort();
+}
+
+module.exports = { chat, listModels, OPENAI_COMPAT_BASE };

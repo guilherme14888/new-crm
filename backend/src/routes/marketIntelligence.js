@@ -7,7 +7,7 @@ const marketDocs = require('../marketDocs');
 const opportunities = require('../opportunities');
 const { suggestContext } = require('../services/keywordContext');
 const { getAiConfigPublic, saveAiConfig, loadAiConfig } = require('../services/aiConfig');
-const { chat } = require('../services/llm');
+const { chat, listModels } = require('../services/llm');
 const { v4: uuidv4 } = require('uuid');
 
 // Inteligência de Mercado — agora POR TENANT (company_id).
@@ -440,6 +440,24 @@ router.patch('/ai', auth, resolveScope, requireRole('manager'), async (req, res)
   try {
     res.json(await saveAiConfig(req.scope.companyId, { provider, apiKey, model }));
   } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// POST /ai/models — lista os modelos disponíveis para a chave (usa a chave enviada
+// ou, se vazia, a já salva). Permite popular a lista suspensa antes de salvar.
+router.post('/ai/models', auth, resolveScope, requireRole('manager'), async (req, res) => {
+  const { provider, apiKey } = req.body || {};
+  try {
+    let key = apiKey && String(apiKey).trim();
+    let prov = provider;
+    if (!key) {
+      const ai = await loadAiConfig(req.scope.companyId);
+      key = ai.apiKey;
+      prov = provider || ai.provider;
+    }
+    if (!key) return res.status(503).json({ error: 'Informe a chave para listar os modelos.' });
+    const models = await listModels({ provider: prov, apiKey: key });
+    res.json({ models });
+  } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 // POST /ai/test — valida a config fazendo uma chamada mínima ao provedor.

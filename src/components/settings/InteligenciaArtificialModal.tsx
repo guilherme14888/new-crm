@@ -4,32 +4,105 @@ import { useMarketIntelStore } from '../../stores/marketIntelStore';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme';
 
 // Configurações → Inteligência Artificial (por tenant)
-//   Lista suspensa de provedores (Anthropic, OpenAI, Gemini, Grok, DeepSeek),
-//   campo da chave da API e modelo opcional. O provedor escolhido é usado para
-//   classificar licitações por contexto e sugerir contexto/exclusões de keywords.
+//   Lista suspensa de provedores (Anthropic, OpenAI, Gemini, Grok, Groq, DeepSeek).
+//   Ao colar a chave, o sistema busca os modelos disponíveis para ela e o usuário
+//   seleciona um na lista. O provedor/modelo escolhido é usado para classificar
+//   licitações por contexto e sugerir contexto/exclusões de palavras-chave.
+
+type Opt = { value: string; label: string };
+
+// Lista suspensa simples (expande logo abaixo do cabeçalho).
+function Dropdown({ value, options, placeholder, onChange, disabled, loading }: {
+  value: string; options: Opt[]; placeholder: string;
+  onChange: (v: string) => void; disabled?: boolean; loading?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const sel = options.find((o) => o.value === value);
+  return (
+    <View>
+      <Pressable
+        style={[st.input, st.ddHeader, disabled && { opacity: 0.55 }]}
+        onPress={() => { if (!disabled) setOpen((o) => !o); }}
+      >
+        <Text style={[st.ddVal, !sel && { color: COLORS.gray[400] }]} numberOfLines={1}>
+          {loading ? 'Carregando modelos…' : (sel ? sel.label : placeholder)}
+        </Text>
+        <Text style={st.ddChev}>{open ? '▴' : '▾'}</Text>
+      </Pressable>
+      {open && !disabled && (
+        <View style={st.ddList}>
+          <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+            {options.map((o) => {
+              const on = o.value === value;
+              return (
+                <Pressable key={o.value || '__default'} style={[st.ddItem, on && st.ddItemOn]} onPress={() => { onChange(o.value); setOpen(false); }}>
+                  <Text style={[st.ddItemTxt, on && st.ddItemTxtOn]} numberOfLines={1}>{o.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
 
 export function InteligenciaArtificialModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const cfg     = useMarketIntelStore((s) => s.aiConfig);
-  const loading = useMarketIntelStore((s) => s.aiConfigLoading);
-  const load    = useMarketIntelStore((s) => s.loadAiConfig);
-  const save    = useMarketIntelStore((s) => s.saveAiConfig);
-  const test    = useMarketIntelStore((s) => s.testAiConfig);
+  const cfg         = useMarketIntelStore((s) => s.aiConfig);
+  const loading     = useMarketIntelStore((s) => s.aiConfigLoading);
+  const load        = useMarketIntelStore((s) => s.loadAiConfig);
+  const save        = useMarketIntelStore((s) => s.saveAiConfig);
+  const test        = useMarketIntelStore((s) => s.testAiConfig);
+  const fetchModels = useMarketIntelStore((s) => s.fetchAiModels);
 
   const [provider, setProvider] = useState('anthropic');
   const [apiKey, setApiKey]     = useState('');
   const [model, setModel]       = useState('');
+  const [models, setModels]     = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsErr, setModelsErr] = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
   const [testing, setTesting]   = useState(false);
   const [testMsg, setTestMsg]   = useState<{ ok: boolean; text: string } | null>(null);
 
-  useEffect(() => { if (visible) load(); }, [visible]);
-  // reflete a config carregada no formulário (não traz a chave — só se existe)
-  useEffect(() => {
-    if (cfg) { setProvider(cfg.provider); setModel(cfg.model || ''); setApiKey(''); setTestMsg(null); }
-  }, [cfg]);
-
   const providers = cfg?.providers || [];
   const selDef = providers.find((p) => p.key === provider);
+
+  useEffect(() => { if (visible) load(); }, [visible]);
+
+  // reflete a config carregada; se há chave salva, busca os modelos dela
+  useEffect(() => {
+    if (!cfg) return;
+    setProvider(cfg.provider); setModel(cfg.model || ''); setApiKey(''); setTestMsg(null); setModelsErr(null); setModels([]);
+    if (cfg.hasKey) doFetchModels(cfg.provider, '');
+  }, [cfg]);
+
+  // ao digitar/colar a chave, busca os modelos automaticamente (com debounce)
+  useEffect(() => {
+    const key = apiKey.trim();
+    if (!key) return;
+    const h = setTimeout(() => doFetchModels(provider, key), 700);
+    return () => clearTimeout(h);
+  }, [apiKey, provider]);
+
+  async function doFetchModels(prov: string, key: string) {
+    setLoadingModels(true); setModelsErr(null);
+    try {
+      const m = await fetchModels({ provider: prov, apiKey: key || undefined });
+      setModels(m);
+    } catch (e: any) {
+      setModels([]);
+      setModelsErr(e?.message ?? 'Não foi possível listar os modelos para esta chave.');
+    } finally {
+      setLoadingModels(false);
+    }
+  }
+
+  const onProviderChange = (p: string) => {
+    setProvider(p); setModel(''); setModels([]); setModelsErr(null); setTestMsg(null);
+    // usa a chave salva quando voltamos ao provedor já configurado
+    if (!apiKey.trim() && cfg?.hasKey && cfg.provider === p) doFetchModels(p, '');
+  };
 
   const handleSave = async () => {
     setSaving(true); setTestMsg(null);
@@ -47,6 +120,12 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
       : { ok: false, text: r.error || 'Falha na conexão' });
     setTesting(false);
   };
+
+  // opções da lista de modelos: "Padrão" + os buscados (+ o atual, se fora da lista)
+  const modelOptions: Opt[] = [{ value: '', label: `Padrão${selDef ? ` — ${selDef.defaultModel}` : ''}` }];
+  const seen = new Set<string>(['']);
+  if (model && !models.includes(model)) { modelOptions.push({ value: model, label: model }); seen.add(model); }
+  for (const m of models) if (!seen.has(m)) { modelOptions.push({ value: m, label: m }); seen.add(m); }
 
   const statusTxt = !cfg ? ''
     : cfg.source === 'tenant' ? 'Ativo: usando a chave salva aqui.'
@@ -66,26 +145,22 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
             <Pressable style={st.closeBtn} onPress={onClose}><Text style={st.closeTxt}>✕</Text></Pressable>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
+          <ScrollView contentContainerStyle={{ padding: SPACING.lg }} keyboardShouldPersistTaps="handled">
             {loading && !cfg ? (
               <View style={{ padding: SPACING.xl, alignItems: 'center' }}><ActivityIndicator color={COLORS.primary} /></View>
             ) : (
               <>
                 <Text style={st.label}>Provedor de IA</Text>
                 <Text style={st.hint}>Selecione qual IA usar para a captação de licitações.</Text>
-                <View style={st.provList}>
-                  {providers.map((p) => {
-                    const on = p.key === provider;
-                    return (
-                      <Pressable key={p.key} style={[st.provBtn, on && st.provBtnOn]} onPress={() => { setProvider(p.key); setModel(''); setTestMsg(null); }}>
-                        <Text style={[st.provTxt, on && st.provTxtOn]}>{p.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                <Dropdown
+                  value={provider}
+                  options={providers.map((p) => ({ value: p.key, label: p.label }))}
+                  placeholder="Selecione o provedor"
+                  onChange={onProviderChange}
+                />
 
                 <Text style={[st.label, { marginTop: SPACING.md }]}>Chave da API</Text>
-                <Text style={st.hint}>{cfg?.hasKey ? 'Já existe uma chave salva. Preencha apenas se quiser substituir.' : 'Cole a chave do provedor selecionado.'}</Text>
+                <Text style={st.hint}>{cfg?.hasKey ? 'Já existe uma chave salva. Preencha apenas se quiser substituir.' : 'Cole a chave — os modelos disponíveis serão buscados automaticamente.'}</Text>
                 <TextInput
                   style={st.input}
                   value={apiKey}
@@ -96,16 +171,20 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
                   autoCapitalize="none"
                 />
 
-                <Text style={[st.label, { marginTop: SPACING.md }]}>Modelo (opcional)</Text>
-                <Text style={st.hint}>Em branco usa o padrão: {selDef?.defaultModel || '—'}</Text>
-                <TextInput
-                  style={st.input}
+                <Text style={[st.label, { marginTop: SPACING.md }]}>Modelo</Text>
+                <Text style={st.hint}>
+                  {loadingModels ? 'Buscando modelos para esta chave…'
+                    : models.length ? `${models.length} modelo(s) disponível(is) para esta chave.`
+                    : 'Cole a chave para listar os modelos. “Padrão” usa o modelo recomendado do provedor.'}
+                </Text>
+                <Dropdown
                   value={model}
-                  onChangeText={setModel}
-                  placeholder={selDef?.defaultModel || ''}
-                  placeholderTextColor={COLORS.gray[400]}
-                  autoCapitalize="none"
+                  options={modelOptions}
+                  placeholder="Padrão do provedor"
+                  onChange={setModel}
+                  loading={loadingModels}
                 />
+                {!!modelsErr && <Text style={st.testErr}>⛔ {modelsErr}</Text>}
 
                 {!!statusTxt && <Text style={st.statusTxt}>{statusTxt}</Text>}
                 {!!testMsg && <Text style={[st.testTxt, testMsg.ok ? st.testOk : st.testErr]}>{testMsg.ok ? '✓ ' : '⛔ '}{testMsg.text}</Text>}
@@ -145,16 +224,19 @@ const st = StyleSheet.create({
   hint:       { fontSize: FONTS.sm, color: COLORS.gray[400], marginBottom: 6 },
   input:      { borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, fontSize: FONTS.base, color: COLORS.gray[900], backgroundColor: COLORS.white },
 
-  provList:   { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  provBtn:    { borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.full, paddingHorizontal: SPACING.md, paddingVertical: 7, backgroundColor: COLORS.white, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-  provBtnOn:  { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '12' },
-  provTxt:    { fontSize: FONTS.sm, color: COLORS.gray[600], fontWeight: '600' },
-  provTxtOn:  { color: COLORS.primary, fontWeight: '800' },
+  ddHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  ddVal:      { flex: 1, fontSize: FONTS.base, color: COLORS.gray[900] },
+  ddChev:     { fontSize: 12, color: COLORS.gray[500], marginLeft: SPACING.sm },
+  ddList:     { borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.md, marginTop: 4, backgroundColor: COLORS.white, overflow: 'hidden' },
+  ddItem:     { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  ddItemOn:   { backgroundColor: COLORS.primary + '12' },
+  ddItemTxt:  { fontSize: FONTS.base, color: COLORS.gray[700] },
+  ddItemTxtOn:{ color: COLORS.primary, fontWeight: '700' },
 
   statusTxt:  { fontSize: FONTS.sm, color: COLORS.gray[500], marginTop: SPACING.md, lineHeight: 18 },
   testTxt:    { fontSize: FONTS.sm, marginTop: SPACING.sm, fontWeight: '700' },
   testOk:     { color: '#16a34a' },
-  testErr:    { color: '#dc2626' },
+  testErr:    { color: '#dc2626', fontSize: FONTS.sm, marginTop: 4, fontWeight: '600' },
   foot:       { fontSize: 11, color: COLORS.gray[400], marginTop: SPACING.md, lineHeight: 15 },
 
   footer:     { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.lg, borderTopWidth: 1, borderTopColor: COLORS.gray[100] },
