@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/guilherme14888/crm-br4/compare/v1.16.0...v1.17.0) (2026-06-18)
+
+
+### Features
+
+* **market-intel:** provedor de IA configuravel na UI (Anthropic/OpenAI/Gemini/Grok/DeepSeek) ([067fead](https://github.com/guilherme14888/crm-br4/commit/067fead9f036336a9361dd60c9941a866274a8bb))
+
 # [1.16.0](https://github.com/guilherme14888/crm-br4/compare/v1.15.1...v1.16.0) (2026-06-18)
 
 
