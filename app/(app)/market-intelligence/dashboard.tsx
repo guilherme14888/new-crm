@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, useWindowDimensions, Platform, TextInput } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, useWindowDimensions, Platform, TextInput, Modal } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../../src/constants/theme';
 import { useMarketIntelStore, MarketIntelRow, CoverageData } from '../../../src/stores/marketIntelStore';
 import { useAuthStore } from '../../../src/stores/authStore';
@@ -546,16 +546,8 @@ function LineChart({ months, byMonthProduct, products }: {
 
 /** Mapa do Brasil com pontos coloridos por produto + filtros locais (produto/UF/tempo). */
 function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; products: { name: string; color: string }[]; narrow: boolean }) {
-  const [fProd, setFProd] = useState<Set<string>>(new Set());
-  const [fUf, setFUf]     = useState<Set<string>>(new Set());
-  const [mFrom, setMFrom] = useState('');
-  const [mTo, setMTo]     = useState('');
   const [zoomUf, setZoomUf] = useState<string | null>(null);   // estado em zoom (drill-down)
   const colorOf = (name: string) => products.find((p) => p.name === name)?.color ?? '#7c3aed';
-
-  const ufOpts = useMemo(() => Array.from(new Set(rows.map((r) => r.uf).filter(Boolean) as string[])).sort(), [rows]);
-  const toggle = (set: React.Dispatch<React.SetStateAction<Set<string>>>, v: string) =>
-    set((prev) => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
 
   const pts = useMemo(() => {
     const dup: Record<string, number> = {};   // dispersa pontos sobre o MESMO local
@@ -564,10 +556,7 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
       const uf = r.uf || '';
       if (!UF_XY[uf]) continue;
       if (zoomUf && uf !== zoomUf) continue;                       // em zoom: só o estado
-      if (!zoomUf && fUf.size && !fUf.has(uf)) continue;           // no Brasil: filtro de UF
       const prod = r.produtoCandidato || r.produto || '—';
-      if (fProd.size && !fProd.has(prod)) continue;
-      if (mFrom || mTo) { const d = (r.dataHoraCertame || '').slice(0, 10); if (!d) continue; if (mFrom && d < mFrom) continue; if (mTo && d > mTo) continue; }
       // coordenada EXATA da cidade; se não achar, cai no centróide do estado
       const city = r.municipio ? BR_CITIES[`${uf}|${normCity(r.municipio)}`] : null;
       const base = city || UF_XY[uf];
@@ -580,61 +569,15 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
       if (out.length > 2500) break;
     }
     return out;
-  }, [rows, fProd, fUf, mFrom, mTo, products, zoomUf]);
+  }, [rows, products, zoomUf]);
 
   const isWeb = Platform.OS === 'web';
-  const WebInput: any = 'input';
-  const dateStyle: any = { border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '6px 8px', fontSize: 12, color: COLORS.gray[700], outline: 'none', cursor: 'pointer' };
-  // abre o calendário nativo ao clicar em qualquer parte do campo
-  const openPicker = (e: any) => { try { e.currentTarget.showPicker && e.currentTarget.showPicker(); } catch { /* ignora */ } };
 
   return (
     <View style={[s.body, narrow && { flexDirection: 'column' as any }]}>
-      {/* Filtros do mapa */}
-      <View style={mp.filters}>
-        <Text style={mp.fTitle}>Filtros do mapa</Text>
-        <Text style={mp.fLabel}>Período (data do certame)</Text>
-        <View style={{ flexDirection: 'row', gap: SPACING.xs }}>
-          {isWeb
-            ? <><WebInput type="date" value={mFrom} onChange={(e: any) => setMFrom(e.target.value)} onClick={openPicker} onFocus={openPicker} style={dateStyle} />
-                <WebInput type="date" value={mTo} onChange={(e: any) => setMTo(e.target.value)} onClick={openPicker} onFocus={openPicker} style={dateStyle} /></>
-            : <Text style={tbl.empty}>web</Text>}
-        </View>
-
-        <Text style={mp.fLabel}>Produto</Text>
-        <View style={mp.chips}>
-          {products.map((p) => {
-            const on = fProd.has(p.name);
-            return (
-              <Pressable key={p.name} style={[mp.chip, on && { backgroundColor: p.color, borderColor: p.color }]} onPress={() => toggle(setFProd, p.name)}>
-                <View style={[mp.dot, { backgroundColor: on ? COLORS.white : p.color }]} />
-                <Text style={[mp.chipTxt, on && { color: COLORS.white }]}>{p.name}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Text style={mp.fLabel}>UF</Text>
-        <View style={mp.chips}>
-          {ufOpts.map((u) => {
-            const on = fUf.has(u);
-            return (
-              <Pressable key={u} style={[mp.ufChip, on && mp.ufChipOn]} onPress={() => toggle(setFUf, u)}>
-                <Text style={[mp.ufChipTxt, on && { color: COLORS.white }]}>{u}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {(fProd.size || fUf.size || mFrom || mTo) ? (
-          <Pressable style={mp.clear} onPress={() => { setFProd(new Set()); setFUf(new Set()); setMFrom(''); setMTo(''); }}>
-            <Text style={mp.clearTxt}>Limpar filtros do mapa</Text>
-          </Pressable>
-        ) : null}
-        <Text style={mp.count}>{pts.length.toLocaleString('pt-BR')} ponto(s)</Text>
-      </View>
-
-      {/* Mapa */}
+      {/* Mapa (sem filtros locais — segue o filtro global da tela) */}
       <View style={mp.mapWrap}>
+        <Text style={mp.count}>{pts.length.toLocaleString('pt-BR')} ponto(s)</Text>
         {/* cabeçalho: voltar / dica de clique */}
         <View style={mp.mapHead}>
           {zoomUf ? (
@@ -682,6 +625,110 @@ function BrazilMap({ rows, products, narrow }: { rows: MarketIntelRow[]; product
   );
 }
 
+// ─── Filtro lateral: select inline (single) ────────────────────────────────────
+function InlineSelect({ label, value, options, onChange }: {
+  label: string; value: string; options: string[]; onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ marginBottom: SPACING.md }}>
+      <Text style={dr.label}>{label}</Text>
+      <Pressable style={dr.trigger} onPress={() => setOpen((v) => !v)}>
+        <Text style={dr.triggerTxt} numberOfLines={1}>{value}</Text>
+        <Text style={dr.chev}>{open ? '▴' : '▾'}</Text>
+      </Pressable>
+      {open && (
+        <View style={dr.list}>
+          <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+            {options.map((o) => (
+              <Pressable key={o} style={[dr.item, o === value && dr.itemOn]} onPress={() => { onChange(o); setOpen(false); }}>
+                <Text style={[dr.itemTxt, o === value && dr.itemTxtOn]} numberOfLines={1}>{o}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Filtro lateral: multi-select com busca e "selecionar todos" ───────────────
+function MultiSelect({ label, options, selected, onChange }: {
+  label: string; options: string[]; selected: Set<string>; onChange: (s: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const allSel = selected.size === 0;                       // vazio = todos
+  const isOn = (o: string) => allSel || selected.has(o);
+  const nrm = (x: string) => x.toLowerCase();
+  const view = q.trim() ? options.filter((o) => nrm(o).includes(nrm(q.trim()))) : options;
+  const toggle = (o: string) => {
+    const base = new Set(allSel ? options : selected);
+    base.has(o) ? base.delete(o) : base.add(o);
+    onChange(base.size >= options.length ? new Set() : base);   // todos selecionados → vazio (canônico)
+  };
+  const summary = allSel || selected.size >= options.length ? 'Todos' : `${selected.size} selecionado(s)`;
+  return (
+    <View style={{ marginBottom: SPACING.md }}>
+      <Text style={dr.label}>{label}</Text>
+      <Pressable style={dr.trigger} onPress={() => setOpen((v) => !v)}>
+        <Text style={dr.triggerTxt} numberOfLines={1}>{summary}</Text>
+        <Text style={dr.chev}>{open ? '▴' : '▾'}</Text>
+      </Pressable>
+      {open && (
+        <View style={dr.list}>
+          <TextInput style={dr.search} value={q} onChangeText={setQ} placeholder="Pesquisar…" placeholderTextColor={COLORS.gray[400]} autoCapitalize="none" />
+          <Pressable style={dr.item} onPress={() => onChange(new Set())}>
+            <View style={[dr.cb, allSel && dr.cbOn]}>{allSel && <Text style={dr.cbCheck}>✓</Text>}</View>
+            <Text style={[dr.itemTxt, { fontWeight: '700' }]}>Selecionar todos</Text>
+          </Pressable>
+          <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+            {view.map((o) => {
+              const on = isOn(o);
+              return (
+                <Pressable key={o} style={dr.item} onPress={() => toggle(o)}>
+                  <View style={[dr.cb, on && dr.cbOn]}>{on && <Text style={dr.cbCheck}>✓</Text>}</View>
+                  <Text style={dr.itemTxt} numberOfLines={1}>{o}</Text>
+                </Pressable>
+              );
+            })}
+            {view.length === 0 && <Text style={dr.msEmpty}>Nada encontrado.</Text>}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const dr = StyleSheet.create({
+  overlay:   { flex: 1, flexDirection: 'row' },
+  backdrop:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  panel:     { width: 380, maxWidth: '92%' as any, backgroundColor: COLORS.white, height: '100%' as any, flexDirection: 'column', ...(Platform.OS === 'web' ? { boxShadow: '-8px 0 28px rgba(0,0,0,0.18)' } as any : { elevation: 16 }) },
+  head:      { flexDirection: 'row', alignItems: 'center', padding: SPACING.lg, borderBottomWidth: 1, borderBottomColor: COLORS.gray[100] },
+  title:     { flex: 1, fontSize: FONTS.xl, fontWeight: '800', color: COLORS.gray[900] },
+  closeBtn:  { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.gray[100], alignItems: 'center', justifyContent: 'center' },
+  closeTxt:  { fontSize: 14, color: COLORS.gray[600], fontWeight: '700' },
+  label:     { fontSize: FONTS.sm, color: COLORS.gray[500], fontWeight: '700', marginBottom: 4 },
+  trigger:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.gray[50], borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  triggerTxt:{ flex: 1, fontSize: FONTS.sm, color: COLORS.gray[800], fontWeight: '600' },
+  chev:      { fontSize: 11, color: COLORS.gray[500], marginLeft: SPACING.sm },
+  list:      { borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.sm, marginTop: 4, backgroundColor: COLORS.white, overflow: 'hidden' },
+  search:    { borderBottomWidth: 1, borderBottomColor: COLORS.gray[100], paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, fontSize: FONTS.sm, color: COLORS.gray[900] },
+  item:      { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  itemOn:    { backgroundColor: COLORS.primary + '12' },
+  itemTxt:   { flex: 1, fontSize: FONTS.sm, color: COLORS.gray[700] },
+  itemTxtOn: { color: COLORS.primary, fontWeight: '700' },
+  cb:        { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: COLORS.gray[300], alignItems: 'center', justifyContent: 'center' },
+  cbOn:      { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  cbCheck:   { color: COLORS.white, fontSize: 12, fontWeight: '800' },
+  msEmpty:   { fontSize: FONTS.sm, color: COLORS.gray[400], padding: SPACING.md, textAlign: 'center' as any },
+  footer:    { flexDirection: 'row', gap: SPACING.sm, padding: SPACING.lg, borderTopWidth: 1, borderTopColor: COLORS.gray[100] },
+  clearBtn:  { flex: 1, alignItems: 'center', paddingVertical: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: COLORS.gray[100] },
+  clearTxt:  { color: COLORS.gray[600], fontWeight: '700' },
+  applyBtn:  { flex: 1, alignItems: 'center', paddingVertical: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: BRAND },
+  applyTxt:  { color: COLORS.white, fontWeight: '800' },
+});
+
 // ════════════════════════════════════════════════════════════════════════════
 export default function MarketIntelligenceScreen() {
   const { width, height } = useWindowDimensions();
@@ -702,15 +749,25 @@ export default function MarketIntelligenceScreen() {
   const [empresa, setEmpresa]         = useState(TODOS);
   const [etapaSessao, setEtapaSessao] = useState(TODOS);
   const [licitador, setLicitador]     = useState(TODOS);
-  const [concorrente, setConcorrente] = useState(TODOS);
+  const [concSel, setConcSel]         = useState<Set<string>>(new Set());   // vazio = todos
   const [dateFrom, setDateFrom]       = useState('');   // AAAA-MM-DD
   const [dateTo, setDateTo]           = useState('');
   const [hover, setHover]             = useState<{ kind: 'proc' | 'rank'; row: MarketIntelRow; x: number; y: number } | null>(null);
   const [uf, setUf]                   = useState(TODOS);
   const [regiao, setRegiao]           = useState(TODOS);
-  const [activeProducts, setActiveProducts] = useState<Set<string> | null>(null);
+  const [prodSel, setProdSel]         = useState<Set<string>>(new Set());   // vazio = todos
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState(0);
+
+  // ── Filtro lateral (drawer) — estado de rascunho até "Aplicar" ───────────────
+  const [filterOpen, setFilterOpen]   = useState(false);
+  const [drawerOpenId, setDrawerOpenId] = useState<string | null>(null);
+  const [dEtapa, setDEtapa] = useState(TODOS);
+  const [dLic, setDLic]     = useState(TODOS);
+  const [dConc, setDConc]   = useState<Set<string>>(new Set());
+  const [dProd, setDProd]   = useState<Set<string>>(new Set());
+  const [dFrom, setDFrom]   = useState('');
+  const [dTo, setDTo]       = useState('');
 
   // ── Catálogo de produtos (da base) ───────────────────────────────────────────
   const products = useMemo(() => {
@@ -718,13 +775,8 @@ export default function MarketIntelligenceScreen() {
     return names.map((name, i) => ({ name, color: colorFor(name, i) }));
   }, [rows]);
 
-  // inicia com todos os produtos ativos quando a base carrega
-  useEffect(() => {
-    if (products.length && activeProducts === null) {
-      setActiveProducts(new Set(products.map((p) => p.name)));
-    }
-  }, [products, activeProducts]);
-  const active = activeProducts ?? new Set(products.map((p) => p.name));
+  // produtos exibidos no gráfico/legenda (vazio = todos)
+  const activeDisplay = prodSel.size ? prodSel : new Set(products.map((p) => p.name));
 
   // ── Empresas presentes (filtro só faz sentido no Default/master, com várias) ──
   const companyOpts = useMemo(() => {
@@ -754,7 +806,7 @@ export default function MarketIntelligenceScreen() {
       if (empresa     !== TODOS && (r.companyName || '') !== empresa) return false;
       if (etapaSessao !== TODOS && r.etapaSessao !== etapaSessao) return false;
       if (licitador   !== TODOS && r.licitador   !== licitador)   return false;
-      if (concorrente !== TODOS && r.concorrente !== concorrente) return false;
+      if (concSel.size && !concSel.has(r.concorrente || '')) return false;
       if (uf          !== TODOS && r.uf          !== uf)          return false;
       if (regiao      !== TODOS && r.regiao      !== regiao)      return false;
       if (dateFrom || dateTo) {
@@ -763,10 +815,10 @@ export default function MarketIntelligenceScreen() {
         if (dateFrom && d < dateFrom) return false;
         if (dateTo && d > dateTo)     return false;
       }
-      if (r.produtoCandidato && !active.has(r.produtoCandidato))  return false;
+      if (prodSel.size && r.produtoCandidato && !prodSel.has(r.produtoCandidato)) return false;
       return true;
     });
-  }, [rows, empresa, etapaSessao, licitador, concorrente, uf, regiao, dateFrom, dateTo, active]);
+  }, [rows, empresa, etapaSessao, licitador, concSel, uf, regiao, dateFrom, dateTo, prodSel]);
 
   // ── Agrupa em processos ─────────────────────────────────────────────────────────
   const processes = useMemo(() => {
@@ -818,25 +870,18 @@ export default function MarketIntelligenceScreen() {
     return t;
   }, [filtered]);
 
+  // legenda (padrão) opera sobre prodSel (vazio = todos)
   const toggleProduct = (name: string) => {
-    setActiveProducts((prev) => {
-      const base = prev ?? new Set(products.map((p) => p.name));
-      const next = new Set(base);
-      if (next.has(name)) next.delete(name); else next.add(name);
-      if (next.size === 0) return base; // nunca esvazia
-      return next;
-    });
+    const base = new Set(activeDisplay);
+    if (base.has(name)) base.delete(name); else base.add(name);
+    if (base.size === 0) return;                       // nunca esvazia totalmente
+    setProdSel(base.size >= products.length ? new Set() : base);
   };
 
-  // Isola um produto no gráfico (clique no legend): deixa só ele visível;
-  // clicar de novo no produto já isolado reverte para todos (igual ao mapa).
+  // Isola um produto: deixa só ele; clicar de novo no isolado reverte p/ todos.
   const soloProduct = (name: string) => {
-    setActiveProducts((prev) => {
-      const all = new Set(products.map((p) => p.name));
-      const cur = prev ?? all;
-      if (cur.size === 1 && cur.has(name)) return all; // já isolado → reverte
-      return new Set([name]);
-    });
+    if (activeDisplay.size === 1 && activeDisplay.has(name)) setProdSel(new Set());
+    else setProdSel(new Set([name]));
   };
 
   // ── Visão (padrão / executiva) ────────────────────────────────────────────────
@@ -873,6 +918,27 @@ export default function MarketIntelligenceScreen() {
     return Object.entries(t).map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total).slice(0, 8);
   }, [filtered]);
+
+  // ── Filtro lateral: opções e ações ────────────────────────────────────────────
+  const concOptions = useMemo(() => opts.conc.slice(1), [opts]);   // concorrentes (sem "Todos")
+  const prodOptions = useMemo(() => products.map((p) => p.name), [products]);
+  const activeFilters = (etapaSessao !== TODOS ? 1 : 0) + (licitador !== TODOS ? 1 : 0)
+    + (concSel.size ? 1 : 0) + (prodSel.size ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
+  const openFilter = () => {
+    setDEtapa(etapaSessao); setDLic(licitador); setDConc(new Set(concSel)); setDProd(new Set(prodSel));
+    setDFrom(dateFrom); setDTo(dateTo); setDrawerOpenId(null); setFilterOpen(true);
+  };
+  const applyFilter = () => {
+    setEtapaSessao(dEtapa); setLicitador(dLic); setConcSel(new Set(dConc)); setProdSel(new Set(dProd));
+    setDateFrom(dFrom); setDateTo(dTo); setFilterOpen(false);
+  };
+  const clearFilter = () => {
+    setDEtapa(TODOS); setDLic(TODOS); setDConc(new Set()); setDProd(new Set()); setDFrom(''); setDTo('');
+    setEtapaSessao(TODOS); setLicitador(TODOS); setConcSel(new Set()); setProdSel(new Set()); setDateFrom(''); setDateTo('');
+  };
+  const WebInputMain: any = 'input';
+  const dateInputStyle: any = { border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '8px 10px', fontSize: 13, color: COLORS.gray[700], outline: 'none', cursor: 'pointer', width: '100%', boxSizing: 'border-box' } as any;
+  const openPickerMain = (e: any) => { try { e.currentTarget.showPicker && e.currentTarget.showPicker(); } catch { /* ignora */ } };
 
   // ── Loading / vazio ──────────────────────────────────────────────────────────────
   if (isLoading && !loaded) {
@@ -912,14 +978,17 @@ export default function MarketIntelligenceScreen() {
                 ))}
               </View>
             </View>
-            <View style={[s.topFilters, narrow && s.topFiltersNarrow]}>
+            <View style={s.headerRight}>
               {showEmpresa && (
-                <Select id="empresa" label="Empresa" value={empresa} options={empresaOpts} onChange={setEmpresa} openId={openId} setOpenId={setOpenId} />
+                <View style={{ minWidth: 200 }}>
+                  <Select id="empresa" label="Empresa" value={empresa} options={empresaOpts} onChange={setEmpresa} openId={openId} setOpenId={setOpenId} />
+                </View>
               )}
-              <Select id="etapa" label="Etapa da Sessão" value={etapaSessao} options={opts.etapa} onChange={setEtapaSessao} openId={openId} setOpenId={setOpenId} />
-              <Select id="lic"   label="Licitador"        value={licitador}   options={opts.lic}   onChange={setLicitador}   openId={openId} setOpenId={setOpenId} />
-              <Select id="conc"  label="Concorrente"      value={concorrente} options={opts.conc}  onChange={setConcorrente} openId={openId} setOpenId={setOpenId} />
-              <DateRangeFilter from={dateFrom} to={dateTo} setFrom={setDateFrom} setTo={setDateTo} openId={openId} setOpenId={setOpenId} />
+              {view !== 'cobertura' && (
+                <Pressable style={s.filterBtn} onPress={openFilter}>
+                  <Text style={s.filterBtnTxt}>⚙ Filtro{activeFilters ? ` (${activeFilters})` : ''}</Text>
+                </Pressable>
+              )}
             </View>
           </View>
 
@@ -1025,14 +1094,14 @@ export default function MarketIntelligenceScreen() {
               </Panel>
 
               <Panel title="Produto Candidato — quantidade por mês">
-                {active.size < products.length && (
-                  <Pressable onPress={() => setActiveProducts(new Set(products.map((p) => p.name)))} style={s.legendReset}>
+                {activeDisplay.size < products.length && (
+                  <Pressable onPress={() => setProdSel(new Set())} style={s.legendReset}>
                     <Text style={s.legendResetTxt}>↩ Mostrar todos ({products.length})</Text>
                   </Pressable>
                 )}
                 <View style={s.legendWrap}>
                   {products.map((p) => {
-                    const on = active.has(p.name);
+                    const on = activeDisplay.has(p.name);
                     return (
                       <Pressable
                         key={p.name}
@@ -1046,7 +1115,7 @@ export default function MarketIntelligenceScreen() {
                     );
                   })}
                 </View>
-                <StreamChart months={months} byMonthProduct={byMonthProduct} products={products.filter((p) => active.has(p.name))} />
+                <StreamChart months={months} byMonthProduct={byMonthProduct} products={products.filter((p) => activeDisplay.has(p.name))} />
               </Panel>
             </View>
 
@@ -1103,7 +1172,7 @@ export default function MarketIntelligenceScreen() {
               </View>
 
               <Panel title="Produto Candidato">
-                <ProductFilter products={products} totals={productTotals} active={active} onToggle={toggleProduct} />
+                <ProductFilter products={products} totals={productTotals} active={activeDisplay} onToggle={toggleProduct} />
               </Panel>
             </View>
           </View>
@@ -1153,28 +1222,15 @@ export default function MarketIntelligenceScreen() {
                 </Panel>
 
                 <Panel title="Produto Candidato — quantidade por mês">
-                  {active.size < products.length && (
-                    <Pressable onPress={() => setActiveProducts(new Set(products.map((p) => p.name)))} style={s.legendReset}>
-                      <Text style={s.legendResetTxt}>↩ Mostrar todos ({products.length})</Text>
-                    </Pressable>
-                  )}
                   <View style={s.legendWrap}>
-                    {products.map((p) => {
-                      const on = active.has(p.name);
-                      return (
-                        <Pressable
-                          key={p.name}
-                          onPress={() => toggleProduct(p.name)}
-                          style={[s.legendItem, s.legendItemBtn]}
-                          {...({ title: `${on ? 'Ocultar' : 'Mostrar'} ${p.name} no gráfico` } as any)}
-                        >
-                          <View style={[s.legendDot, { backgroundColor: p.color, opacity: on ? 1 : 0.3 }]} />
-                          <Text style={[s.legendTxt, on ? s.legendTxtOn : { opacity: 0.4 }]}>{p.name}</Text>
-                        </Pressable>
-                      );
-                    })}
+                    {products.filter((p) => activeDisplay.has(p.name)).map((p) => (
+                      <View key={p.name} style={s.legendItem}>
+                        <View style={[s.legendDot, { backgroundColor: p.color }]} />
+                        <Text style={s.legendTxt}>{p.name}</Text>
+                      </View>
+                    ))}
                   </View>
-                  <LineChart months={months} byMonthProduct={byMonthProduct} products={products.filter((p) => active.has(p.name))} />
+                  <LineChart months={months} byMonthProduct={byMonthProduct} products={products.filter((p) => activeDisplay.has(p.name))} />
                 </Panel>
               </View>
 
@@ -1264,6 +1320,40 @@ export default function MarketIntelligenceScreen() {
             ]}
           />
         )}
+
+        {/* ─── Filtro lateral (drawer direito) ─────────────────────────────── */}
+        <Modal visible={filterOpen} transparent animationType="fade" onRequestClose={() => setFilterOpen(false)}>
+          <View style={dr.overlay}>
+            <Pressable style={dr.backdrop} onPress={() => setFilterOpen(false)} />
+            <View style={dr.panel}>
+              <View style={dr.head}>
+                <Text style={dr.title}>Filtros</Text>
+                <Pressable style={dr.closeBtn} onPress={() => setFilterOpen(false)}><Text style={dr.closeTxt}>✕</Text></Pressable>
+              </View>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: SPACING.lg }} keyboardShouldPersistTaps="handled">
+                <InlineSelect label="Etapa da Sessão" value={dEtapa} options={opts.etapa} onChange={setDEtapa} />
+                <InlineSelect label="Licitador" value={dLic} options={opts.lic} onChange={setDLic} />
+                <MultiSelect label="Concorrente (empresas participantes)" options={concOptions} selected={dConc} onChange={setDConc} />
+                <MultiSelect label="Produto" options={prodOptions} selected={dProd} onChange={setDProd} />
+                <Text style={dr.label}>Data (data do certame)</Text>
+                {Platform.OS === 'web' ? (
+                  <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+                    <View style={{ flex: 1 }}>
+                      <WebInputMain type="date" value={dFrom} onChange={(e: any) => setDFrom(e.target.value)} onClick={openPickerMain} onFocus={openPickerMain} style={dateInputStyle} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <WebInputMain type="date" value={dTo} onChange={(e: any) => setDTo(e.target.value)} onClick={openPickerMain} onFocus={openPickerMain} style={dateInputStyle} />
+                    </View>
+                  </View>
+                ) : null}
+              </ScrollView>
+              <View style={dr.footer}>
+                <Pressable style={dr.clearBtn} onPress={clearFilter}><Text style={dr.clearTxt}>Limpar</Text></Pressable>
+                <Pressable style={dr.applyBtn} onPress={applyFilter}><Text style={dr.applyTxt}>Aplicar</Text></Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
     </ScrollView>
   );
 }
@@ -1304,6 +1394,9 @@ const s = StyleSheet.create({
   title:     { fontSize: 26, fontWeight: '900', color: COLORS.gray[900], marginTop: 2 },
   topFilters:{ flexDirection: 'row', flexWrap: 'wrap' as any, gap: SPACING.md, flexGrow: 1, flexShrink: 1, flexBasis: 520, zIndex: 60 },
   topFiltersNarrow: { flexBasis: '100%' as any },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginLeft: 'auto' as any, zIndex: 60 },
+  filterBtn:   { backgroundColor: BRAND, borderRadius: RADIUS.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  filterBtnTxt:{ color: COLORS.white, fontWeight: '800', fontSize: FONTS.sm },
 
   body:  { flexDirection: 'row', gap: SPACING.lg, paddingTop: SPACING.lg, alignItems: 'flex-start' },
   left:  { flex: 1.7, minWidth: 0 },
