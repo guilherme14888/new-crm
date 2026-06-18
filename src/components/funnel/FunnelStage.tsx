@@ -41,6 +41,10 @@ export function FunnelStage({ stage, deals, contactNames, onDealPress }: Props) 
         )}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.list}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={30}
+        windowSize={11}
         ListEmptyComponent={<Text style={styles.empty}>No deals</Text>}
       />
     </View>

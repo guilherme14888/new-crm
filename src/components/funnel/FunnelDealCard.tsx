@@ -23,6 +23,9 @@ export function FunnelDealCard({ deal, contactName, onPress }: Props) {
         {isWon  && <Text style={styles.wonBadge}>✓ Ganho</Text>}
         {isLost && <Text style={[styles.wonBadge, styles.lostBadge]}>✗ Perdido</Text>}
         <Text style={styles.title} numberOfLines={2}>{deal.title}</Text>
+        {deal.produto ? (
+          <Text style={styles.productTag} numberOfLines={1}>🏷 {deal.produto}</Text>
+        ) : null}
         <Text style={[styles.value, isWon && styles.wonValue]}>{formatCurrency(deal.value)}</Text>
         <Text style={styles.contact} numberOfLines={1}>{contactName}</Text>
         {deal.companyName ? (
@@ -49,6 +52,11 @@ const styles = StyleSheet.create({
   },
   lostBadge: { color: '#ef4444', backgroundColor: '#fee2e2' },
   title: { fontSize: FONTS.base, fontWeight: '600', color: COLORS.gray[900], marginBottom: 4 },
+  productTag: {
+    fontSize: 10, fontWeight: '700', color: '#0d8a8a',
+    backgroundColor: '#e0f2f1', alignSelf: 'flex-start',
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginBottom: 6,
+  },
   value: { fontSize: FONTS.lg, fontWeight: '700', color: COLORS.primary, marginBottom: 4 },
   wonValue: { color: '#16a34a' },
   contact: { fontSize: FONTS.sm, color: COLORS.gray[500], marginBottom: SPACING.sm },

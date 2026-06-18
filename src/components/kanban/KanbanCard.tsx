@@ -78,6 +78,9 @@ export function KanbanCard({
         {isLost && <Text style={[styles.statusBadge, styles.lostBadge]}>✗ Perdido</Text>}
         {isLocked && <Text style={[styles.statusBadge, styles.lockedBadge]}>🔒 Oportunidade — toque p/ Participar</Text>}
         <Text style={styles.title} numberOfLines={2}>{deal.title}</Text>
+        {deal.produto ? (
+          <Text style={styles.productTag} numberOfLines={1}>🏷 {deal.produto}</Text>
+        ) : null}
         <Text style={[styles.value, isWon && styles.wonValue]}>{formatCurrency(deal.value)}</Text>
         <Text style={styles.contact} numberOfLines={1}>{contactName}</Text>
         {deal.companyName ? (
@@ -105,6 +108,11 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
   },
   title: { fontSize: FONTS.sm, fontWeight: '600', color: COLORS.gray[900], marginBottom: 4 },
+  productTag: {
+    fontSize: 10, fontWeight: '700', color: '#0d8a8a',
+    backgroundColor: '#e0f2f1', alignSelf: 'flex-start',
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginBottom: 6,
+  },
   value: { fontSize: FONTS.base, fontWeight: '700', color: COLORS.primary, marginBottom: 2 },
   contact: { fontSize: FONTS.sm, color: COLORS.gray[500] },
   wonCard:  { backgroundColor: '#f0fdf4', borderLeftWidth: 3, borderLeftColor: '#16a34a' },

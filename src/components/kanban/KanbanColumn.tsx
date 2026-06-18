@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, Platform } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Dimensions, Platform } from 'react-native';
 import { Deal } from '../../types/models';
 import { FunnelStage } from '../../types/models';
 import { formatCurrency } from '../../utils/currency';
@@ -83,15 +83,13 @@ export function KanbanColumn({
         <Text style={styles.count}>{deals.length}</Text>
       </View>
       <Text style={styles.total}>{formatCurrency(totalValue)}</Text>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={true}
-        nestedScrollEnabled
-      >
-        {deals.map((deal) => (
+      {/* FlatList virtualiza: renderiza ~10 cartões e vai carregando de 10 em 10
+          conforme rola (sem travar quando a coluna tem centenas de cartões). */}
+      <FlatList
+        data={deals}
+        keyExtractor={(d) => d.id}
+        renderItem={({ item: deal }) => (
           <KanbanCard
-            key={deal.id}
             deal={deal}
             contactName={contactNames[deal.contactId] ?? '—'}
             onDragStart={onDragStart}
@@ -99,11 +97,18 @@ export function KanbanColumn({
             onDragEnd={onDragEnd}
             onPress={() => onDealPress(deal.id)}
           />
-        ))}
-        {deals.length === 0 && (
-          <Text style={styles.empty}>Solte aqui</Text>
         )}
-      </ScrollView>
+        style={styles.scroll}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator
+        nestedScrollEnabled
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={30}
+        windowSize={11}
+        removeClippedSubviews={false}
+        ListEmptyComponent={<Text style={styles.empty}>Solte aqui</Text>}
+      />
     </View>
   );
 }

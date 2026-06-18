@@ -11,6 +11,14 @@ const opportunities = require('../opportunities');
  * @param row Linha da tabela deals
  * @returns Objeto Deal formatado para resposta JSON
  */
+/** Extrai o produto do campo notes ("Produtos: X") das oportunidades de licitação. */
+function extractProduto(notes) {
+  if (!notes) return null;
+  const m = String(notes).match(/^\s*Produtos?:\s*(.+?)\s*$/im);
+  const v = m && m[1].trim();
+  return v && v !== '—' ? v : null;
+}
+
 function fmt(row) {
   if (!row) return null;
   return {
@@ -23,6 +31,7 @@ function fmt(row) {
     expectedCloseDate: row.expected_close_date ?? null,
     closingReason: row.closing_reason ?? null,
     notes: row.notes ?? null,
+    produto: extractProduto(row.notes),
     stageChangedAt: row.stage_changed_at ?? null,
     locked: !!row.locked,
     miControle: row.mi_controle ?? null,

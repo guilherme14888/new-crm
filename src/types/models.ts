@@ -102,6 +102,7 @@ export interface Deal {
   expectedCloseDate: string | null;
   closingReason: string | null;
   notes: string | null;
+  produto?: string | null;     // produto(s) da oportunidade (extraído das notes)
   stageChangedAt: string | null;
   locked?: boolean;            // oportunidade bloqueada até "Participar"
   miControle?: string | null;  // licitação de origem (pncp_controle)
