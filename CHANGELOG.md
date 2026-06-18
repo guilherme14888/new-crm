@@ -1,3 +1,10 @@
+# [1.26.0](https://github.com/guilherme14888/crm-br4/compare/v1.25.0...v1.26.0) (2026-06-18)
+
+
+### Features
+
+* **market-intel:** grafico 12m por padrao, Orgao multi, Empresa Concorrente, toggle todos/nenhum ([3611110](https://github.com/guilherme14888/crm-br4/commit/3611110c49f4a1447101e70a98c0dde49c88d841))
+
 # [1.25.0](https://github.com/guilherme14888/crm-br4/compare/v1.24.1...v1.25.0) (2026-06-18)
 
 
