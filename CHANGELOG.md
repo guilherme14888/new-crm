@@ -1,3 +1,10 @@
+# [1.20.0](https://github.com/guilherme14888/crm-br4/compare/v1.19.0...v1.20.0) (2026-06-18)
+
+
+### Features
+
+* Financeiro dividido (Default x tenant) + visibilidade de menus por perfil ([bd3f0b1](https://github.com/guilherme14888/crm-br4/commit/bd3f0b11c3f080ccf892140d2a48ce6705c9d822))
+
 # [1.19.0](https://github.com/guilherme14888/crm-br4/compare/v1.18.1...v1.19.0) (2026-06-18)
 
 
