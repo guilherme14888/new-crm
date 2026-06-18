@@ -1,3 +1,10 @@
+# [1.25.0](https://github.com/guilherme14888/crm-br4/compare/v1.24.1...v1.25.0) (2026-06-18)
+
+
+### Features
+
+* **market-intel:** filtros unificados num drawer (Visao Executiva) ([8bef8f1](https://github.com/guilherme14888/crm-br4/commit/8bef8f1c29cc988689154dcc9f3f2e9986b301cd))
+
 ## [1.24.1](https://github.com/guilherme14888/crm-br4/compare/v1.24.0...v1.24.1) (2026-06-18)
 
 
