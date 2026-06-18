@@ -653,21 +653,25 @@ function InlineSelect({ label, value, options, onChange }: {
 }
 
 // ─── Filtro lateral: multi-select com busca e "selecionar todos" ───────────────
+// selected: Set = explícito (vazio = nenhum); null = Todos (default).
 function MultiSelect({ label, options, selected, onChange }: {
-  label: string; options: string[]; selected: Set<string>; onChange: (s: Set<string>) => void;
+  label: string; options: string[]; selected: Set<string> | null; onChange: (s: Set<string> | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const allSel = selected.size === 0;                       // vazio = todos
-  const isOn = (o: string) => allSel || selected.has(o);
+  const isOn = (o: string) => selected === null || selected.has(o);
+  const allChecked = selected === null || options.every((o) => selected.has(o));
   const nrm = (x: string) => x.toLowerCase();
   const view = q.trim() ? options.filter((o) => nrm(o).includes(nrm(q.trim()))) : options;
   const toggle = (o: string) => {
-    const base = new Set(allSel ? options : selected);
+    const base = selected === null ? new Set(options) : new Set(selected);
     base.has(o) ? base.delete(o) : base.add(o);
-    onChange(base.size >= options.length ? new Set() : base);   // todos selecionados → vazio (canônico)
+    onChange(base.size === options.length ? null : base);   // todos marcados → null ("Todos")
   };
-  const summary = allSel || selected.size >= options.length ? 'Todos' : `${selected.size} selecionado(s)`;
+  // "Selecionar todos": marca tudo; clicar de novo desmarca tudo.
+  const onSelectAll = () => onChange(allChecked ? new Set<string>() : null);
+  const summary = selected === null || selected.size === options.length ? 'Todos'
+    : selected.size === 0 ? 'Nenhum' : `${selected.size} selecionado(s)`;
   return (
     <View style={{ marginBottom: SPACING.md }}>
       <Text style={dr.label}>{label}</Text>
@@ -678,8 +682,8 @@ function MultiSelect({ label, options, selected, onChange }: {
       {open && (
         <View style={dr.list}>
           <TextInput style={dr.search} value={q} onChangeText={setQ} placeholder="Pesquisar…" placeholderTextColor={COLORS.gray[400]} autoCapitalize="none" />
-          <Pressable style={dr.item} onPress={() => onChange(new Set())}>
-            <View style={[dr.cb, allSel && dr.cbOn]}>{allSel && <Text style={dr.cbCheck}>✓</Text>}</View>
+          <Pressable style={dr.item} onPress={onSelectAll}>
+            <View style={[dr.cb, allChecked && dr.cbOn]}>{allChecked && <Text style={dr.cbCheck}>✓</Text>}</View>
             <Text style={[dr.itemTxt, { fontWeight: '700' }]}>Selecionar todos</Text>
           </Pressable>
           <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
@@ -748,24 +752,23 @@ export default function MarketIntelligenceScreen() {
   const [openId, setOpenId]           = useState<string | null>(null);
   const [empresa, setEmpresa]         = useState(TODOS);
   const [etapaSessao, setEtapaSessao] = useState(TODOS);
-  const [licitador, setLicitador]     = useState(TODOS);
-  const [concSel, setConcSel]         = useState<Set<string>>(new Set());   // vazio = todos
+  const [orgaoSel, setOrgaoSel]       = useState<Set<string> | null>(null);   // órgão (licitador); null = todos
+  const [concSel, setConcSel]         = useState<Set<string> | null>(null);   // empresa concorrente; null = todos
   const [dateFrom, setDateFrom]       = useState('');   // AAAA-MM-DD
   const [dateTo, setDateTo]           = useState('');
   const [hover, setHover]             = useState<{ kind: 'proc' | 'rank'; row: MarketIntelRow; x: number; y: number } | null>(null);
   const [uf, setUf]                   = useState(TODOS);
   const [regiao, setRegiao]           = useState(TODOS);
-  const [prodSel, setProdSel]         = useState<Set<string>>(new Set());   // vazio = todos
+  const [prodSel, setProdSel]         = useState<Set<string> | null>(null);   // produto; null = todos
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState(0);
 
   // ── Filtro lateral (drawer) — estado de rascunho até "Aplicar" ───────────────
   const [filterOpen, setFilterOpen]   = useState(false);
-  const [drawerOpenId, setDrawerOpenId] = useState<string | null>(null);
   const [dEtapa, setDEtapa] = useState(TODOS);
-  const [dLic, setDLic]     = useState(TODOS);
-  const [dConc, setDConc]   = useState<Set<string>>(new Set());
-  const [dProd, setDProd]   = useState<Set<string>>(new Set());
+  const [dOrgao, setDOrgao] = useState<Set<string> | null>(null);
+  const [dConc, setDConc]   = useState<Set<string> | null>(null);
+  const [dProd, setDProd]   = useState<Set<string> | null>(null);
   const [dFrom, setDFrom]   = useState('');
   const [dTo, setDTo]       = useState('');
 
@@ -775,8 +778,8 @@ export default function MarketIntelligenceScreen() {
     return names.map((name, i) => ({ name, color: colorFor(name, i) }));
   }, [rows]);
 
-  // produtos exibidos no gráfico/legenda (vazio = todos)
-  const activeDisplay = prodSel.size ? prodSel : new Set(products.map((p) => p.name));
+  // produtos exibidos no gráfico/legenda (null = todos)
+  const activeDisplay = prodSel === null ? new Set(products.map((p) => p.name)) : prodSel;
 
   // ── Empresas presentes (filtro só faz sentido no Default/master, com várias) ──
   const companyOpts = useMemo(() => {
@@ -805,8 +808,8 @@ export default function MarketIntelligenceScreen() {
     return rows.filter((r) => {
       if (empresa     !== TODOS && (r.companyName || '') !== empresa) return false;
       if (etapaSessao !== TODOS && r.etapaSessao !== etapaSessao) return false;
-      if (licitador   !== TODOS && r.licitador   !== licitador)   return false;
-      if (concSel.size && !concSel.has(r.concorrente || '')) return false;
+      if (orgaoSel !== null && !orgaoSel.has(r.licitador || '')) return false;
+      if (concSel  !== null && !concSel.has(r.concorrente || '')) return false;
       if (uf          !== TODOS && r.uf          !== uf)          return false;
       if (regiao      !== TODOS && r.regiao      !== regiao)      return false;
       if (dateFrom || dateTo) {
@@ -815,10 +818,10 @@ export default function MarketIntelligenceScreen() {
         if (dateFrom && d < dateFrom) return false;
         if (dateTo && d > dateTo)     return false;
       }
-      if (prodSel.size && r.produtoCandidato && !prodSel.has(r.produtoCandidato)) return false;
+      if (prodSel !== null && !prodSel.has(r.produtoCandidato || '')) return false;
       return true;
     });
-  }, [rows, empresa, etapaSessao, licitador, concSel, uf, regiao, dateFrom, dateTo, prodSel]);
+  }, [rows, empresa, etapaSessao, orgaoSel, concSel, uf, regiao, dateFrom, dateTo, prodSel]);
 
   // ── Agrupa em processos ─────────────────────────────────────────────────────────
   const processes = useMemo(() => {
@@ -857,8 +860,11 @@ export default function MarketIntelligenceScreen() {
       by[mk] = by[mk] ?? {};
       by[mk][r.produtoCandidato] = (by[mk][r.produtoCandidato] ?? 0) + (r.quantidade ?? 0);
     }
-    return { months: Array.from(set).sort(), byMonthProduct: by };
-  }, [filtered]);
+    // Limite de 12 meses por padrão; com filtro de data, segue o range escolhido.
+    const all = Array.from(set).sort();
+    const months = (dateFrom || dateTo) ? all : all.slice(-12);
+    return { months, byMonthProduct: by };
+  }, [filtered, dateFrom, dateTo]);
 
   // ── Contagem de ocorrências por produto (nº de vezes que aparece) ───────────────
   const productTotals = useMemo(() => {
@@ -870,17 +876,17 @@ export default function MarketIntelligenceScreen() {
     return t;
   }, [filtered]);
 
-  // legenda (padrão) opera sobre prodSel (vazio = todos)
+  // legenda (padrão) opera sobre prodSel (null = todos)
   const toggleProduct = (name: string) => {
     const base = new Set(activeDisplay);
     if (base.has(name)) base.delete(name); else base.add(name);
     if (base.size === 0) return;                       // nunca esvazia totalmente
-    setProdSel(base.size >= products.length ? new Set() : base);
+    setProdSel(base.size >= products.length ? null : base);
   };
 
   // Isola um produto: deixa só ele; clicar de novo no isolado reverte p/ todos.
   const soloProduct = (name: string) => {
-    if (activeDisplay.size === 1 && activeDisplay.has(name)) setProdSel(new Set());
+    if (activeDisplay.size === 1 && activeDisplay.has(name)) setProdSel(null);
     else setProdSel(new Set([name]));
   };
 
@@ -920,21 +926,23 @@ export default function MarketIntelligenceScreen() {
   }, [filtered]);
 
   // ── Filtro lateral: opções e ações ────────────────────────────────────────────
-  const concOptions = useMemo(() => opts.conc.slice(1), [opts]);   // concorrentes (sem "Todos")
+  const orgaoOptions = useMemo(() => opts.lic.slice(1), [opts]);    // órgãos (sem "Todos")
+  const concOptions = useMemo(() => opts.conc.slice(1), [opts]);    // empresas concorrentes (sem "Todos")
   const prodOptions = useMemo(() => products.map((p) => p.name), [products]);
-  const activeFilters = (etapaSessao !== TODOS ? 1 : 0) + (licitador !== TODOS ? 1 : 0)
-    + (concSel.size ? 1 : 0) + (prodSel.size ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
+  const cpClone = (s: Set<string> | null) => (s === null ? null : new Set(s));
+  const activeFilters = (etapaSessao !== TODOS ? 1 : 0) + (orgaoSel !== null ? 1 : 0)
+    + (concSel !== null ? 1 : 0) + (prodSel !== null ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
   const openFilter = () => {
-    setDEtapa(etapaSessao); setDLic(licitador); setDConc(new Set(concSel)); setDProd(new Set(prodSel));
-    setDFrom(dateFrom); setDTo(dateTo); setDrawerOpenId(null); setFilterOpen(true);
+    setDEtapa(etapaSessao); setDOrgao(cpClone(orgaoSel)); setDConc(cpClone(concSel)); setDProd(cpClone(prodSel));
+    setDFrom(dateFrom); setDTo(dateTo); setFilterOpen(true);
   };
   const applyFilter = () => {
-    setEtapaSessao(dEtapa); setLicitador(dLic); setConcSel(new Set(dConc)); setProdSel(new Set(dProd));
+    setEtapaSessao(dEtapa); setOrgaoSel(cpClone(dOrgao)); setConcSel(cpClone(dConc)); setProdSel(cpClone(dProd));
     setDateFrom(dFrom); setDateTo(dTo); setFilterOpen(false);
   };
   const clearFilter = () => {
-    setDEtapa(TODOS); setDLic(TODOS); setDConc(new Set()); setDProd(new Set()); setDFrom(''); setDTo('');
-    setEtapaSessao(TODOS); setLicitador(TODOS); setConcSel(new Set()); setProdSel(new Set()); setDateFrom(''); setDateTo('');
+    setDEtapa(TODOS); setDOrgao(null); setDConc(null); setDProd(null); setDFrom(''); setDTo('');
+    setEtapaSessao(TODOS); setOrgaoSel(null); setConcSel(null); setProdSel(null); setDateFrom(''); setDateTo('');
   };
   const WebInputMain: any = 'input';
   const dateInputStyle: any = { border: `1px solid ${COLORS.gray[200]}`, borderRadius: 6, padding: '8px 10px', fontSize: 13, color: COLORS.gray[700], outline: 'none', cursor: 'pointer', width: '100%', boxSizing: 'border-box' } as any;
@@ -1095,7 +1103,7 @@ export default function MarketIntelligenceScreen() {
 
               <Panel title="Produto Candidato — quantidade por mês">
                 {activeDisplay.size < products.length && (
-                  <Pressable onPress={() => setProdSel(new Set())} style={s.legendReset}>
+                  <Pressable onPress={() => setProdSel(null)} style={s.legendReset}>
                     <Text style={s.legendResetTxt}>↩ Mostrar todos ({products.length})</Text>
                   </Pressable>
                 )}
@@ -1332,8 +1340,8 @@ export default function MarketIntelligenceScreen() {
               </View>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: SPACING.lg }} keyboardShouldPersistTaps="handled">
                 <InlineSelect label="Etapa da Sessão" value={dEtapa} options={opts.etapa} onChange={setDEtapa} />
-                <InlineSelect label="Licitador" value={dLic} options={opts.lic} onChange={setDLic} />
-                <MultiSelect label="Concorrente (empresas participantes)" options={concOptions} selected={dConc} onChange={setDConc} />
+                <MultiSelect label="Órgão (que abriu a licitação)" options={orgaoOptions} selected={dOrgao} onChange={setDOrgao} />
+                <MultiSelect label="Empresa Concorrente (concorreram/venceram)" options={concOptions} selected={dConc} onChange={setDConc} />
                 <MultiSelect label="Produto" options={prodOptions} selected={dProd} onChange={setDProd} />
                 <Text style={dr.label}>Data (data do certame)</Text>
                 {Platform.OS === 'web' ? (
