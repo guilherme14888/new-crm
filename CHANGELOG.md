@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/guilherme14888/crm-br4/compare/v1.17.0...v1.18.0) (2026-06-18)
+
+
+### Features
+
+* **market-intel:** IA com dropdowns + busca de modelos por chave + provedor Groq ([7fafaa2](https://github.com/guilherme14888/crm-br4/commit/7fafaa2109f68fce0c7f3d8694b7c5d884433f27))
+
 # [1.17.0](https://github.com/guilherme14888/crm-br4/compare/v1.16.0...v1.17.0) (2026-06-18)
 
 
