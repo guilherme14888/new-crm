@@ -120,6 +120,7 @@ interface MarketIntelState {
   createKeyword: (data: Partial<MarketKeyword>) => Promise<void>;
   updateKeyword: (id: string, patch: Partial<MarketKeyword>) => Promise<void>;
   deleteKeyword: (id: string) => Promise<void>;
+  suggestKeywordContext: (input: { termo: string; produtoCandidato?: string | null; negocio?: string }) => Promise<{ contexto: string; negativos: string }>;
 }
 
 export const useMarketIntelStore = create<MarketIntelState>((set, get) => ({
@@ -224,17 +225,26 @@ export const useMarketIntelStore = create<MarketIntelState>((set, get) => ({
       useUIStore.getState().showToast('Palavra-chave cadastrada');
     } catch (e: any) {
       useUIStore.getState().showToast(e?.message ?? 'Erro ao cadastrar');
+      throw e; // propaga p/ o formulário não fechar quando o cadastro é bloqueado
     }
   },
 
-  // Atualiza campos/ativo de uma palavra-chave (otimista no estado local).
+  // Atualiza campos/ativo de uma palavra-chave (estado local após sucesso).
   updateKeyword: async (id, patch) => {
     try {
       await apiFetch(`/api/market-intelligence/keywords/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
       set((s) => ({ keywords: s.keywords.map((k) => (k.id === id ? { ...k, ...patch } : k)) }));
     } catch (e: any) {
       useUIStore.getState().showToast(e?.message ?? 'Erro ao atualizar');
+      throw e; // propaga (ex.: tentar ativar sem contexto → bloqueado)
     }
+  },
+
+  // Pede à IA um contexto + lista de negativos para uma palavra-chave.
+  suggestKeywordContext: async (input) => {
+    return apiFetch<{ contexto: string; negativos: string }>('/api/market-intelligence/keywords/suggest', {
+      method: 'POST', body: JSON.stringify(input),
+    });
   },
 
   // Exclui uma palavra-chave e a remove da lista local.

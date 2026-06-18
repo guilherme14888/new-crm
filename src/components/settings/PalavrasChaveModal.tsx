@@ -19,6 +19,9 @@ export function PalavrasChaveModal({ visible, onClose }: { visible: boolean; onC
 
   const [editing, setEditing] = useState<MarketKeyword | 'new' | null>(null);
 
+  // Governança: palavras ATIVAS sem contexto → captação não confiável.
+  const incomplete = keywords.filter((k) => k.ativo && !k.contexto);
+
   useEffect(() => { if (visible) loadKeywords(); }, [visible]);
 
   const confirmDelete = (kw: MarketKeyword) => {
@@ -51,20 +54,29 @@ export function PalavrasChaveModal({ visible, onClose }: { visible: boolean; onC
               {!loading && keywords.length === 0 && (
                 <Text style={st.empty}>Nenhuma palavra-chave cadastrada.{'\n'}Clique em “+ Nova” para começar.</Text>
               )}
+              {incomplete.length > 0 && (
+                <View style={st.banner}>
+                  <Text style={st.bannerTxt}>
+                    ⚠ {incomplete.length} palavra(s) ativa(s) sem contexto — captação não confiável. Edite e defina o contexto (use “✨ Sugerir com IA”).
+                  </Text>
+                </View>
+              )}
               {keywords.map((kw) => (
                 <View key={kw.id} style={st.row}>
                   <Pressable
                     style={[st.dot, kw.ativo ? st.dotOn : st.dotOff]}
-                    onPress={() => updateKeyword(kw.id, { ativo: !kw.ativo })}
+                    onPress={() => { updateKeyword(kw.id, { ativo: !kw.ativo }).catch(() => {}); }}
                   />
                   <View style={{ flex: 1 }}>
                     <View style={st.rowTitleLine}>
                       <Text style={[st.termo, !kw.ativo && st.termoOff]}>{kw.termo}</Text>
                       {!!kw.produtoCandidato && <View style={st.tag}><Text style={st.tagTxt}>{kw.produtoCandidato}</Text></View>}
+                      {!kw.contexto && <View style={st.warnTag}><Text style={st.warnTagTxt}>sem contexto</Text></View>}
                       {!kw.ativo && <Text style={st.inactive}>inativa</Text>}
                     </View>
                     {!!kw.contexto && <Text style={st.meta} numberOfLines={1}>Contexto: {kw.contexto}</Text>}
                     {!!kw.negativos && <Text style={st.metaNeg} numberOfLines={1}>Exclui: {kw.negativos}</Text>}
+                    {!kw.contexto && <Text style={st.warnTxt}>{kw.ativo ? 'Defina o contexto para garantir a captação correta.' : 'Defina o contexto para poder ativar.'}</Text>}
                   </View>
                   <Pressable style={st.iconBtn} onPress={() => setEditing(kw)}><Text>✏️</Text></Pressable>
                   <Pressable style={st.iconBtn} onPress={() => confirmDelete(kw)}><Text>🗑</Text></Pressable>
@@ -106,19 +118,48 @@ function KeywordForm({
     ativo: initial?.ativo ?? true,
   });
   const [saving, setSaving] = useState(false);
+  const suggest = useMarketIntelStore((s) => s.suggestKeywordContext);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestErr, setSuggestErr] = useState<string | null>(null);
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
-  const handleSave = async () => {
+  // Bloqueio de governança: keyword ativa exige contexto (espelha o backend).
+  const blockedActive = form.ativo && !form.contexto.trim();
+  const canSave = !!form.termo.trim() && !blockedActive && !saving;
+
+  const handleSuggest = async () => {
     if (!form.termo.trim()) return;
+    setSuggesting(true); setSuggestErr(null);
+    try {
+      const out = await suggest({ termo: form.termo.trim(), produtoCandidato: form.produtoCandidato.trim() || null });
+      setForm((f) => ({
+        ...f,
+        contexto: out.contexto || f.contexto,
+        negativos: out.negativos || f.negativos,
+      }));
+    } catch (e: any) {
+      setSuggestErr(e?.message ?? 'Não foi possível sugerir agora.');
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!canSave) return;
     setSaving(true);
-    await onSave({
-      termo: form.termo.trim(),
-      produtoCandidato: form.produtoCandidato.trim() || null,
-      contexto: form.contexto.trim() || null,
-      negativos: form.negativos.trim() || null,
-      ativo: form.ativo,
-    });
-    setSaving(false);
+    try {
+      await onSave({
+        termo: form.termo.trim(),
+        produtoCandidato: form.produtoCandidato.trim() || null,
+        contexto: form.contexto.trim() || null,
+        negativos: form.negativos.trim() || null,
+        ativo: form.ativo,
+      });
+    } catch {
+      // erro já sinalizado (toast); mantém o formulário aberto p/ correção
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -140,9 +181,19 @@ function KeywordForm({
             <Text style={st.hint}>Como classificar o achado no painel (opcional).</Text>
             <TextInput style={st.input} value={form.produtoCandidato} onChangeText={(v) => set('produtoCandidato', v)} placeholder="ex.: PNEU AUTOMOTIVO" placeholderTextColor={COLORS.gray[400]} />
 
-            <Text style={[st.label, { marginTop: SPACING.md }]}>Contexto do negócio</Text>
-            <Text style={st.hint}>Descreva o que se encaixa no seu negócio — usado para análise de contexto.</Text>
+            <View style={st.labelRow}>
+              <Text style={st.label}>Contexto do negócio *</Text>
+              <Pressable
+                style={[st.aiBtn, (!form.termo.trim() || suggesting) && { opacity: 0.5 }]}
+                onPress={handleSuggest}
+                disabled={!form.termo.trim() || suggesting}
+              >
+                <Text style={st.aiBtnTxt}>{suggesting ? 'Gerando…' : '✨ Sugerir com IA'}</Text>
+              </Pressable>
+            </View>
+            <Text style={st.hint}>Descreva o que se encaixa no seu negócio — guia a análise de relevância. Obrigatório para ativar.</Text>
             <TextInput style={[st.input, st.textarea]} value={form.contexto} onChangeText={(v) => set('contexto', v)} placeholder="ex.: pneus para veículos automotores (carros, caminhões)" placeholderTextColor={COLORS.gray[400]} multiline />
+            {!!suggestErr && <Text style={st.errTxt}>{suggestErr}</Text>}
 
             <Text style={[st.label, { marginTop: SPACING.md }]}>Termos a excluir (negativos)</Text>
             <Text style={st.hint}>Separe por vírgula. Achados com esses termos são descartados.</Text>
@@ -159,9 +210,12 @@ function KeywordForm({
             </Pressable>
           </ScrollView>
 
+          {blockedActive && (
+            <Text style={st.blockMsg}>⚠ Para manter ativa, defina o contexto do negócio (ou desative a palavra-chave).</Text>
+          )}
           <View style={st.footer}>
             <Pressable style={st.cancelBtn} onPress={onClose}><Text style={st.cancelTxt}>Cancelar</Text></Pressable>
-            <Pressable style={[st.saveBtn, (saving || !form.termo.trim()) && { opacity: 0.5 }]} onPress={handleSave} disabled={saving || !form.termo.trim()}>
+            <Pressable style={[st.saveBtn, !canSave && { opacity: 0.5 }]} onPress={handleSave} disabled={!canSave}>
               <Text style={st.saveTxt}>{saving ? 'Salvando…' : 'Salvar'}</Text>
             </Pressable>
           </View>
@@ -199,6 +253,18 @@ const st = StyleSheet.create({
   metaNeg:    { fontSize: FONTS.sm, color: '#b45309', marginTop: 1 },
   iconBtn:    { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, backgroundColor: COLORS.gray[50] },
   empty:      { textAlign: 'center' as any, color: COLORS.gray[400], padding: SPACING.xl, lineHeight: 22 },
+
+  banner:     { backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fcd34d', borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.md },
+  bannerTxt:  { fontSize: FONTS.sm, color: '#92400e', lineHeight: 18, fontWeight: '600' },
+  warnTag:    { backgroundColor: '#fef2f2', borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 1 },
+  warnTagTxt: { fontSize: 11, color: '#dc2626', fontWeight: '700' },
+  warnTxt:    { fontSize: FONTS.sm, color: '#b45309', marginTop: 2, fontStyle: 'italic' as any },
+
+  labelRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  aiBtn:      { backgroundColor: COLORS.primary + '15', borderRadius: RADIUS.full, paddingHorizontal: SPACING.md, paddingVertical: 4, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  aiBtnTxt:   { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: '700' },
+  errTxt:     { fontSize: FONTS.sm, color: '#dc2626', marginTop: 4 },
+  blockMsg:   { fontSize: FONTS.sm, color: '#b45309', paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
 
   label:      { fontSize: FONTS.base, fontWeight: '600', color: COLORS.gray[700], marginBottom: 2 },
   hint:       { fontSize: FONTS.sm, color: COLORS.gray[400], marginBottom: 6 },

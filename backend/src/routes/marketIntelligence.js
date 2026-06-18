@@ -5,6 +5,7 @@ const { resolveScope, buildCompanyFilter, requireRole } = require('../middleware
 const { SOURCE_DEFS } = require('../ingest/sources');
 const marketDocs = require('../marketDocs');
 const opportunities = require('../opportunities');
+const { suggestContext } = require('../services/keywordContext');
 const { v4: uuidv4 } = require('uuid');
 
 // Inteligência de Mercado — agora POR TENANT (company_id).
@@ -261,10 +262,28 @@ router.get('/keywords', auth, resolveScope, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/market-intelligence/keywords/suggest — IA sugere contexto + negativos
+router.post('/keywords/suggest', auth, resolveScope, async (req, res) => {
+  const { termo, produtoCandidato, negocio } = req.body || {};
+  if (!termo || !termo.trim()) return res.status(400).json({ error: 'termo é obrigatório' });
+  try {
+    const out = await suggestContext({ termo: termo.trim(), produto: produtoCandidato, negocio });
+    res.json(out);
+  } catch (e) {
+    const code = e.code === 'AI_OFF' ? 503 : 502;
+    res.status(code).json({ error: e.message });
+  }
+});
+
 // POST /api/market-intelligence/keywords
 router.post('/keywords', auth, resolveScope, async (req, res) => {
   const { termo, produtoCandidato, contexto, negativos, ativo } = req.body || {};
   if (!termo || !termo.trim()) return res.status(400).json({ error: 'termo é obrigatório' });
+  // Governança: uma palavra-chave ATIVA precisa de contexto (senão capta ruído /
+  // perde itens). Cadastre inativa ou defina o contexto para ativar.
+  if (ativo !== false && !(contexto && contexto.trim())) {
+    return res.status(422).json({ error: 'Defina o "contexto do negócio" para ativar a palavra-chave (ou cadastre-a inativa).' });
+  }
   const id = uuidv4();
   try {
     await db.query(
@@ -291,8 +310,21 @@ router.patch('/keywords/:id', auth, resolveScope, async (req, res) => {
     }
   }
   if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
-  vals.push(req.params.id, req.scope.companyId);
   try {
+    // Governança: bloqueia deixar/ficar ATIVA sem contexto. Calcula o estado
+    // EFETIVO após o patch (valores enviados sobrepõem os atuais).
+    const [cur] = await db.query(
+      'SELECT contexto, ativo FROM market_intelligence_keywords WHERE id = ? AND company_id = ?',
+      [req.params.id, req.scope.companyId]
+    );
+    if (!cur.length) return res.status(404).json({ error: 'Não encontrada' });
+    const effAtivo = req.body.ativo !== undefined ? !!req.body.ativo : !!cur[0].ativo;
+    const effContexto = req.body.contexto !== undefined ? String(req.body.contexto || '').trim() : (cur[0].contexto || '').trim();
+    if (effAtivo && !effContexto) {
+      return res.status(422).json({ error: 'Defina o "contexto do negócio" para manter a palavra-chave ativa.' });
+    }
+
+    vals.push(req.params.id, req.scope.companyId);
     const [r] = await db.query(
       `UPDATE market_intelligence_keywords SET ${sets.join(', ')} WHERE id = ? AND company_id = ?`, vals
     );
