@@ -54,31 +54,56 @@ function passaPreFiltro(objeto, keyTokens) {
  * Enumera todas as contratações de uma modalidade na janela [dataInicial, dataFinal].
  * Pagina até o fim (com teto de segurança). Devolve a lista bruta (data[]).
  */
+// Busca UMA página da enumeração, resiliente a rate-limit/instabilidade do PNCP.
+// 429/5xx → backoff exponencial (1.5s → 30s) e tenta de novo; nunca abandona a
+// página por um erro transitório (completude > velocidade). Devolve null só após
+// esgotar as tentativas (aí a página é registrada como lacuna, não some calada).
+async function fetchPagina(url, tries = 6) {
+  for (let attempt = 0; attempt < tries; attempt++) {
+    try {
+      return await getJson(url, { allowEmpty: true });
+    } catch (e) {
+      const transitorio = /HTTP (429|500|502|503|504)|aborted|timeout|ECONNRESET|ETIMEDOUT/i.test(e.message || '');
+      if (!transitorio || attempt === tries - 1) throw e;
+      const back = Math.min(30000, 1500 * Math.pow(2, attempt)); // 1.5,3,6,12,24,30s
+      console.warn(`[sweep] ${(e.message || '').slice(0, 16)} — retry em ${Math.round(back / 1000)}s`);
+      await sleep(back);
+    }
+  }
+}
+
 async function enumerarModalidade({ modalidade, dataInicial, dataFinal, delay, stats }) {
   const out = [];
-  const MAX_PAGINAS = 1000; // backstop anti-loop
+  const MAX_PAGINAS = 2000; // backstop anti-loop
+  const pageDelay = Math.max(delay, 500); // ritmo mínimo entre páginas (PNCP rate-limita forte)
   let pagina = 1;
-  while (pagina <= MAX_PAGINAS) {
+  let totalPaginas = null;
+  while (pagina <= (totalPaginas ?? pagina) && pagina <= MAX_PAGINAS) {
     const url = `${BASE}/api/consulta/v1/contratacoes/publicacao` +
       `?dataInicial=${dataInicial}&dataFinal=${dataFinal}` +
-      `&codigoModalidadeContratacao=${modalidade}&pagina=${pagina}`;
+      `&codigoModalidadeContratacao=${modalidade}&pagina=${pagina}&tamanhoPagina=50`;
     let data;
     try {
-      data = await getJson(url, { allowEmpty: true });
+      data = await fetchPagina(url);
     } catch (e) {
+      // página perdida após todas as tentativas → registra a LACUNA e segue (o
+      // catch-up/próxima execução reprocessa; o painel de cobertura sinaliza).
       stats.enumErros = (stats.enumErros || 0) + 1;
-      console.error(`[sweep] enumeração modalidade ${modalidade} pág ${pagina} falhou: ${e.message}`);
-      break; // não trava a varredura inteira por causa de uma modalidade/página
+      console.error(`[sweep] modalidade ${modalidade} pág ${pagina} perdida: ${e.message}`);
+      if (totalPaginas === null) break; // nem a 1ª página veio → aborta a modalidade
+      pagina++; await sleep(pageDelay); continue;
     }
     const lote = (data && data.data) || [];
     out.push(...lote);
-    const totalPaginas = (data && (data.totalPaginas || data.totalPages)) || 1;
-    if (pagina === 1) stats.enumerados = (stats.enumerados || 0) + ((data && data.totalRegistros) || lote.length);
+    if (totalPaginas === null) {
+      totalPaginas = (data && (data.totalPaginas || data.totalPages)) || 1;
+      stats.enumerados = (stats.enumerados || 0) + ((data && data.totalRegistros) || lote.length);
+    }
     if (lote.length === 0 || pagina >= totalPaginas) break;
     pagina++;
-    await sleep(delay);
+    await sleep(pageDelay);
   }
-  if (pagina >= MAX_PAGINAS) console.warn(`[sweep] modalidade ${modalidade}: teto de ${MAX_PAGINAS} páginas atingido — possível truncamento.`);
+  if (pagina >= MAX_PAGINAS) console.warn(`[sweep] modalidade ${modalidade}: teto de ${MAX_PAGINAS} páginas — possível truncamento.`);
   return out;
 }
 
