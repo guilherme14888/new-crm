@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/guilherme14888/crm-br4/compare/v1.22.0...v1.23.0) (2026-06-18)
+
+
+### Features
+
+* **kanban:** produto no card de Oportunidade + lazy-load (10 em 10) nos kanbans ([75231ef](https://github.com/guilherme14888/crm-br4/commit/75231ef4a0f9050d166d004d5b26ae841d26fd16))
+
 # [1.22.0](https://github.com/guilherme14888/crm-br4/compare/v1.21.0...v1.22.0) (2026-06-18)
 
 
