@@ -2,7 +2,7 @@ const router  = require('express').Router();
 const bcrypt  = require('bcrypt');
 const db      = require('../db');
 const auth    = require('../middleware/auth');
-const { resolveScope, requireRole, buildCompanyFilter, canAssignRole } = require('../middleware/acl');
+const { resolveScope, requireRole, requirePermission, buildCompanyFilter, canAssignRole } = require('../middleware/acl');
 const { audit } = require('../services/auditLog');
 
 /** Serializa uma linha de usuário do banco para o formato JSON exposto na API. */
@@ -86,7 +86,7 @@ router.get('/:id', auth, resolveScope, async (req, res) => {
 });
 
 // POST /api/users — manager+ can create users in their company; admin in any
-router.post('/', auth, resolveScope, requireRole('admin', 'manager'), async (req, res) => {
+router.post('/', auth, resolveScope, requireRole('admin', 'manager'), requirePermission('users_manage'), async (req, res) => {
   const { id, email, password, displayName, avatarUrl, role, teamId } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios' });
 
@@ -185,7 +185,7 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
 });
 
 // DELETE /api/users/:id — soft deactivate, manager+
-router.delete('/:id', auth, resolveScope, requireRole('admin', 'manager'), async (req, res) => {
+router.delete('/:id', auth, resolveScope, requireRole('admin', 'manager'), requirePermission('users_manage'), async (req, res) => {
   const { scope } = req;
   // Managers can only deactivate users in their company
   if (scope.role === 'manager') {

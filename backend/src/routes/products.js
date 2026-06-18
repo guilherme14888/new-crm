@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
-const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
+const { resolveScope, buildCompanyFilter, requirePermission } = require('../middleware/acl');
 const { v4: uuidv4 } = require('uuid');
 
 /** Formata um registro de produto do catálogo para o objeto de API. */
@@ -36,7 +36,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
 });
 
 // POST /api/products — cria um produto no catálogo da empresa (requer name)
-router.post('/', auth, resolveScope, async (req, res) => {
+router.post('/', auth, resolveScope, requirePermission('products_manage'), async (req, res) => {
   const { name, description, unitPrice, currency = 'BRL' } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const id = uuidv4();
@@ -52,7 +52,7 @@ router.post('/', auth, resolveScope, async (req, res) => {
 });
 
 // PATCH /api/products/:id — atualiza campos parciais de um produto (valida acesso à empresa)
-router.patch('/:id', auth, resolveScope, async (req, res) => {
+router.patch('/:id', auth, resolveScope, requirePermission('products_manage'), async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM products WHERE id = ?', [req.params.id]);
     if (!rows.length || rows[0].company_id !== req.scope.companyId)
@@ -72,7 +72,7 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
 });
 
 // DELETE /api/products/:id — desativa o produto (is_active = 0), exclusão lógica
-router.delete('/:id', auth, resolveScope, async (req, res) => {
+router.delete('/:id', auth, resolveScope, requirePermission('products_manage'), async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM products WHERE id = ?', [req.params.id]);
     if (!rows.length || rows[0].company_id !== req.scope.companyId)

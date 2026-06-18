@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
-const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
+const { resolveScope, buildCompanyFilter, requirePermission } = require('../middleware/acl');
 const { v4: uuidv4 } = require('uuid');
 
 /** Formata um registro de campo customizado para o objeto de API (faz parse das options JSON). */
@@ -33,7 +33,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
 });
 
 // POST /api/custom-fields — cria um campo customizado (ordem calculada a partir da contagem existente)
-router.post('/', auth, resolveScope, async (req, res) => {
+router.post('/', auth, resolveScope, requirePermission('custom_fields_manage'), async (req, res) => {
   const { name, fieldType, entityType = 'deal', options, isRequired = false } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const id = uuidv4();
@@ -54,7 +54,7 @@ router.post('/', auth, resolveScope, async (req, res) => {
 });
 
 // PATCH /api/custom-fields/:id — atualiza campos parciais de um campo customizado (valida acesso à empresa)
-router.patch('/:id', auth, resolveScope, async (req, res) => {
+router.patch('/:id', auth, resolveScope, requirePermission('custom_fields_manage'), async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM custom_fields WHERE id = ?', [req.params.id]);
     if (!rows.length || rows[0].company_id !== req.scope.companyId)
@@ -75,7 +75,7 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
 });
 
 // DELETE /api/custom-fields/:id — desativa o campo customizado (is_active = 0), exclusão lógica
-router.delete('/:id', auth, resolveScope, async (req, res) => {
+router.delete('/:id', auth, resolveScope, requirePermission('custom_fields_manage'), async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM custom_fields WHERE id = ?', [req.params.id]);
     if (!rows.length || rows[0].company_id !== req.scope.companyId)

@@ -2,7 +2,7 @@ const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
-const { resolveScope, requireRole } = require('../middleware/acl');
+const { resolveScope, requireRole, requirePermission } = require('../middleware/acl');
 
 // Formata uma linha de perfil de ACL para a API, anexando os funis vinculados
 function fmtProfile(r, funnelIds = []) {
@@ -49,7 +49,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
 });
 
 // POST /api/acl-profiles — cria um perfil de ACL com permissões e funis (admin/manager)
-router.post('/', auth, resolveScope, requireRole('admin', 'manager'), async (req, res) => {
+router.post('/', auth, resolveScope, requireRole('admin', 'manager'), requirePermission('roles_manage'), async (req, res) => {
   const { name, description, level = 1, color = '#64748b', permissions, funnelIds = [] } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   if (!permissions) return res.status(400).json({ error: 'permissions required' });
@@ -70,7 +70,7 @@ router.post('/', auth, resolveScope, requireRole('admin', 'manager'), async (req
 });
 
 // PATCH /api/acl-profiles/:id — atualiza um perfil de ACL e seus funis vinculados (admin/manager)
-router.patch('/:id', auth, resolveScope, requireRole('admin', 'manager'), async (req, res) => {
+router.patch('/:id', auth, resolveScope, requireRole('admin', 'manager'), requirePermission('roles_manage'), async (req, res) => {
   const { name, description, level, color, permissions, funnelIds } = req.body;
   const sets = [], vals = [];
   if (name !== undefined)        { sets.push('name = ?');        vals.push(name); }
@@ -98,7 +98,7 @@ router.patch('/:id', auth, resolveScope, requireRole('admin', 'manager'), async 
 });
 
 // DELETE /api/acl-profiles/:id — exclui um perfil de ACL (exceto perfis de sistema) e desvincula usuários (admin/manager)
-router.delete('/:id', auth, resolveScope, requireRole('admin', 'manager'), async (req, res) => {
+router.delete('/:id', auth, resolveScope, requireRole('admin', 'manager'), requirePermission('roles_manage'), async (req, res) => {
   const [existing] = await db.query(`SELECT * FROM acl_profiles WHERE id = ?`, [req.params.id]);
   if (!existing.length) return res.status(404).json({ error: 'Profile not found' });
   if (existing[0].is_system) return res.status(403).json({ error: 'Não é possível excluir perfil do sistema' });

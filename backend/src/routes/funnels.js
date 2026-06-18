@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
-const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
+const { resolveScope, buildCompanyFilter, requirePermission } = require('../middleware/acl');
 
 /** Formata uma linha da tabela funnels (snake_case) para o objeto Funnel da API (camelCase). */
 function fmtFunnel(row) {
@@ -74,7 +74,7 @@ router.get('/:id', auth, resolveScope, async (req, res) => {
 });
 
 // POST /api/funnels — only Default company can create funnels
-router.post('/', auth, resolveScope, async (req, res) => {
+router.post('/', auth, resolveScope, requirePermission('funnels_manage'), async (req, res) => {
   if (req.scope.companyId !== MASTER_COMPANY_ID && !req.scope.isMaster)
     return res.status(403).json({ error: 'Apenas a empresa padrão pode criar funis' });
   const { id, name, isDefault, stages } = req.body;
@@ -119,7 +119,7 @@ router.post('/', auth, resolveScope, async (req, res) => {
 });
 
 // PATCH /api/funnels/:id — only Default company can edit funnels
-router.patch('/:id', auth, resolveScope, async (req, res) => {
+router.patch('/:id', auth, resolveScope, requirePermission('funnels_manage'), async (req, res) => {
   if (req.scope.companyId !== MASTER_COMPANY_ID && !req.scope.isMaster)
     return res.status(403).json({ error: 'Apenas a empresa padrão pode editar funis' });
   const { name, isDefault } = req.body;
@@ -148,7 +148,7 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
 });
 
 // DELETE /api/funnels/:id — only Default company can delete funnels
-router.delete('/:id', auth, resolveScope, async (req, res) => {
+router.delete('/:id', auth, resolveScope, requirePermission('funnels_manage'), async (req, res) => {
   if (req.scope.companyId !== MASTER_COMPANY_ID && !req.scope.isMaster)
     return res.status(403).json({ error: 'Apenas a empresa padrão pode excluir funis' });
   try {
@@ -170,7 +170,7 @@ router.delete('/:id', auth, resolveScope, async (req, res) => {
 });
 
 // POST /api/funnels/:id/stages
-router.post('/:id/stages', auth, resolveScope, async (req, res) => {
+router.post('/:id/stages', auth, resolveScope, requirePermission('funnels_manage'), async (req, res) => {
   if (req.scope.companyId !== MASTER_COMPANY_ID && !req.scope.isMaster)
     return res.status(403).json({ error: 'Apenas a empresa padrão pode criar etapas' });
   const stageCompanyId = MASTER_COMPANY_ID;
@@ -197,7 +197,7 @@ router.post('/:id/stages', auth, resolveScope, async (req, res) => {
 });
 
 // PATCH /api/funnels/:id/stages/:stageId — only Default company
-router.patch('/:id/stages/:stageId', auth, resolveScope, async (req, res) => {
+router.patch('/:id/stages/:stageId', auth, resolveScope, requirePermission('funnels_manage'), async (req, res) => {
   if (req.scope.companyId !== MASTER_COMPANY_ID && !req.scope.isMaster)
     return res.status(403).json({ error: 'Apenas a empresa padrão pode editar etapas' });
   const map = { name: 'name', order: 'order_index', color: 'color', probability: 'probability', type: 'type' };
@@ -228,7 +228,7 @@ router.patch('/:id/stages/:stageId', auth, resolveScope, async (req, res) => {
 });
 
 // DELETE /api/funnels/:id/stages/:stageId — only Default company
-router.delete('/:id/stages/:stageId', auth, resolveScope, async (req, res) => {
+router.delete('/:id/stages/:stageId', auth, resolveScope, requirePermission('funnels_manage'), async (req, res) => {
   if (req.scope.companyId !== MASTER_COMPANY_ID && !req.scope.isMaster)
     return res.status(403).json({ error: 'Apenas a empresa padrão pode excluir etapas' });
   try {

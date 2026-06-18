@@ -2,7 +2,7 @@ const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
-const { resolveScope, buildCompanyFilter } = require('../middleware/acl');
+const { resolveScope, buildCompanyFilter, requirePermission } = require('../middleware/acl');
 
 // Formata uma linha de equipe do banco no objeto retornado pela API
 function fmtTeam(r) {
@@ -41,7 +41,7 @@ router.get('/', auth, resolveScope, async (req, res) => {
 });
 
 // POST /api/teams — cria uma nova equipe na empresa do escopo
-router.post('/', auth, resolveScope, async (req, res) => {
+router.post('/', auth, resolveScope, requirePermission('teams_manage'), async (req, res) => {
   const { name, description, color = '#3b82f6' } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const id = uuidv4();
@@ -57,7 +57,7 @@ router.post('/', auth, resolveScope, async (req, res) => {
 });
 
 // PATCH /api/teams/:id — atualiza nome/descrição/cor de uma equipe
-router.patch('/:id', auth, resolveScope, async (req, res) => {
+router.patch('/:id', auth, resolveScope, requirePermission('teams_manage'), async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM teams WHERE id = ?', [req.params.id]);
     if (!rows.length || rows[0].company_id !== req.scope.companyId)
@@ -77,7 +77,7 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
 });
 
 // DELETE /api/teams/:id — remove uma equipe
-router.delete('/:id', auth, resolveScope, async (req, res) => {
+router.delete('/:id', auth, resolveScope, requirePermission('teams_manage'), async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM teams WHERE id = ?', [req.params.id]);
     if (!rows.length || rows[0].company_id !== req.scope.companyId)
@@ -109,7 +109,7 @@ router.get('/:id/members', auth, resolveScope, async (req, res) => {
 });
 
 // POST /api/teams/:id/members — adiciona um usuário à equipe  { userId, role }
-router.post('/:id/members', auth, resolveScope, async (req, res) => {
+router.post('/:id/members', auth, resolveScope, requirePermission('teams_manage'), async (req, res) => {
   if (!req.scope.isAdmin && !req.scope.isMaster) {
     const [rows] = await db.query('SELECT company_id FROM teams WHERE id = ?', [req.params.id]);
     if (!rows.length || rows[0].company_id !== req.scope.companyId)
@@ -131,7 +131,7 @@ router.post('/:id/members', auth, resolveScope, async (req, res) => {
 });
 
 // PATCH /api/teams/:id/members/:userId — altera o papel de um membro  { role }
-router.patch('/:id/members/:userId', auth, async (req, res) => {
+router.patch('/:id/members/:userId', auth, requirePermission('teams_manage'), async (req, res) => {
   const { role } = req.body;
   if (!role) return res.status(400).json({ error: 'role required' });
   try {
@@ -142,7 +142,7 @@ router.patch('/:id/members/:userId', auth, async (req, res) => {
 });
 
 // DELETE /api/teams/:id/members/:userId — remove um usuário da equipe
-router.delete('/:id/members/:userId', auth, async (req, res) => {
+router.delete('/:id/members/:userId', auth, requirePermission('teams_manage'), async (req, res) => {
   try {
     await db.query(`DELETE FROM team_members WHERE team_id = ? AND user_id = ?`,
       [req.params.id, req.params.userId]);

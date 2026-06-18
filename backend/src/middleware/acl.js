@@ -10,6 +10,8 @@
  *   agent      → alias para consultant (legacy)
  */
 
+const db = require('../db');
+
 const ROLES = ['admin', 'manager', 'supervisor', 'consultant', 'agent'];
 
 /** Empresa master — tem acesso global a todos os dados de todas as empresas */
@@ -30,6 +32,50 @@ function requireRole(...allowed) {
       return res.status(403).json({ error: 'Permissão insuficiente', required: flat });
     }
     next();
+  };
+}
+
+/**
+ * Guardião por PERMISSÃO do perfil ACL (enforcement das permissões da UI).
+ *
+ * Fail-safe (nunca afrouxa, só pode restringir):
+ *   - admin (operador) → sempre passa;
+ *   - usuário SEM perfil ACL → passa (mantém o controle por função/role da rota);
+ *   - usuário COM perfil → negado APENAS se a permissão estiver explicitamente
+ *     desligada (false) no perfil; true/ausente → passa.
+ *   - erro técnico ao carregar → fail-open (não tranca por falha de infra).
+ *
+ * Use SEMPRE em conjunto com o requireRole existente (camadas): a permissão só
+ * restringe ainda mais quem o role já deixaria passar.
+ *
+ * @example router.post('/', auth, requireRole('manager'), requirePermission('teams_manage'), handler)
+ */
+function requirePermission(...keys) {
+  const need = keys.flat();
+  return async (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Não autenticado' });
+    if (req.user.role === 'admin') return next();
+    try {
+      if (req._aclPerms === undefined) {
+        const [r] = await db.query(
+          'SELECT p.permissions FROM users u JOIN acl_profiles p ON p.id = u.acl_profile_id WHERE u.id = ?',
+          [req.user.id]
+        );
+        req._aclPerms = r.length
+          ? (typeof r[0].permissions === 'string' ? JSON.parse(r[0].permissions) : (r[0].permissions || null))
+          : null;
+      }
+      const perms = req._aclPerms;
+      if (!perms) return next(); // sem perfil → não restringe
+      for (const k of need) {
+        if (perms[k] === false) {
+          return res.status(403).json({ error: 'Permissão insuficiente para esta ação.', required: k });
+        }
+      }
+      return next();
+    } catch {
+      return next(); // fail-open
+    }
   };
 }
 
@@ -210,6 +256,7 @@ function canAssignRole(assignerRole, targetRole) {
 
 module.exports = {
   requireRole,
+  requirePermission,
   resolveScope,
   buildScopeFilter,
   buildCompanyFilter,

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
-const { resolveScope, buildCompanyFilter, requireRole } = require('../middleware/acl');
+const { resolveScope, buildCompanyFilter, requireRole, requirePermission } = require('../middleware/acl');
 const { SOURCE_DEFS } = require('../ingest/sources');
 const marketDocs = require('../marketDocs');
 const opportunities = require('../opportunities');
@@ -38,7 +38,7 @@ function fmt(r) {
 }
 
 // GET /api/market-intelligence  → linhas do tenant (master vê todas)
-router.get('/', auth, resolveScope, async (req, res) => {
+router.get('/', auth, resolveScope, requirePermission('market_intelligence_access'), async (req, res) => {
   try {
     const { where, params } = buildCompanyFilter(req.scope, 'mi');
     const [rows] = await db.query(
@@ -120,7 +120,7 @@ function computeCoverageAlerts(history, lastRunDate) {
 }
 
 // GET /api/market-intelligence/coverage — saúde da coleta (varredura PNCP) do tenant
-router.get('/coverage', auth, resolveScope, async (req, res) => {
+router.get('/coverage', auth, resolveScope, requirePermission('coverage_view'), async (req, res) => {
   try {
     const companyId = req.scope.companyId;
     const [cov] = await db.query(
@@ -278,7 +278,7 @@ router.post('/keywords/suggest', auth, resolveScope, async (req, res) => {
 });
 
 // POST /api/market-intelligence/keywords
-router.post('/keywords', auth, resolveScope, async (req, res) => {
+router.post('/keywords', auth, resolveScope, requirePermission('keywords_manage'), async (req, res) => {
   const { termo, produtoCandidato, contexto, negativos, ativo } = req.body || {};
   if (!termo || !termo.trim()) return res.status(400).json({ error: 'termo é obrigatório' });
   // Governança: uma palavra-chave ATIVA precisa de contexto (senão capta ruído /
@@ -302,7 +302,7 @@ router.post('/keywords', auth, resolveScope, async (req, res) => {
 });
 
 // PATCH /api/market-intelligence/keywords/:id
-router.patch('/keywords/:id', auth, resolveScope, async (req, res) => {
+router.patch('/keywords/:id', auth, resolveScope, requirePermission('keywords_manage'), async (req, res) => {
   const map = { termo: 'termo', produtoCandidato: 'produto_candidato', contexto: 'contexto', negativos: 'negativos', ativo: 'ativo' };
   const sets = [], vals = [];
   for (const [k, col] of Object.entries(map)) {
@@ -355,7 +355,7 @@ router.patch('/keywords/:id', auth, resolveScope, async (req, res) => {
 });
 
 // DELETE /api/market-intelligence/keywords/:id
-router.delete('/keywords/:id', auth, resolveScope, async (req, res) => {
+router.delete('/keywords/:id', auth, resolveScope, requirePermission('keywords_manage'), async (req, res) => {
   try {
     const [r] = await db.query(
       'DELETE FROM market_intelligence_keywords WHERE id = ? AND company_id = ?',
@@ -369,7 +369,7 @@ router.delete('/keywords/:id', auth, resolveScope, async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 //  API Externa (fontes/portais) — por tenant; gerente+ pode editar
 // ════════════════════════════════════════════════════════════════════════════
-router.get('/sources', auth, resolveScope, requireRole('manager'), async (req, res) => {
+router.get('/sources', auth, resolveScope, requireRole('manager'), requirePermission('portals_manage'), async (req, res) => {
   try {
     const [rows] = await db.query(
       'SELECT source_key, name, enabled, config, updated_at FROM market_intelligence_sources WHERE company_id = ?',
@@ -391,7 +391,7 @@ router.get('/sources', auth, resolveScope, requireRole('manager'), async (req, r
 });
 
 // PATCH /api/market-intelligence/sources/:key  body: { enabled?, config? }
-router.patch('/sources/:key', auth, resolveScope, requireRole('manager'), async (req, res) => {
+router.patch('/sources/:key', auth, resolveScope, requireRole('manager'), requirePermission('portals_manage'), async (req, res) => {
   const def = SOURCE_DEFS.find((d) => d.key === req.params.key);
   if (!def) return res.status(404).json({ error: 'Portal desconhecido' });
   const companyId = req.scope.companyId;
