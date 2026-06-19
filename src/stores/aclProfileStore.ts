@@ -21,6 +21,7 @@ export interface ACLPermissions {
   ai_config_manage: boolean;
   coverage_view: boolean;
   ingestion_trigger: boolean;
+  mining_history_view: boolean;
   // Financeiro
   billing_manage: boolean;
   trial_manage: boolean;
@@ -59,6 +60,7 @@ export const DEFAULT_PERMISSIONS: ACLPermissions = {
   ai_config_manage: false,
   coverage_view: false,
   ingestion_trigger: false,
+  mining_history_view: false,
   billing_manage: false,
   trial_manage: false,
   menu_dashboard: true,
@@ -89,6 +91,7 @@ export const PERMISSION_LABELS: Record<keyof ACLPermissions, string> = {
   ai_config_manage: 'Gerenciar Inteligência Artificial',
   coverage_view: 'Ver cobertura / saúde da coleta',
   ingestion_trigger: 'Disparar coleta de licitações',
+  mining_history_view: 'Ver Histórico de Mineração',
   billing_manage: 'Gerenciar Financeiro',
   trial_manage: 'Gerenciar período de teste',
   menu_dashboard: 'Dashboard',

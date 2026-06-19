@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
-const { resolveScope, buildCompanyFilter, requireRole, requirePermission } = require('../middleware/acl');
+const { resolveScope, buildCompanyFilter, requireRole, requirePermission, hasPermission } = require('../middleware/acl');
 const { SOURCE_DEFS } = require('../ingest/sources');
 const marketDocs = require('../marketDocs');
 const opportunities = require('../opportunities');
@@ -149,6 +149,51 @@ router.get('/coverage', auth, resolveScope, requirePermission('coverage_view'), 
       lastRunDate,
       today: todayBRT(),
       alerts: computeCoverageAlerts(history, lastRunDate),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/market-intelligence/mining-history — o que cada palavra-chave coletou de
+// NOVO por dia (first_seen_date × termo_busca). Acesso gated por mining_history_view
+// (somente admin ou perfil com a permissão). Master vê todos os tenants (?company).
+router.get('/mining-history', auth, resolveScope, async (req, res) => {
+  if (!(await hasPermission(req, 'mining_history_view'))) {
+    return res.status(403).json({ error: 'Sem permissão para ver o Histórico de Mineração.' });
+  }
+  try {
+    const companyParam = req.query.company;
+    let where = 'mi.first_seen_date IS NOT NULL';
+    const params = [];
+    if (req.scope.isMaster) {
+      if (companyParam && companyParam !== 'all') { where += ' AND mi.company_id = ?'; params.push(companyParam); }
+    } else {
+      where += ' AND mi.company_id = ?'; params.push(req.scope.companyId);
+    }
+    const [rows] = await db.query(
+      `SELECT DATE_FORMAT(mi.first_seen_date,'%Y-%m-%d') d,
+              COALESCE(NULLIF(mi.termo_busca,''),'(varredura)') termo,
+              mi.company_id companyId, c.name companyName, COUNT(*) n
+         FROM market_intelligence mi
+         LEFT JOIN companies c ON c.id = mi.company_id
+        WHERE ${where}
+        GROUP BY d, termo, mi.company_id, c.name
+        ORDER BY d DESC`,
+      params
+    );
+    let companies = [];
+    if (req.scope.isMaster) {
+      const [cs] = await db.query(
+        `SELECT mi.company_id id, c.name name
+           FROM market_intelligence mi LEFT JOIN companies c ON c.id = mi.company_id
+          WHERE mi.company_id IS NOT NULL
+          GROUP BY mi.company_id, c.name ORDER BY c.name`
+      );
+      companies = cs.map((x) => ({ id: x.id, name: x.name || x.id }));
+    }
+    res.json({
+      isMaster: !!req.scope.isMaster,
+      companies,
+      rows: rows.map((r) => ({ date: r.d, termo: r.termo, companyId: r.companyId, companyName: r.companyName || r.companyId, count: Number(r.n) })),
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -245,8 +245,15 @@ export function Sidebar() {
   // Visibilidade por perfil ACL: menu aparece a menos que explicitamente desligado.
   const perms = user?.permissions;
   const menuVisible = (key?: string) => !key || !perms || perms[key] !== false;
+  // Histórico de Mineração: acesso só p/ admin ou perfil com a permissão (grant).
+  const canMining = isAdmin || perms?.mining_history_view === true;
+  const baseItems = BASE_NAV_ITEMS.map((it) =>
+    (it.menuKey === 'menu_market_intelligence' && canMining)
+      ? { ...it, children: [...(it.children ?? []), { label: 'Histórico de Mineração', icon: '⛏️', href: '/(app)/market-intelligence/historico' }] }
+      : it
+  );
   const NAV_ITEMS = [
-    ...BASE_NAV_ITEMS,
+    ...baseItems,
     SETTINGS_NAV,                       // sempre visível (configurações por tenant)
     ...(canFinance ? [FINANCE_NAV] : []),
   ].filter((item) => menuVisible(item.menuKey));

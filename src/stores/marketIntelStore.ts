@@ -101,6 +101,10 @@ export interface CoverageData {
   alerts: CoverageAlert[];
 }
 
+/** Histórico de mineração: novos itens por dia × palavra-chave (× tenant). */
+export interface MiningRow { date: string; termo: string; companyId: string | null; companyName: string | null; count: number }
+export interface MiningHistory { isMaster: boolean; companies: { id: string; name: string }[]; rows: MiningRow[] }
+
 /** Provedor de IA disponível na lista suspensa. */
 export interface AiProviderOpt { key: string; label: string; defaultModel: string }
 /** Estado público da config de IA do tenant (a chave nunca trafega). */
@@ -122,6 +126,9 @@ interface MarketIntelState {
   coverage: CoverageData | null;
   coverageLoading: boolean;
   loadCoverage: () => Promise<void>;
+  mining: MiningHistory | null;
+  miningLoading: boolean;
+  loadMining: (company?: string) => Promise<void>;
   aiConfig: AiConfig | null;
   aiConfigLoading: boolean;
   loadAiConfig: () => Promise<void>;
@@ -200,6 +207,23 @@ export const useMarketIntelStore = create<MarketIntelState>((set, get) => ({
   fetchAiModels: async (input) => {
     const r = await apiFetch<{ models: string[] }>('/api/market-intelligence/ai/models', { method: 'POST', body: JSON.stringify(input) });
     return r.models || [];
+  },
+
+  mining: null,
+  miningLoading: false,
+
+  // Histórico de mineração (novos por dia × palavra-chave). company: 'all' ou id.
+  loadMining: async (company) => {
+    set({ miningLoading: true });
+    try {
+      const qs = company ? `?company=${encodeURIComponent(company)}` : '';
+      const mining = await apiFetch<MiningHistory>(`/api/market-intelligence/mining-history${qs}`);
+      set({ mining });
+    } catch {
+      useUIStore.getState().showToast('Erro ao carregar o Histórico de Mineração');
+    } finally {
+      set({ miningLoading: false });
+    }
   },
 
   coverage: null,
