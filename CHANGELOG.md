@@ -1,3 +1,10 @@
+# [1.27.0](https://github.com/guilherme14888/crm-br4/compare/v1.26.0...v1.27.0) (2026-06-19)
+
+
+### Features
+
+* **market-intel:** Historico de Mineracao (dias x palavras-chave) com ACL ([f22cbf1](https://github.com/guilherme14888/crm-br4/commit/f22cbf1f1af6cab06075777f1276f099b187c5eb))
+
 # [1.26.0](https://github.com/guilherme14888/crm-br4/compare/v1.25.0...v1.26.0) (2026-06-18)
 
 
