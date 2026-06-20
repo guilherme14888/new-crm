@@ -1,3 +1,10 @@
+# [1.29.0](https://github.com/guilherme14888/crm-br4/compare/v1.28.0...v1.29.0) (2026-06-20)
+
+
+### Features
+
+* **ingest:** circuit breaker + cooldown persistido para nunca penalizar no PNCP ([285b154](https://github.com/guilherme14888/crm-br4/commit/285b154ca3c37f81722fda009a6e9f7fcca16426))
+
 # [1.28.0](https://github.com/guilherme14888/crm-br4/compare/v1.27.4...v1.28.0) (2026-06-20)
 
 
