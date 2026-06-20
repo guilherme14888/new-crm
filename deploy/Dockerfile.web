@@ -1,0 +1,20 @@
+# Imagem WEB (frontend) — separada da API. Builda o SPA do Expo e serve via nginx.
+# Leve (estático): não compete CPU/memória com API, ingestão ou scraping.
+
+# ── Stage 1: build do frontend web (Expo → /dist) ────────────────────────────
+FROM node:20-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+# API same-origin: o app chama /api no MESMO domínio (o Traefik roteia /api p/ a API).
+ENV API_URL=""
+RUN npx expo export --platform web --output-dir dist
+
+# ── Stage 2: nginx servindo a SPA ────────────────────────────────────────────
+FROM nginx:1.27-alpine
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=4s --retries=3 \
+  CMD wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1

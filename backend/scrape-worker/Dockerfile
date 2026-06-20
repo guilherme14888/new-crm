@@ -10,8 +10,9 @@ RUN npm ci --omit=dev
 # código do backend (o worker faz require de ../src/...)
 COPY backend/ ./
 
-# deps do worker (playwright já está na imagem base; instala o que falta)
+# deps do worker. O Chromium já vem na imagem base do Playwright — não rebaixa.
 WORKDIR /app/backend/scrape-worker
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm install --omit=dev
 
 # roda como usuário sem privilégios (boa prática p/ browser headless)

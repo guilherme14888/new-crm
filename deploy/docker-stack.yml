@@ -1,0 +1,94 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  Stack do Sistema BR4 — 4 serviços SEPARADOS (nada pesa um no outro):
+#    web           → SPA estática (nginx)            — leve
+#    api           → API do CRM (Node/Express)       — sem agendador, sem browser
+#    ingest-worker → varredura PNCP (isolado)        — 1 réplica
+#    scrape-worker → coleta por navegador (Playwright)— pesado, isolado
+#
+#  Deploy:  docker stack deploy -c deploy/docker-stack.yml crm
+#  Build/push das imagens: ver deploy/README.md (Swarm não builda, só roda imagem).
+# ════════════════════════════════════════════════════════════════════════════
+version: "3.8"
+
+x-db-env: &db-env
+  NODE_ENV: production
+  DB_HOST: ${DB_HOST}
+  DB_PORT: ${DB_PORT:-3306}
+  DB_USER: ${DB_USER}
+  DB_PASSWORD: ${DB_PASSWORD}
+  DB_NAME: ${DB_NAME}
+  JWT_SECRET: ${JWT_SECRET}
+  AI_KEY_SECRET: ${AI_KEY_SECRET}
+
+services:
+  web:
+    image: ${REGISTRY}/crm-web:${TAG:-latest}
+    networks: [traefik-public]
+    deploy:
+      replicas: 1
+      restart_policy: { condition: any }
+      resources:
+        limits: { cpus: "0.50", memory: 256M }
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik-public
+        - traefik.http.routers.crmweb.rule=Host(`${DOMAIN}`)
+        - traefik.http.routers.crmweb.entrypoints=websecure
+        - traefik.http.routers.crmweb.tls.certresolver=${CERT_RESOLVER:-le}
+        - traefik.http.routers.crmweb.priority=1
+        - traefik.http.services.crmweb.loadbalancer.server.port=80
+
+  api:
+    image: ${REGISTRY}/crm-api:${TAG:-latest}
+    environment:
+      <<: *db-env
+      RUN_SCHEDULER: "false"           # a ingestão roda no ingest-worker, não aqui
+      CORS_ORIGINS: https://${DOMAIN}
+    networks: [traefik-public, internal]
+    deploy:
+      replicas: 2                       # escala horizontal do tráfego de usuários
+      restart_policy: { condition: any }
+      resources:
+        limits: { cpus: "1.00", memory: 512M }
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik-public
+        # /api e /health vão para a API (prioridade > web); o resto vai p/ a web.
+        - traefik.http.routers.crmapi.rule=Host(`${DOMAIN}`) && (PathPrefix(`/api`) || Path(`/health`))
+        - traefik.http.routers.crmapi.entrypoints=websecure
+        - traefik.http.routers.crmapi.tls.certresolver=${CERT_RESOLVER:-le}
+        - traefik.http.routers.crmapi.priority=10
+        - traefik.http.services.crmapi.loadbalancer.server.port=3001
+
+  ingest-worker:
+    image: ${REGISTRY}/crm-api:${TAG:-latest}    # MESMA imagem da API, outro comando
+    command: ["node", "src/jobs/worker.js"]
+    environment:
+      <<: *db-env
+    networks: [internal]
+    deploy:
+      replicas: 1                       # SEMPRE 1 (agendador in-process)
+      restart_policy: { condition: any }
+      resources:
+        limits: { cpus: "1.00", memory: 512M }
+
+  scrape-worker:
+    image: ${REGISTRY}/crm-scrape-worker:${TAG:-latest}
+    environment:
+      <<: *db-env
+      SCRAPE_INTERVAL_HOURS: ${SCRAPE_INTERVAL_HOURS:-12}
+      # CAPTCHA_API_KEY é OPCIONAL aqui — a chave 2Captcha também é lida do banco
+      # (Configurações → IA → Resolução de CAPTCHA).
+      CAPTCHA_API_KEY: ${CAPTCHA_API_KEY:-}
+    networks: [internal]
+    deploy:
+      replicas: 1
+      restart_policy: { condition: any }
+      resources:
+        limits: { cpus: "1.50", memory: 1536M }   # Chromium é pesado → isolado
+
+networks:
+  traefik-public:
+    external: true                      # rede do Traefik (já existente no cluster)
+  internal:
+    driver: overlay
