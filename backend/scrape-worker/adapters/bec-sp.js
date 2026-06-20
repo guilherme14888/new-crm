@@ -20,12 +20,38 @@
 
 const { newPage, UA } = require('../lib/browser');
 const { regiaoOf } = require('../../src/ingest/normalize');
+const { hasKey, solveRecaptchaV2 } = require('../lib/captcha');
 
 const CONSULTA_URL = 'https://www2.bec.sp.gov.br/bec_pregao_UI/OC/pregao_oc_pesquisa.aspx';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Resolve o reCAPTCHA da página e injeta o token nos campos esperados pelo ASP.NET.
+async function resolverCaptcha(page) {
+  // sitekey do widget reCAPTCHA (data-sitekey do .g-recaptcha, ou no HTML)
+  const siteKey = await page.evaluate(() => {
+    const el = document.querySelector('.g-recaptcha, [data-sitekey]');
+    if (el) return el.getAttribute('data-sitekey');
+    const m = document.documentElement.innerHTML.match(/sitekey["'\s:]+([0-9A-Za-z_-]{30,})/);
+    return m ? m[1] : null;
+  });
+  if (!siteKey) return false;
+  const token = await solveRecaptchaV2({ siteKey, pageUrl: CONSULTA_URL, invisible: true });
+  await page.evaluate((t) => {
+    const set = (sel) => document.querySelectorAll(sel).forEach((e) => { e.value = t; });
+    set('[name$="hdnRecaptchaToken"]');
+    set('#g-recaptcha-response');
+    set('textarea[name="g-recaptcha-response"]');
+    const nr = document.querySelector('[name$="noRobot"]'); if (nr) nr.value = 'true';
+  }, token);
+  return true;
+}
+
 async function sweep(keywords, opts = {}) {
+  if (!hasKey()) {
+    console.warn('[bec-sp] CAPTCHA_API_KEY ausente — BEC-SP exige reCAPTCHA; pulando. Configure a chave 2Captcha p/ habilitar.');
+    return [];
+  }
   const page = await newPage();
   const byKw = new Map();
   try {
@@ -33,24 +59,30 @@ async function sweep(keywords, opts = {}) {
       try {
         await page.goto(CONSULTA_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
 
-        // 1) preencher o termo e submeter a busca — AJUSTAR seletores ao DOM real:
-        //    await page.fill('input[name$="txtObjeto"]', kw.termo);
-        //    await page.click('input[name$="btnPesquisar"]');
-        //    await page.waitForSelector('table[id$="grdResultado"]', { timeout: 30000 });
+        // 1) preenche o termo (descrição do item) — campo real do form BEC-SP
+        await page.fill('input[name$="cItemDescricao"]', kw.termo).catch(() => {});
 
-        // 2) extrair as linhas da grade de resultados — AJUSTAR:
-        //    const linhas = await page.$$eval('table[id$="grdResultado"] tr.linha', trs => trs.map(tr => ({
-        //      numeroOC: tr.querySelector('.oc')?.textContent?.trim(),
-        //      orgao:    tr.querySelector('.orgao')?.textContent?.trim(),
-        //      objeto:   tr.querySelector('.objeto')?.textContent?.trim(),
-        //      abertura: tr.querySelector('.abertura')?.textContent?.trim(),
-        //      situacao: tr.querySelector('.situacao')?.textContent?.trim(),
-        //      url:      tr.querySelector('a')?.href,
-        //    })));
-        const linhas = []; // ← preencher com o parsing real
+        // 2) resolve o reCAPTCHA (2Captcha) e injeta o token
+        await resolverCaptcha(page);
 
-        // 3) (opcional) abrir cada OC p/ detalhe: abertura, vencedor, datas, encerramento
-        //    e mapear para o shape normalizado:
+        // 3) submete a pesquisa (botão real) e aguarda a grade
+        await page.click('[name$="c_btnPesquisa"]').catch(() => {});
+        await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+
+        // 4) extrai as linhas da grade de resultados — AJUSTAR os seletores da grade
+        //    ao DOM real (a página de resultados precisa ser inspecionada ao vivo):
+        const linhas = await page.evaluate(() => {
+          const out = [];
+          document.querySelectorAll('table tr').forEach((tr) => {
+            const tds = [...tr.querySelectorAll('td')].map((td) => td.textContent.trim());
+            if (tds.length >= 4 && /\d/.test(tds[0])) {
+              out.push({ numeroOC: tds[0], orgao: tds[1], objeto: tds[2], situacao: tds[3], url: tr.querySelector('a')?.href });
+            }
+          });
+          return out;
+        }).catch(() => []);
+
+        // 5) mapeia para o shape normalizado:
         const records = linhas.map((l) => ({
           fonte: 'BEC-SP',
           termoBusca: kw.termo,
