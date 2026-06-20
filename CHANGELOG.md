@@ -1,3 +1,10 @@
+## [1.27.1](https://github.com/guilherme14888/crm-br4/compare/v1.27.0...v1.27.1) (2026-06-20)
+
+
+### Bug Fixes
+
+* **security:** corrige cross-tenant em deals e bug 500 em users; hardening ([323fcc7](https://github.com/guilherme14888/crm-br4/commit/323fcc723665d2a8467a5f7b3610fe919e142850))
+
 # [1.27.0](https://github.com/guilherme14888/crm-br4/compare/v1.26.0...v1.27.0) (2026-06-19)
 
 
