@@ -48,7 +48,7 @@ async function resolverCaptcha(page) {
 }
 
 async function sweep(keywords, opts = {}) {
-  if (!hasKey()) {
+  if (!(await hasKey())) {
     console.warn('[bec-sp] CAPTCHA_API_KEY ausente — BEC-SP exige reCAPTCHA; pulando. Configure a chave 2Captcha p/ habilitar.');
     return [];
   }

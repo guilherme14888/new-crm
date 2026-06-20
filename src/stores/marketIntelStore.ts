@@ -139,6 +139,9 @@ interface MarketIntelState {
   saveAiConfig: (patch: { provider?: string; apiKey?: string; model?: string }) => Promise<void>;
   testAiConfig: () => Promise<{ ok: boolean; provider?: string; model?: string; source?: string; reply?: string; error?: string }>;
   fetchAiModels: (input: { provider: string; apiKey?: string }) => Promise<string[]>;
+  captchaHasKey: boolean;
+  loadCaptcha: () => Promise<void>;
+  saveCaptcha: (apiKey: string) => Promise<void>;
   sources: MarketIntelSource[];
   sourcesLoading: boolean;
   loadSources: () => Promise<void>;
@@ -211,6 +214,25 @@ export const useMarketIntelStore = create<MarketIntelState>((set, get) => ({
   fetchAiModels: async (input) => {
     const r = await apiFetch<{ models: string[] }>('/api/market-intelligence/ai/models', { method: 'POST', body: JSON.stringify(input) });
     return r.models || [];
+  },
+
+  captchaHasKey: false,
+  // Chave 2Captcha (resolução de CAPTCHA p/ portais como BEC-SP). Global, cifrada.
+  loadCaptcha: async () => {
+    try {
+      const r = await apiFetch<{ hasKey: boolean }>('/api/market-intelligence/captcha');
+      set({ captchaHasKey: !!r.hasKey });
+    } catch { /* silencioso */ }
+  },
+  saveCaptcha: async (apiKey) => {
+    try {
+      const r = await apiFetch<{ hasKey: boolean }>('/api/market-intelligence/captcha', { method: 'PATCH', body: JSON.stringify({ apiKey }) });
+      set({ captchaHasKey: !!r.hasKey });
+      useUIStore.getState().showToast('Chave 2Captcha salva');
+    } catch (e: any) {
+      useUIStore.getState().showToast(e?.message ?? 'Erro ao salvar a chave 2Captcha');
+      throw e;
+    }
   },
 
   mining: null,

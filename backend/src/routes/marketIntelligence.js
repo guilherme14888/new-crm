@@ -7,6 +7,7 @@ const marketDocs = require('../marketDocs');
 const opportunities = require('../opportunities');
 const { suggestContext } = require('../services/keywordContext');
 const { getAiConfigPublic, saveAiConfig, loadAiConfig } = require('../services/aiConfig');
+const integrations = require('../services/integrations');
 const { chat, listModels } = require('../services/llm');
 const { v4: uuidv4 } = require('uuid');
 
@@ -536,6 +537,21 @@ router.patch('/ai', auth, resolveScope, requireMasterAdmin, async (req, res) => 
   const { provider, apiKey, model } = req.body || {};
   try {
     res.json(await saveAiConfig(null, { provider, apiKey, model }));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── CAPTCHA (2Captcha) — chave global, usada pelo scrape-worker. Só master admin.
+router.get('/captcha', auth, resolveScope, requireMasterAdmin, async (req, res) => {
+  try {
+    const hasKey = (await integrations.hasSecret('captcha_2captcha')) || !!process.env.CAPTCHA_API_KEY;
+    res.json({ hasKey, source: (await integrations.hasSecret('captcha_2captcha')) ? 'config' : (process.env.CAPTCHA_API_KEY ? 'env' : 'none') });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.patch('/captcha', auth, resolveScope, requireMasterAdmin, async (req, res) => {
+  try {
+    if (req.body && req.body.apiKey !== undefined) await integrations.setSecret('captcha_2captcha', req.body.apiKey);
+    const hasKey = (await integrations.hasSecret('captcha_2captcha')) || !!process.env.CAPTCHA_API_KEY;
+    res.json({ ok: true, hasKey });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 

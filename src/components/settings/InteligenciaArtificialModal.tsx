@@ -54,6 +54,12 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
   const save        = useMarketIntelStore((s) => s.saveAiConfig);
   const test        = useMarketIntelStore((s) => s.testAiConfig);
   const fetchModels = useMarketIntelStore((s) => s.fetchAiModels);
+  const captchaHasKey = useMarketIntelStore((s) => s.captchaHasKey);
+  const loadCaptcha   = useMarketIntelStore((s) => s.loadCaptcha);
+  const saveCaptcha   = useMarketIntelStore((s) => s.saveCaptcha);
+
+  const [captchaKey, setCaptchaKey] = useState('');
+  const [savingCaptcha, setSavingCaptcha] = useState(false);
 
   const [provider, setProvider] = useState('anthropic');
   const [apiKey, setApiKey]     = useState('');
@@ -68,7 +74,12 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
   const providers = cfg?.providers || [];
   const selDef = providers.find((p) => p.key === provider);
 
-  useEffect(() => { if (visible) load(); }, [visible]);
+  useEffect(() => { if (visible) { load(); loadCaptcha(); setCaptchaKey(''); } }, [visible]);
+
+  const handleSaveCaptcha = async () => {
+    setSavingCaptcha(true);
+    try { await saveCaptcha(captchaKey.trim()); setCaptchaKey(''); } catch { /* toast */ } finally { setSavingCaptcha(false); }
+  };
 
   // reflete a config carregada; se há chave salva, busca os modelos dela
   useEffect(() => {
@@ -194,6 +205,29 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
                 {!!statusTxt && <Text style={st.statusTxt}>{statusTxt}</Text>}
                 {!!testMsg && <Text style={[st.testTxt, testMsg.ok ? st.testOk : st.testErr]}>{testMsg.ok ? '✓ ' : '⛔ '}{testMsg.text}</Text>}
                 <Text style={st.foot}>A chave é gravada no servidor e nunca é devolvida à tela. O “Testar conexão” usa a configuração já salva.</Text>
+
+                {/* ── CAPTCHA (2Captcha) — para portais com reCAPTCHA (ex.: BEC-SP) ── */}
+                <View style={st.divider} />
+                <Text style={st.label}>Resolução de CAPTCHA (2Captcha)</Text>
+                <Text style={st.hint}>
+                  {captchaHasKey ? 'Chave salva (criptografada). Preencha apenas para substituir.'
+                    : 'Cole a chave da sua conta 2Captcha — usada pelo coletor (scrape-worker) nos portais com reCAPTCHA.'}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' }}>
+                  <TextInput
+                    style={[st.input, { flex: 1 }]}
+                    value={captchaKey}
+                    onChangeText={setCaptchaKey}
+                    placeholder={captchaHasKey ? '•••••••••• (chave salva)' : 'cole a chave do 2Captcha'}
+                    placeholderTextColor={COLORS.gray[400]}
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
+                  <Pressable style={[st.saveBtn, (savingCaptcha || !captchaKey.trim()) && { opacity: 0.5 }]} onPress={handleSaveCaptcha} disabled={savingCaptcha || !captchaKey.trim()}>
+                    <Text style={st.saveTxt}>{savingCaptcha ? '...' : 'Salvar'}</Text>
+                  </Pressable>
+                </View>
+                <Text style={st.foot}>Necessária só para scrapear portais protegidos por CAPTCHA. Tem custo por resolução (cobrado pelo 2Captcha).</Text>
               </>
             )}
           </ScrollView>
@@ -243,6 +277,7 @@ const st = StyleSheet.create({
   testOk:     { color: '#16a34a' },
   testErr:    { color: '#dc2626', fontSize: FONTS.sm, marginTop: 4, fontWeight: '600' },
   foot:       { fontSize: 11, color: COLORS.gray[400], marginTop: SPACING.md, lineHeight: 15 },
+  divider:    { height: 1, backgroundColor: COLORS.gray[100], marginVertical: SPACING.lg },
 
   footer:     { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.lg, borderTopWidth: 1, borderTopColor: COLORS.gray[100] },
   testBtn:    { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: COLORS.gray[100] },

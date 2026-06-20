@@ -7,8 +7,16 @@
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const API = 'https://2captcha.com';
 
-const apiKey = () => process.env.CAPTCHA_API_KEY || process.env.TWOCAPTCHA_KEY || '';
-const hasKey = () => !!apiKey();
+// Chave: 1º a cadastrada na UI (tabela app_integrations, cifrada); 2º a env.
+async function apiKey() {
+  try {
+    const { getSecret } = require('../../src/services/integrations');
+    const k = await getSecret('captcha_2captcha');
+    if (k) return k;
+  } catch { /* sem banco/serviço → cai no env */ }
+  return process.env.CAPTCHA_API_KEY || process.env.TWOCAPTCHA_KEY || '';
+}
+async function hasKey() { return !!(await apiKey()); }
 
 async function getJson(url) {
   const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -17,8 +25,8 @@ async function getJson(url) {
 
 /** Submete um captcha e faz poll até o token (ou erro/timeout). */
 async function solve(params) {
-  const key = apiKey();
-  if (!key) throw new Error('CAPTCHA_API_KEY não configurada (2Captcha).');
+  const key = await apiKey();
+  if (!key) throw new Error('Chave 2Captcha não configurada (Configurações → IA/Integrações ou CAPTCHA_API_KEY).');
   const qs = new URLSearchParams({ key, json: '1', ...params }).toString();
   const sub = await getJson(`${API}/in.php?${qs}`);
   if (String(sub.status) !== '1') throw new Error(`2captcha submit: ${sub.request}`);

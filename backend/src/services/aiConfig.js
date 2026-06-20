@@ -133,4 +133,4 @@ async function saveAiConfig(_companyId, { provider, apiKey, model }) {
   return getAiConfigPublic();
 }
 
-module.exports = { PROVIDERS, DEFAULT_PROVIDER, loadAiConfig, getAiConfigPublic, saveAiConfig };
+module.exports = { PROVIDERS, DEFAULT_PROVIDER, loadAiConfig, getAiConfigPublic, saveAiConfig, encryptSecret, decryptSecret };
