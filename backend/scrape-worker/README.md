@@ -22,6 +22,13 @@ node index.js                     # modo serviço (agenda a cada SCRAPE_INTERVAL
 `--dry` usa o adapter `exemplo` (sem browser) para validar runner → normalização →
 upsert sem tocar no portal nem no banco.
 
+## CAPTCHA (portais com reCAPTCHA, ex.: BEC-SP)
+
+Defina `CAPTCHA_API_KEY` (chave do **2Captcha**) na env do serviço. `lib/captcha.js`
+resolve reCAPTCHA v2/v3 e injeta o token. Sem a chave, adapters que dependem de
+CAPTCHA (como o BEC-SP) **pulam com aviso**. Há custo por solve — habilite só nos
+portais que valem o ROI.
+
 ## Interface de um adapter
 
 Cada portal é um módulo em `adapters/` com a MESMA interface dos `connectors/` do
