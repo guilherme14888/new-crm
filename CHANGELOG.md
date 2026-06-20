@@ -1,3 +1,10 @@
+# [1.36.0](https://github.com/guilherme14888/crm-br4/compare/v1.35.0...v1.36.0) (2026-06-20)
+
+
+### Features
+
+* **settings:** chave 2Captcha cadastravel na UI (global, cifrada) ([8777f9e](https://github.com/guilherme14888/crm-br4/commit/8777f9e3f7e66c8b645fd26a4abaf875d2708f65))
+
 # [1.35.0](https://github.com/guilherme14888/crm-br4/compare/v1.34.0...v1.35.0) (2026-06-20)
 
 
