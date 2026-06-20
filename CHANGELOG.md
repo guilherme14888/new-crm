@@ -1,3 +1,10 @@
+# [1.32.0](https://github.com/guilherme14888/crm-br4/compare/v1.31.0...v1.32.0) (2026-06-20)
+
+
+### Features
+
+* **ingest:** Compras.gov como failover do PNCP + cooldown ciente de host ([2a41f26](https://github.com/guilherme14888/crm-br4/commit/2a41f26769b33b328351eeb09122a8daab9b6bc0))
+
 # [1.31.0](https://github.com/guilherme14888/crm-br4/compare/v1.30.0...v1.31.0) (2026-06-20)
 
 
