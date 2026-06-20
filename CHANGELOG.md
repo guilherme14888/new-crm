@@ -1,3 +1,10 @@
+## [1.27.4](https://github.com/guilherme14888/crm-br4/compare/v1.27.3...v1.27.4) (2026-06-20)
+
+
+### Bug Fixes
+
+* **ingest:** evita compounding de retry de 429 na enumeracao do sweep ([f14514f](https://github.com/guilherme14888/crm-br4/commit/f14514f16312dafc9ad67c2c8a619e9ef14cf1c3))
+
 ## [1.27.3](https://github.com/guilherme14888/crm-br4/compare/v1.27.2...v1.27.3) (2026-06-20)
 
 
