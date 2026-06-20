@@ -1,3 +1,10 @@
+# [1.33.0](https://github.com/guilherme14888/crm-br4/compare/v1.32.0...v1.33.0) (2026-06-20)
+
+
+### Features
+
+* **ingest:** conector Compras-CE (TCE-CE) dirigido por configuracao ([d540979](https://github.com/guilherme14888/crm-br4/commit/d5409793a7200439b3c3d8403f89a9d78f689d6e))
+
 # [1.32.0](https://github.com/guilherme14888/crm-br4/compare/v1.31.0...v1.32.0) (2026-06-20)
 
 
