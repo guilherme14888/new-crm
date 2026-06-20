@@ -1,0 +1,16 @@
+{
+  "name": "crm-scrape-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Worker isolado de coleta por navegador (Playwright) para portais sem API.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "run": "node runner.js",
+    "dry": "node runner.js --dry"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.48.0"
+  }
+}
