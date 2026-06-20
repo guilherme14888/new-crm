@@ -47,3 +47,6 @@ yarn-error.*
 # Env files
 .env
 backend/.env
+
+# logs temporarios de ingestao
+backend/*.out
