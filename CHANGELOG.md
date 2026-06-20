@@ -1,3 +1,11 @@
+## [1.27.3](https://github.com/guilherme14888/crm-br4/compare/v1.27.2...v1.27.3) (2026-06-20)
+
+
+### Performance Improvements
+
+* **front:** debounce na busca + blob pre-computado + cap no MultiSelect ([50af3b1](https://github.com/guilherme14888/crm-br4/commit/50af3b10e3f38a87fa67e2a1a8161ed11ca2335c))
+* **ingest:** throttle global+429, bulk upsert e enumeracao 1x do PNCP ([ca952bf](https://github.com/guilherme14888/crm-br4/commit/ca952bfd1ad5f366cfd11160f3e1985da16f9479))
+
 ## [1.27.2](https://github.com/guilherme14888/crm-br4/compare/v1.27.1...v1.27.2) (2026-06-20)
 
 
