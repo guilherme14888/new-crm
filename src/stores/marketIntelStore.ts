@@ -50,6 +50,8 @@ export interface MarketIntelRow {
   linkEdital: string | null;
   linkAta: string | null;
   linkDocConcorrente: string | null;
+  fonte: string | null;   // origem do registro (PNCP, BLL, …)
+  fontes: string | null;  // todas as origens acumuladas (ex.: "PNCP,BLL")
 }
 
 /** Definição/estado de um portal (API Externa). */

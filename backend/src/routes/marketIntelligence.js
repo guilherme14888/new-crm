@@ -34,6 +34,7 @@ function fmt(r) {
     produtoOfertado: f(r.produto_ofertado), precoFinalUnit: n(r.preco_final_unit), precoFinalTotal: n(r.preco_final_total),
     etapaSessao: f(r.etapa_sessao), encerramento: f(r.encerramento), processoKey: f(r.processo_key),
     linkEdital: f(r.link_edital), linkAta: f(r.link_ata), linkDocConcorrente: f(r.link_doc_concorrente),
+    fonte: f(r.fonte), fontes: f(r.fontes),   // origem do registro (PNCP, BLL…) e todas as origens acumuladas
   };
 }
 

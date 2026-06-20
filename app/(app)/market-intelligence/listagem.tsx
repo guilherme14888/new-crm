@@ -46,6 +46,7 @@ function fmtBRdate(d: string) {
 // ─── Colunas da tabela (todas as colunas relevantes de market_intelligence) ───
 type Col = { key: keyof MarketIntelRow; label: string; w: number; fmt?: (r: MarketIntelRow) => string; right?: boolean };
 const COLUMNS: Col[] = [
+  { key: 'fontes',            label: 'Fonte',               w: 120, fmt: (r) => r.fontes || r.fonte || '' },
   { key: 'status',            label: 'Status',              w: 120 },
   { key: 'uf',                label: 'UF',                  w: 48 },
   { key: 'municipio',         label: 'Cidade',              w: 150 },
