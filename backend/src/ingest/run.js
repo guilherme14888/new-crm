@@ -5,8 +5,9 @@
 const db = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const { connectors } = require('./index');
-const { upsertRecord } = require('./upsert');
-const { sleep } = require('./http');
+const { upsertRecords } = require('./upsert');
+const { sleep, httpStats } = require('./http');
+const { clearSweepCache } = require('./connectors/pncp-sweep');
 const { loadAll } = require('./sources');
 const { filterRelevant } = require('./relevance');
 
@@ -97,6 +98,7 @@ async function runIngest(opts = {}) {
   if (running) { console.log('[ingest] já em execução — ignorando chamada.'); return { skipped: true }; }
   running = true;
   const started = Date.now();
+  clearSweepCache(); // zera o cache de enumeração: cada execução re-enumera o PNCP (dados mudam)
   const runDate = opts.runDate || todayBRT();   // dia-alvo da execução
   try {
     const wanted = (opts.portals || []).map((p) => p.toLowerCase());
@@ -122,9 +124,10 @@ async function runIngest(opts = {}) {
       console.log(`[ingest] tenant ${companyId} — portais: ${enabled.map((c) => c.name).join(', ') || '(nenhum)'}, ${keywords.length} keyword(s)`);
 
       const upsertAll = async (records) => {
-        for (const rec of records) {
-          try { st[await upsertRecord({ ...rec, companyId, firstSeenDate: runDate })]++; } catch { st.errors++; }
-        }
+        if (!records || !records.length) return;
+        const recs = records.map((rec) => ({ ...rec, companyId, firstSeenDate: runDate }));
+        const r = await upsertRecords(recs);
+        st.inserted += r.inserted; st.updated += r.updated; st.errors += r.errors;
       };
 
       for (const c of enabled) {
@@ -191,7 +194,8 @@ async function runIngest(opts = {}) {
     }
 
     const secs = ((Date.now() - started) / 1000).toFixed(1);
-    console.log(`[ingest] fim em ${secs}s — novas ${grand.inserted}, atualizadas ${grand.updated}, fora de contexto ${grand.skippedNeg + grand.skippedAI}, chamadas IA ${grand.aiCalls}, erros ${grand.errors}`);
+    const h429 = httpStats().throttle429;
+    console.log(`[ingest] fim em ${secs}s — novas ${grand.inserted}, atualizadas ${grand.updated}, fora de contexto ${grand.skippedNeg + grand.skippedAI}, chamadas IA ${grand.aiCalls}, erros ${grand.errors}, 429 ${h429}`);
     return { perTenant, totals: grand };
   } finally {
     running = false;

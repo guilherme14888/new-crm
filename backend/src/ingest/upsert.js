@@ -76,18 +76,9 @@ async function recordHistory(miId, companyId, key, row, runDate) {
   } catch { /* histórico é complementar; não bloqueia a gravação principal */ }
 }
 
-/** rec = objeto normalizado (camelCase). Retorna 'inserted' | 'updated'. */
-async function upsertRecord(rec) {
-  // Blindagem multi-tenant: nunca grava sem company_id (evita linhas órfãs/sem dono).
-  if (!rec.companyId) throw new Error('upsertRecord: company_id ausente — gravação bloqueada');
+/** Monta o objeto-linha (snake_case) + a dedupe_key a partir do rec normalizado. */
+function buildRow(rec) {
   const key = dedupeKey(rec);
-  // estado anterior (mesma chave UNIQUE company_id+dedupe_key) para o histórico
-  const [prevRows] = await db.query(
-    `SELECT id, status, encerramento, posicao, concorrente, preco_final_unit
-       FROM market_intelligence WHERE company_id = ? AND dedupe_key = ? LIMIT 1`,
-    [rec.companyId, key]
-  );
-  const prev = prevRows[0] || null;
   const row = {
     id: newId(rec.fonte),
     company_id: rec.companyId || null,
@@ -100,28 +91,158 @@ async function upsertRecord(rec) {
   for (const [camel, col] of Object.entries(FIELD)) {
     if (rec[camel] !== undefined) row[col] = rec[camel];
   }
+  return { row, key };
+}
 
+// Expressão de UPDATE compartilhada (acumula a origem sem duplicar: PNCP,EFFECTI,...).
+const UPDATE_SET = (() => {
   const updates = UPDATABLE.map((c) => `${c}=VALUES(${c})`);
-  // acumula a origem sem duplicar (PNCP,EFFECTI,...)
   updates.push("fontes = IF(FIND_IN_SET(VALUES(fonte), fontes) > 0, fontes, CONCAT_WS(',', fontes, VALUES(fonte)))");
+  return updates.join(', ');
+})();
+
+/** rec = objeto normalizado (camelCase). Retorna 'inserted' | 'updated'. */
+async function upsertRecord(rec) {
+  // Blindagem multi-tenant: nunca grava sem company_id (evita linhas órfãs/sem dono).
+  if (!rec.companyId) throw new Error('upsertRecord: company_id ausente — gravação bloqueada');
+  const { row, key } = buildRow(rec);
+  // estado anterior (mesma chave UNIQUE company_id+dedupe_key) para o histórico
+  const [prevRows] = await db.query(
+    `SELECT id, status, encerramento, posicao, concorrente, preco_final_unit
+       FROM market_intelligence WHERE company_id = ? AND dedupe_key = ? LIMIT 1`,
+    [rec.companyId, key]
+  );
+  const prev = prevRows[0] || null;
 
   const placeholders = COLS.map(() => '?').join(',');
   const vals = COLS.map((c) => (row[c] === undefined ? null : row[c]));
   const [res] = await db.query(
     `INSERT INTO market_intelligence (${COLS.join(',')}) VALUES (${placeholders})
-     ON DUPLICATE KEY UPDATE ${updates.join(', ')}`,
+     ON DUPLICATE KEY UPDATE ${UPDATE_SET}`,
     vals
   );
-  // affectedRows: 1 = insert, 2 = update (MySQL/MariaDB)
   const action = res.affectedRows === 1 ? 'inserted' : 'updated';
-
-  // Histórico: registra o snapshot inicial (insert) ou quando há transição relevante.
   const miId = prev ? prev.id : row.id;
   if (!prev || hasTransition(prev, row)) {
     await recordHistory(miId, rec.companyId, key, row, rec.firstSeenDate);
   }
-
   return action;
 }
 
-module.exports = { upsertRecord };
+// Insere um lote de snapshots de histórico de uma vez (best-effort, em chunks).
+async function recordHistoryBatch(items) {
+  if (!items.length) return;
+  const CH = 200;
+  for (let i = 0; i < items.length; i += CH) {
+    const chunk = items.slice(i, i + CH);
+    const ph = chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',');
+    const vals = [];
+    const snap = toDateTime(new Date().toISOString());
+    for (const it of chunk) {
+      histSeq++;
+      const r = it.row;
+      vals.push(
+        `h-${Date.now().toString(36)}-${histSeq}`, it.companyId, it.miId, it.key,
+        r.status ?? null, r.encerramento ?? null, r.etapa_sessao ?? null, r.posicao ?? null,
+        r.concorrente ?? null, r.cnpj_concorrente ?? null, r.preco_final_unit ?? null, r.preco_final_total ?? null,
+        snap, it.runDate ?? null
+      );
+    }
+    try {
+      await db.query(
+        `INSERT INTO market_intelligence_history
+           (id, company_id, mi_id, dedupe_key, status, encerramento, etapa_sessao, posicao,
+            concorrente, cnpj_concorrente, preco_final_unit, preco_final_total, snapshot_at, run_date)
+         VALUES ${ph}`,
+        vals
+      );
+    } catch { /* histórico é complementar; não bloqueia a gravação principal */ }
+  }
+}
+
+/**
+ * Grava um LOTE de registros de uma vez (bulk upsert), eliminando o N+1:
+ * carrega o estado anterior em lote (para o histórico) e faz multi-row
+ * INSERT ... ON DUPLICATE KEY UPDATE em chunks. Retorna {inserted, updated, errors}.
+ * Idempotente — mesma semântica do upsertRecord, mas com poucas idas ao banco.
+ */
+async function upsertRecords(recs) {
+  const out = { inserted: 0, updated: 0, errors: 0 };
+  const valid = recs.filter((r) => r && r.companyId);
+  out.errors += recs.length - valid.length;
+  if (!valid.length) return out;
+
+  // agrupa por empresa (normalmente uma só por chamada)
+  const byCompany = new Map();
+  for (const r of valid) {
+    if (!byCompany.has(r.companyId)) byCompany.set(r.companyId, []);
+    byCompany.get(r.companyId).push(r);
+  }
+
+  for (const [companyId, list] of byCompany) {
+    // dedup intra-lote por chave (última ocorrência vence — espelha o upsert serial)
+    const built = list.map(buildRow);
+    const seen = new Set();
+    const deduped = [];
+    for (let i = built.length - 1; i >= 0; i--) {
+      if (seen.has(built[i].key)) continue;
+      seen.add(built[i].key);
+      deduped.unshift({ ...built[i], runDate: list[i].firstSeenDate });
+    }
+
+    // estado anterior em lote (para detectar insert × update e transições)
+    const keys = [...seen];
+    const prevMap = new Map();
+    for (let i = 0; i < keys.length; i += 500) {
+      const chunk = keys.slice(i, i + 500);
+      const [prevRows] = await db.query(
+        `SELECT id, dedupe_key, status, encerramento, posicao, concorrente, preco_final_unit
+           FROM market_intelligence
+          WHERE company_id = ? AND dedupe_key IN (${chunk.map(() => '?').join(',')})`,
+        [companyId, ...chunk]
+      );
+      for (const p of prevRows) prevMap.set(p.dedupe_key, p);
+    }
+
+    // bulk INSERT ... ON DUPLICATE KEY UPDATE em chunks
+    const CH = 200;
+    for (let i = 0; i < deduped.length; i += CH) {
+      const chunk = deduped.slice(i, i + CH);
+      const ph = chunk.map(() => `(${COLS.map(() => '?').join(',')})`).join(',');
+      const vals = [];
+      for (const { row } of chunk) for (const c of COLS) vals.push(row[c] === undefined ? null : row[c]);
+      try {
+        await db.query(
+          `INSERT INTO market_intelligence (${COLS.join(',')}) VALUES ${ph}
+           ON DUPLICATE KEY UPDATE ${UPDATE_SET}`,
+          vals
+        );
+      } catch (e) {
+        // fallback: tenta um a um para não perder o lote inteiro por causa de 1 registro
+        for (const { row } of chunk) {
+          try {
+            const v = COLS.map((c) => (row[c] === undefined ? null : row[c]));
+            await db.query(
+              `INSERT INTO market_intelligence (${COLS.join(',')}) VALUES (${COLS.map(() => '?').join(',')})
+               ON DUPLICATE KEY UPDATE ${UPDATE_SET}`, v
+            );
+          } catch { out.errors++; }
+        }
+      }
+    }
+
+    // contagem insert×update + histórico (em lote)
+    const hist = [];
+    for (const { row, key, runDate } of deduped) {
+      const prev = prevMap.get(key) || null;
+      if (prev) out.updated++; else out.inserted++;
+      const miId = prev ? prev.id : row.id;
+      if (!prev || hasTransition(prev, row)) hist.push({ miId, companyId, key, row, runDate });
+    }
+    await recordHistoryBatch(hist);
+  }
+
+  return out;
+}
+
+module.exports = { upsertRecord, upsertRecords };

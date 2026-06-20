@@ -72,6 +72,13 @@ async function fetchPagina(url, tries = 6) {
   }
 }
 
+// Cache de enumeração POR EXECUÇÃO: a listagem de uma (modalidade, janela) é
+// idêntica para TODOS os tenants — o PNCP é a mesma fonte. Enumerar 1× e reusar
+// corta o maior multiplicador de chamadas (e de 429): antes, N empresas
+// re-paginavam o PNCP inteiro N vezes. run.js limpa no início de cada execução.
+const _enumCache = new Map();
+function clearSweepCache() { _enumCache.clear(); }
+
 async function enumerarModalidade({ modalidade, dataInicial, dataFinal, delay, stats }) {
   const out = [];
   const MAX_PAGINAS = 2000; // backstop anti-loop
@@ -165,8 +172,17 @@ async function sweep(keywords, opts = {}) {
   console.log(`[sweep] janela ${dataInicial}..${dataFinal} | modalidades ${modalidades.join(',')} | ${keywords.length} keyword(s)`);
 
   for (const modalidade of modalidades) {
-    const lista = await enumerarModalidade({ modalidade, dataInicial, dataFinal, delay, stats });
-    console.log(`[sweep] modalidade ${modalidade} (${MODALIDADE_NOME[modalidade] || '?'}) → ${lista.length} contratação(ões)`);
+    // Reusa a enumeração desta (modalidade, janela) se outro tenant já a fez nesta execução.
+    const cacheKey = `${modalidade}|${dataInicial}|${dataFinal}`;
+    let lista = _enumCache.get(cacheKey);
+    if (lista) {
+      stats.enumerados = (stats.enumerados || 0) + lista.length; // cobertura deste tenant
+      console.log(`[sweep] modalidade ${modalidade} reusada do cache (${lista.length} contratações)`);
+    } else {
+      lista = await enumerarModalidade({ modalidade, dataInicial, dataFinal, delay, stats });
+      _enumCache.set(cacheKey, lista);
+      console.log(`[sweep] modalidade ${modalidade} (${MODALIDADE_NOME[modalidade] || '?'}) → ${lista.length} contratação(ões)`);
+    }
 
     for (const c of lista) {
       const ctrl = c.numeroControlePNCP || `${(c.orgaoEntidade || {}).cnpj}-${c.anoCompra}-${c.sequencialCompra}`;
@@ -207,4 +223,4 @@ async function sweep(keywords, opts = {}) {
   return [...byKw.values()];
 }
 
-module.exports = { name: 'PNCP-Sweep', key: 'pncp_sweep', implemented: true, sweep, MODALIDADE_NOME, MED_RE, passaPreFiltro };
+module.exports = { name: 'PNCP-Sweep', key: 'pncp_sweep', implemented: true, sweep, clearSweepCache, MODALIDADE_NOME, MED_RE, passaPreFiltro };
