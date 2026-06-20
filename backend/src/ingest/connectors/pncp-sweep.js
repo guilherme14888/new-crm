@@ -61,7 +61,9 @@ function passaPreFiltro(objeto, keyTokens) {
 async function fetchPagina(url, tries = 6) {
   for (let attempt = 0; attempt < tries; attempt++) {
     try {
-      return await getJson(url, { allowEmpty: true });
+      // maxAttempts:1 → o getJson NÃO faz retry interno aqui (este loop já cuida do
+      // backoff). Evita multiplicar tentativas (compounding) e martelar o PNCP.
+      return await getJson(url, { allowEmpty: true, maxAttempts: 1 });
     } catch (e) {
       const transitorio = /HTTP (429|500|502|503|504)|aborted|timeout|ECONNRESET|ETIMEDOUT/i.test(e.message || '');
       if (!transitorio || attempt === tries - 1) throw e;
