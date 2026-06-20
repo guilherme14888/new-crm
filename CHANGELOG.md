@@ -1,3 +1,10 @@
+# [1.35.0](https://github.com/guilherme14888/crm-br4/compare/v1.34.0...v1.35.0) (2026-06-20)
+
+
+### Features
+
+* **coleta:** 2Captcha (BEC-SP), catalogo com 42 portais (login) e Compras-CE all ([f42e01b](https://github.com/guilherme14888/crm-br4/commit/f42e01bd3568ea99c8f789b2528c9524e707a549))
+
 # [1.34.0](https://github.com/guilherme14888/crm-br4/compare/v1.33.0...v1.34.0) (2026-06-20)
 
 
