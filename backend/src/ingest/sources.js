@@ -20,6 +20,13 @@ const SOURCE_DEFS = [
     ],
   },
   {
+    key: 'compras_es', name: 'Compras ES (SIGA)', mode: 'keyword', implemented: true,
+    note: 'Dados abertos do ES (CKAN), API pública sem credenciais. Aditivo ao PNCP. Atualize o resource_id por ano quando o ES publicar o recurso novo.',
+    fields: [
+      { key: 'resource_id', label: 'Resource ID (CKAN do ano vigente)', placeholder: 'e48980a6-347b-4285-8b29-11d8210fc0a5' },
+    ],
+  },
+  {
     key: 'licitaja', name: 'Licitaja', mode: 'keyword', implemented: true,
     note: 'API REST oficial. Gere a API Key na sua conta Licitaja.',
     fields: [
