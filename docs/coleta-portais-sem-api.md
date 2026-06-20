@@ -101,6 +101,24 @@ e cada scraper quebra sozinho a cada mudança de layout (manutenção perpétua)
 - Infra: container browser (CPU/RAM), possíveis **proxies** e **CAPTCHA** (custo recorrente).
 - Por isso a régua de ROI: scrapear só onde o ganho > custo de manter.
 
+## Validação ao vivo — achados (2026-06-20)
+
+Sondei os portais públicos como piloto. Realidade encontrada:
+
+| Portal | Achado |
+|--------|--------|
+| **BEC-SP** | Consulta pública protegida por **reCAPTCHA** (`hdnRecaptchaToken`/`noRobot`) → precisa de **serviço de solver** (custo/ToS). |
+| **ComprasNet-BA** | Tem CAPTCHA. |
+| **Portal de Compras Públicas** | Comercial (ToS) + app JS; sem listagem HTTP limpa. |
+| **ComprasNet-GO / Banrisul** | Sem CAPTCHA, mas sem listagem estruturada via HTTP simples (precisa browser + parsing). |
+
+**Conclusão:** os portais públicos grandes são, em geral, **CAPTCHA-protegidos,
+comerciais (ToS) ou apps JS**. Scrapear cada um custa **solver de CAPTCHA + manutenção**.
+Como o **PNCP é o superset legal** e já temos failover + APIs abertas (ES, CE), o
+caminho **completo e rentável** é a frota de APIs; o scraping só compensa para um
+portal específico onde você **aceite o custo do CAPTCHA** ou **tenha credencial
+contratada**. O `scrape-worker` fica pronto para esse caso pontual.
+
 ## Próximo passo sugerido
 
 Montar o **esqueleto do `scrape-worker`** (Playwright + fila + 1 adapter de referência

@@ -1,18 +1,27 @@
 // Adapter de REFERÊNCIA — BEC-SP (Bolsa Eletrônica de Compras de São Paulo).
 // Portal público ASP.NET sem API → coleta por navegador (Playwright).
 //
-// ⚠️ ESTRUTURA pronta; os SELETORES precisam ser validados/ajustados AO VIVO no
-// deploy (o DOM da BEC não pode ser inspecionado offline). Os passos abaixo são o
-// fluxo padrão de consulta pública de "Ofertas de Compra"; ajuste os seletores
-// olhando o HTML real (DevTools) na primeira execução com browser.
+// 🔴 ACHADO DA VALIDAÇÃO AO VIVO (2026-06-20): a consulta pública de Ofertas de
+// Compra (https://www2.bec.sp.gov.br/bec_pregao_UI/OC/pregao_oc_pesquisa.aspx) é
+// protegida por **reCAPTCHA** — o form tem `hdnRecaptchaToken` e `noRobot`. Logo,
+// submeter a busca exige um TOKEN VÁLIDO de reCAPTCHA, que só se obtém com um
+// SERVIÇO DE RESOLUÇÃO (ex.: 2Captcha) — custo por solve + sensível a ToS. Sem
+// isso, a busca não retorna resultados. Decisão de negócio (custo/ToS) necessária
+// antes de ativar este adapter.
 //
-// Boas práticas embutidas: ritmo educado entre termos, timeout, e fechamento da
-// página no finally. Respeite o robots.txt/ToS do portal.
+// Campos REAIS do formulário (descobertos ao vivo) — úteis se houver decisão de
+// integrar um solver de CAPTCHA:
+//   ctl00$conteudo$Wuc_OC1$Wuc_filtroPesquisaOc1$cItemDescricao  → termo/produto
+//   ctl00$conteudo$Wuc_OC1$Wuc_filtroPesquisaOc1$cMunicipio / cSecretaria / cTipoEdital
+//   ctl00$conteudo$Wuc_OC1$c_btnPesquisa                          → botão pesquisar
+//   ctl00$conteudo$Wuc_OC1$hdnRecaptchaToken / noRobot            → reCAPTCHA (bloqueio)
+//
+// O esqueleto abaixo é o fluxo; preencha o passo do CAPTCHA + o parsing da grade.
 
 const { newPage, UA } = require('../lib/browser');
 const { regiaoOf } = require('../../src/ingest/normalize');
 
-const CONSULTA_URL = 'https://www.bec.sp.gov.br/becsc/ui/oc/ConsultaOC.aspx'; // confirmar no portal
+const CONSULTA_URL = 'https://www2.bec.sp.gov.br/bec_pregao_UI/OC/pregao_oc_pesquisa.aspx';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
