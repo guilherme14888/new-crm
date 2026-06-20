@@ -6,6 +6,7 @@ module.exports = {
   connectors: [
     require('./connectors/pncp'),
     require('./connectors/pncp-sweep'),
+    require('./connectors/compras-gov'),   // failover do PNCP (mesmo dado, outro host)
     require('./connectors/compras-es'),
     require('./connectors/effecti'),
     require('./connectors/conlicitacao'),

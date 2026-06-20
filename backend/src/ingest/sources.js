@@ -20,6 +20,15 @@ const SOURCE_DEFS = [
     ],
   },
   {
+    key: 'comprasgov', name: 'Compras.gov (failover PNCP)', mode: 'sweep', implemented: true,
+    note: 'Redundância do PNCP: mesmas contratações 14.133, em outro host (dadosabertos.compras.gov.br). Só coleta quando o PNCP está em cooldown/penalizado — em dia normal fica ocioso (não duplica). force=true faz backfill manual. Sem credenciais.',
+    fields: [
+      { key: 'modalidades', label: 'Modalidades (códigos)', placeholder: '6,8,9,4' },
+      { key: 'lookbackDays', label: 'Dias de janela', placeholder: '3' },
+      { key: 'force', label: 'Forçar coleta mesmo com PNCP ok (true/false)', placeholder: 'false' },
+    ],
+  },
+  {
     key: 'compras_es', name: 'Compras ES (SIGA)', mode: 'keyword', implemented: true,
     note: 'Dados abertos do ES (CKAN), API pública sem credenciais. Aditivo ao PNCP. Atualize o resource_id por ano quando o ES publicar o recurso novo.',
     fields: [

@@ -1,89 +1,85 @@
 // Cliente HTTP compartilhado pelos conectores.
 //
-// Política do PNCP (que NÃO publica limite numérico): erramos para o lado seguro.
-//   1) Taxa conservadora + serialização (1 chamada por vez via a "porta" gate()).
-//   2) Circuit breaker: ao tomar 429, entra em COOLDOWN e nenhuma chamada sai até
-//      passar (respeitando Retry-After). É o martelar após o 429 que vira penalidade.
-//   3) Cooldown PERSISTIDO no banco (tabela ingest_throttle) → worker, execuções
-//      manuais e reinícios respeitam a MESMA pausa (nunca somam carga).
+// Política anti-penalidade (PNCP não publica limite numérico): garantia por
+// COMPORTAMENTO, e agora CIENTE DE HOST — o cooldown de um host (ex.: PNCP em
+// penalidade) NÃO bloqueia outro host (ex.: Compras.gov federal, usado como
+// redundância/failover do PNCP).
+//   1) Taxa global conservadora (serializa todas as chamadas).
+//   2) Circuit breaker POR HOST: ao 429, aquele host entra em COOLDOWN e nenhuma
+//      chamada PARA ELE sai até passar (respeitando Retry-After).
+//   3) Cooldown persistido por host (ingest_throttle) → worker, manual e reinícios
+//      respeitam a mesma pausa.
 
 const db = require('../db');
 
 const DEFAULT_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
-/** Aguarda `ms` milissegundos. */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ── Taxa global (conservadora por padrão) ───────────────────────────────────
-// Sem limite oficial do PNCP, default baixo (~2 req/s). Ajustável via env, mas o
-// circuit breaker é a real garantia de "nunca infringir".
+// ── Taxa global conservadora ────────────────────────────────────────────────
 const RATE_PER_SEC = Math.max(0.2, parseFloat(process.env.PNCP_RATE_PER_SEC || '2'));
 const MIN_INTERVAL = 1000 / RATE_PER_SEC;
 let nextSlot = 0;
 
-// ── Circuit breaker / cooldown ──────────────────────────────────────────────
-const HOST = 'pncp.gov.br';
+// ── Circuit breaker / cooldown POR HOST ─────────────────────────────────────
 const COOLDOWN_CAP_MS = 5 * 60 * 1000;   // teto do cooldown (5 min)
-const GATE_WAIT_CAP_MS = 60 * 1000;      // se faltar mais que isto p/ sair do cooldown, aborta a chamada
-let cooldownUntil = 0;                    // epoch ms (em memória)
-let consecutive429 = 0;
+const GATE_WAIT_CAP_MS = 60 * 1000;      // espera máx no gate; além disso, aborta a chamada
+const cooldownByHost = new Map();        // host → epoch ms
+const consec429ByHost = new Map();       // host → contador
+const dbSyncAt = new Map();              // host → epoch ms da última leitura do banco
 let throttle429 = 0;
-let lastDbSync = 0;
 
-/** Lê o cooldown persistido (cross-process) — cacheado por 5s p/ não pesar. */
-async function syncCooldownFromDb() {
+const hostOf = (url) => { try { return new URL(url).host; } catch { return 'desconhecido'; } };
+function cooldownRemaining(host) { return Math.max(0, (cooldownByHost.get(host) || 0) - Date.now()); }
+
+async function syncCooldownFromDb(host) {
   const now = Date.now();
-  if (now - lastDbSync < 5000) return;
-  lastDbSync = now;
+  if (now - (dbSyncAt.get(host) || 0) < 5000) return;
+  dbSyncAt.set(host, now);
   try {
-    const [rows] = await db.query('SELECT cooldown_until FROM ingest_throttle WHERE host = ? LIMIT 1', [HOST]);
+    const [rows] = await db.query('SELECT cooldown_until FROM ingest_throttle WHERE host = ? LIMIT 1', [host]);
     if (rows[0] && rows[0].cooldown_until) {
       const until = new Date(rows[0].cooldown_until + 'Z').getTime();
-      if (Number.isFinite(until) && until > cooldownUntil) cooldownUntil = until;
+      if (Number.isFinite(until) && until > (cooldownByHost.get(host) || 0)) cooldownByHost.set(host, until);
     }
   } catch { /* best-effort */ }
 }
 
-/** Persiste o cooldown para os outros processos respeitarem. */
-async function saveCooldown(until, reason) {
+async function saveCooldown(host, until, reason) {
   try {
     const iso = new Date(until).toISOString().slice(0, 19).replace('T', ' ');
     await db.query(
       `INSERT INTO ingest_throttle (host, cooldown_until, reason) VALUES (?,?,?)
        ON DUPLICATE KEY UPDATE cooldown_until = VALUES(cooldown_until), reason = VALUES(reason)`,
-      [HOST, iso, (reason || '429').slice(0, 255)]
+      [host, iso, (reason || '429').slice(0, 255)]
     );
   } catch { /* best-effort */ }
 }
 
-/** Registra um 429 e arma/estende o cooldown (respeita Retry-After). */
-function trip429(retryAfterMs) {
-  consecutive429++;
+function trip429(host, retryAfterMs) {
+  const c = (consec429ByHost.get(host) || 0) + 1;
+  consec429ByHost.set(host, c);
   throttle429++;
   const backoff = retryAfterMs && retryAfterMs > 0
     ? Math.min(COOLDOWN_CAP_MS, retryAfterMs)
-    : Math.min(COOLDOWN_CAP_MS, 10000 * Math.pow(2, consecutive429 - 1)); // 10s,20s,40s… cap 5min
+    : Math.min(COOLDOWN_CAP_MS, 10000 * Math.pow(2, c - 1)); // 10s,20s,40s… cap 5min
   const until = Date.now() + backoff;
-  if (until > cooldownUntil) { cooldownUntil = until; saveCooldown(until, `429 x${consecutive429}`); }
+  if (until > (cooldownByHost.get(host) || 0)) { cooldownByHost.set(host, until); saveCooldown(host, until, `429 x${c}`); }
   return backoff;
 }
-function noteSuccess() { consecutive429 = 0; }
+function noteSuccess(host) { consec429ByHost.set(host, 0); }
 
-/**
- * "Porta" pela qual TODA requisição passa: respeita o cooldown do breaker e a
- * taxa mínima. Se o cooldown for longo demais (> GATE_WAIT_CAP), lança erro para
- * a chamada abortar de forma limpa (o conector marca lacuna e tenta depois) — em
- * vez de bloquear por minutos.
- */
-async function gate() {
-  await syncCooldownFromDb();
+/** Porta de TODA requisição: cooldown do host + taxa mínima global. */
+async function gate(host) {
+  await syncCooldownFromDb(host);
   let now = Date.now();
-  if (cooldownUntil > now) {
-    const left = cooldownUntil - now;
+  const until = cooldownByHost.get(host) || 0;
+  if (until > now) {
+    const left = until - now;
     if (left > GATE_WAIT_CAP_MS) {
-      const err = new Error(`PNCP em cooldown por mais ${Math.round(left / 1000)}s (circuit breaker)`);
-      err.code = 'PNCP_COOLDOWN';
+      const err = new Error(`${host} em cooldown por mais ${Math.round(left / 1000)}s (circuit breaker)`);
+      err.code = 'HOST_COOLDOWN';
       throw err;
     }
     await sleep(left);
@@ -94,9 +90,9 @@ async function gate() {
   if (wait > 0) await sleep(wait);
 }
 
-/** fetch com cabeçalhos padrão (UA de navegador), gate (taxa+cooldown) e timeout. */
 async function request(url, { method = 'GET', headers = {}, body = null, timeout = 30000 } = {}) {
-  await gate();
+  const host = hostOf(url);
+  await gate(host);
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeout);
   try {
@@ -112,20 +108,20 @@ async function request(url, { method = 'GET', headers = {}, body = null, timeout
 }
 
 /**
- * GET/POST que retorna JSON. 204/404 → [] (ou null se opts.allowEmpty). Em 429
- * aciona o circuit breaker e respeita Retry-After; em 5xx faz backoff. Corpo vazio
- * vira [] / null. Lança o último erro se esgotar as tentativas.
+ * GET/POST → JSON. 204/404 → [] (ou null se allowEmpty). 429 aciona o breaker do
+ * host (respeita Retry-After); 5xx faz backoff. Lança o último erro se esgotar.
  */
 async function getJson(url, opts = {}) {
+  const host = hostOf(url);
   const maxAttempts = Math.max(1, opts.maxAttempts || 4);
   let lastErr;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const res = await request(url, opts);
-      if (res.status === 204 || res.status === 404) { noteSuccess(); return opts.allowEmpty ? null : []; }
+      if (res.status === 204 || res.status === 404) { noteSuccess(host); return opts.allowEmpty ? null : []; }
       if (res.status === 429) {
         const ra = parseInt(res.headers.get('retry-after') || '', 10);
-        const backoff = trip429(Number.isFinite(ra) && ra > 0 ? ra * 1000 : 0);
+        const backoff = trip429(host, Number.isFinite(ra) && ra > 0 ? ra * 1000 : 0);
         lastErr = new Error(`HTTP 429 ${url}`);
         if (attempt < maxAttempts - 1) { await sleep(Math.min(GATE_WAIT_CAP_MS, backoff)); continue; }
         throw lastErr;
@@ -137,11 +133,11 @@ async function getJson(url, opts = {}) {
       }
       if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
       const text = await res.text();
-      noteSuccess();
+      noteSuccess(host);
       if (!text.trim()) return opts.allowEmpty ? null : [];
       return JSON.parse(text);
     } catch (e) {
-      if (e.code === 'PNCP_COOLDOWN') throw e; // não insiste durante cooldown longo
+      if (e.code === 'HOST_COOLDOWN') throw e;
       lastErr = e;
       if (attempt < maxAttempts - 1) await sleep(Math.min(15000, 500 * Math.pow(2, attempt)));
     }
@@ -149,7 +145,6 @@ async function getJson(url, opts = {}) {
   throw lastErr;
 }
 
-/** Métricas do cliente HTTP (observabilidade). */
-function httpStats() { return { throttle429, cooldownUntil }; }
+function httpStats() { return { throttle429, cooldowns: Object.fromEntries(cooldownByHost) }; }
 
-module.exports = { request, getJson, sleep, DEFAULT_UA, httpStats };
+module.exports = { request, getJson, sleep, DEFAULT_UA, httpStats, cooldownRemaining };
