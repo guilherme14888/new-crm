@@ -1,3 +1,10 @@
+# [1.34.0](https://github.com/guilherme14888/crm-br4/compare/v1.33.0...v1.34.0) (2026-06-20)
+
+
+### Features
+
+* **scrape-worker:** esqueleto Playwright p/ portais sem API + adapter BEC-SP ([717eae0](https://github.com/guilherme14888/crm-br4/commit/717eae03f8e6570c1a9d1491044e23c07a74c264))
+
 # [1.33.0](https://github.com/guilherme14888/crm-br4/compare/v1.32.0...v1.33.0) (2026-06-20)
 
 
