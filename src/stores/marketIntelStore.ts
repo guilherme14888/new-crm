@@ -103,7 +103,9 @@ export interface CoverageData {
 
 /** Histórico de mineração: novos itens por dia × palavra-chave (× tenant). */
 export interface MiningRow { date: string; termo: string; companyId: string | null; companyName: string | null; count: number }
-export interface MiningHistory { isMaster: boolean; companies: { id: string; name: string }[]; rows: MiningRow[] }
+/** Monitoria diária: o que a varredura trouxe por dia (guia de acompanhamento). */
+export interface MiningDaily { date: string; varridas: number; preFiltradas: number; inseridas: number; atualizadas: number; erros: number; status: string }
+export interface MiningHistory { isMaster: boolean; companies: { id: string; name: string }[]; daily: MiningDaily[]; rows: MiningRow[] }
 
 /** Provedor de IA disponível na lista suspensa. */
 export interface AiProviderOpt { key: string; label: string; defaultModel: string }

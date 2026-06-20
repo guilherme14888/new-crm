@@ -190,9 +190,53 @@ router.get('/mining-history', auth, resolveScope, async (req, res) => {
       );
       companies = cs.map((x) => ({ id: x.id, name: x.name || x.id }));
     }
+
+    // ── Monitoria diária (guia de acompanhamento manual) ─────────────────────
+    // Une cobertura (varredura: enumeradas/pré-filtradas/erros) + run_log (totais
+    // inseridas/atualizadas/status). Janela fixa de 30 dias, ZERO-FILLED: dias sem
+    // coleta aparecem como "sem execução" (para o usuário enxergar as lacunas).
+    const DAYS = 30;
+    const cWhere = []; const cParams = [];
+    if (req.scope.isMaster) {
+      if (companyParam && companyParam !== 'all') { cWhere.push('company_id = ?'); cParams.push(companyParam); }
+    } else { cWhere.push('company_id = ?'); cParams.push(req.scope.companyId); }
+    const cFilter = cWhere.length ? `AND ${cWhere.join(' AND ')}` : '';
+    const [cov] = await db.query(
+      `SELECT DATE_FORMAT(run_date,'%Y-%m-%d') d,
+              SUM(enumerated) varridas, SUM(pre_filtered) pre, SUM(matched) matched,
+              SUM(records) records, SUM(inserted) ins, SUM(updated) upd, SUM(enum_errors) err
+         FROM market_intelligence_coverage
+        WHERE run_date >= DATE_SUB(CURDATE(), INTERVAL ${DAYS} DAY) ${cFilter}
+        GROUP BY d`, cParams);
+    const [rl] = await db.query(
+      `SELECT DATE_FORMAT(run_date,'%Y-%m-%d') d,
+              SUM(inserted) ins, SUM(updated) upd, GROUP_CONCAT(DISTINCT status) status
+         FROM market_intelligence_run_log
+        WHERE run_date >= DATE_SUB(CURDATE(), INTERVAL ${DAYS} DAY) ${cFilter}
+        GROUP BY d`, cParams);
+    const covMap = {}; cov.forEach((r) => { covMap[r.d] = r; });
+    const rlMap = {}; rl.forEach((r) => { rlMap[r.d] = r; });
+    const today = new Date(Date.now() - 3 * 3600 * 1000); // BRT
+    const daily = [];
+    for (let i = 0; i < DAYS; i++) {
+      const dt = new Date(today); dt.setUTCDate(dt.getUTCDate() - i);
+      const date = dt.toISOString().slice(0, 10);
+      const c = covMap[date]; const r = rlMap[date];
+      daily.push({
+        date,
+        varridas:     c ? Number(c.varridas) || 0 : 0,
+        preFiltradas: c ? Number(c.pre) || 0 : 0,
+        inseridas:    r ? Number(r.ins) || 0 : (c ? Number(c.ins) || 0 : 0),
+        atualizadas:  r ? Number(r.upd) || 0 : (c ? Number(c.upd) || 0 : 0),
+        erros:        c ? Number(c.err) || 0 : 0,
+        status:       r ? r.status : (c ? 'parcial' : 'sem execução'),
+      });
+    }
+
     res.json({
       isMaster: !!req.scope.isMaster,
       companies,
+      daily,
       rows: rows.map((r) => ({ date: r.d, termo: r.termo, companyId: r.companyId, companyName: r.companyName || r.companyId, count: Number(r.n) })),
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
