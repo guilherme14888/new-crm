@@ -1,3 +1,10 @@
+# [1.28.0](https://github.com/guilherme14888/crm-br4/compare/v1.27.4...v1.28.0) (2026-06-20)
+
+
+### Features
+
+* **market-intel:** monitoria diaria no Historico de Mineracao ([e598350](https://github.com/guilherme14888/crm-br4/commit/e598350d6cb5ab9c3172c75e9e0f0feca051b8d6))
+
 ## [1.27.4](https://github.com/guilherme14888/crm-br4/compare/v1.27.3...v1.27.4) (2026-06-20)
 
 
