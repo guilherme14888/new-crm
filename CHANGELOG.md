@@ -1,3 +1,10 @@
+# [1.30.0](https://github.com/guilherme14888/crm-br4/compare/v1.29.0...v1.30.0) (2026-06-20)
+
+
+### Features
+
+* **market-intel:** expoe a origem (fonte) de cada licitacao na Listagem ([0b25687](https://github.com/guilherme14888/crm-br4/commit/0b2568737e885bb8555570d0aa8a39885dbc38e2))
+
 # [1.29.0](https://github.com/guilherme14888/crm-br4/compare/v1.28.0...v1.29.0) (2026-06-20)
 
 
