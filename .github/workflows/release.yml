@@ -81,7 +81,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & push da imagem
+      - name: Build & push da imagem (única — legado, ainda funciona)
         if: steps.ver.outputs.released == 'true'
         uses: docker/build-push-action@v6
         with:
@@ -91,6 +91,49 @@ jobs:
           tags: |
             guilherme1488/br4licitacoes:v${{ steps.ver.outputs.version }}
             guilherme1488/br4licitacoes:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Deploy separado (4 serviços): 3 imagens ─────────────────────────────
+      - name: Build & push — crm-web (SPA nginx)
+        if: steps.ver.outputs.released == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.web
+          push: true
+          platforms: linux/amd64
+          tags: |
+            guilherme1488/crm-web:v${{ steps.ver.outputs.version }}
+            guilherme1488/crm-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push — crm-api (backend)
+        if: steps.ver.outputs.released == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            guilherme1488/crm-api:v${{ steps.ver.outputs.version }}
+            guilherme1488/crm-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push — crm-scrape-worker (Playwright)
+        if: steps.ver.outputs.released == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/scrape-worker/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            guilherme1488/crm-scrape-worker:v${{ steps.ver.outputs.version }}
+            guilherme1488/crm-scrape-worker:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

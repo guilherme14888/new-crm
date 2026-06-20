@@ -46,6 +46,31 @@ docker service ls            # confere crm_web, crm_api, crm_ingest-worker, crm_
 docker service logs -f crm_scrape-worker
 ```
 
+## Deploy via Portainer (recomendado p/ este projeto)
+
+O Portainer/Swarm **não builda** imagem — só roda imagem já publicada. As 3 imagens
+(`crm-web`, `crm-api`, `crm-scrape-worker`) são publicadas **automaticamente pelo CI**
+(GitHub Actions `release.yml`) a cada release, no DockerHub `guilherme1488/...`. Então
+no Portainer você só sobe/atualiza a stack:
+
+1. **Rede**: em *Networks*, confirme que existe a overlay `traefik-public` (a mesma do
+   Traefik). Se não, crie (Driver: overlay, Attachable).
+2. **Stacks → Add stack** → nome `crm`.
+3. **Build method = Repository** (ideal): aponte para este repositório Git e o caminho
+   `deploy/docker-stack.yml`. (Ou **Web editor** e cole o conteúdo do arquivo.)
+4. **Environment variables** (seção abaixo do editor) — adicione:
+   `REGISTRY=guilherme1488`, `TAG=latest` (ou a versão), `DOMAIN=sistema.br4licitacoes.com`,
+   `CERT_RESOLVER=<seu resolver>`, `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`,
+   `JWT_SECRET`, `AI_KEY_SECRET` (os MESMOS de hoje), `SCRAPE_INTERVAL_HOURS=12`,
+   `CAPTCHA_API_KEY` (opcional).
+5. **Deploy the stack**. O Portainer cria `crm_web`, `crm_api`, `crm_ingest-worker`,
+   `crm_scrape-worker`.
+6. **Atualizar versão**: edite a stack, troque `TAG` (ou marque *Re-pull image* se usar
+   `latest`) e **Update the stack** — o Swarm faz rolling update.
+
+> Multi-node: como as imagens vêm do DockerHub, qualquer nó do cluster as baixa. Não
+> precisa buildar nos nós.
+
 ## Notas
 
 - **Migrations** não rodam sozinhas — aplique os `.sql` de `backend/src/migrations`

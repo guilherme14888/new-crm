@@ -1,0 +1,94 @@
+version: "3.8"
+
+services:
+  sistema:
+    # Fixe uma versão para reprodutibilidade (ex.: :v1.0.0) ou use :latest.
+    # NOTA: ao ver "nada mudou" após o deploy, primeiro dê um hard-refresh no
+    # navegador (Ctrl+Shift+R) — costuma ser cache do bundle web, não a imagem.
+    image: guilherme1488/br4licitacoes:latest
+    environment:
+      - PORT=3001
+      - WEB_DIR=/app/backend/public
+      - TZ=America/Sao_Paulo        # apenas p/ logs em horário de Brasília (o agendamento já é 9h BRT por cálculo)
+
+      # ── Banco de dados (MariaDB externo) — defina no painel do Portainer ───
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=3306
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+
+      # ── Autenticação — defina no painel do Portainer ──────────────────────
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=7d
+
+      # ── Ingestão roda no WORKER isolado (serviço ingest-worker abaixo) ────
+      # Desliga o agendador aqui p/ não disputar CPU/conexões com a API.
+      - RUN_SCHEDULER=false
+
+    networks:
+      - Br4Net
+
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        order: start-first       # sobe a nova versão antes de derrubar a antiga (zero-downtime)
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 1024M
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.br4_sistema.rule=Host(`sistema.br4licitacoes.com`) ## URL do Sistema
+        - traefik.http.routers.br4_sistema.entrypoints=websecure
+        - traefik.http.routers.br4_sistema.priority=10
+        - traefik.http.routers.br4_sistema.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.br4_sistema.service=br4_sistema
+        - traefik.http.services.br4_sistema.loadbalancer.server.port=3001
+        - traefik.http.services.br4_sistema.loadbalancer.passHostHeader=1
+
+  # ── Worker isolado de ingestão (MESMA imagem, sem HTTP, sem Traefik) ────────
+  # Roda só o agendador (catch-up no boot + diário às 9h BRT). Mantenha 1 réplica.
+  ingest-worker:
+    image: guilherme1488/br4licitacoes:latest
+    command: node src/jobs/worker.js
+    # IMPORTANTE: o worker NÃO sobe HTTP, então o healthcheck da imagem (GET /health)
+    # falharia sempre e o Swarm mataria o container (SIGTERM) em loop. Desabilite-o:
+    healthcheck:
+      test: ["NONE"]
+    environment:
+      - TZ=America/Sao_Paulo
+      # Banco (mesmas variáveis do painel do Portainer)
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=3306
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      # Ingestão
+      - INGEST_ENABLED=true
+      - INGEST_HOUR_BRT=9
+      - INGEST_PAGES=10
+      - INGEST_CATCHUP_ON_BOOT=true
+      - INGEST_MAX_BACKFILL_DAYS=14
+      # ── (Opcional) Filtro de relevância por IA / credenciais de portais ───
+      - INGEST_AI_RELEVANCE=true
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # - LICITAJA_API_KEY=${LICITAJA_API_KEY}
+    networks:
+      - Br4Net
+    deploy:
+      mode: replicated
+      replicas: 1               # NUNCA aumente: agendador in-process → rodaria duplicado
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 512M
+
+networks:
+  Br4Net:
+    external: true
+    name: Br4Net        # ← troque aqui se a rede do seu Traefik tiver outro nome
