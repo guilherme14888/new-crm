@@ -87,8 +87,10 @@ router.post('/', auth, resolveScope, async (req, res) => {
   } = req.body;
   // Owner padrão é o usuário criando o deal
   const effectiveOwner = ownerId ?? req.scope.userId;
-  // Allow overriding company when creating from Default/master company
-  const companyId = req.body.companyId || req.scope.companyId;
+  // Só admin/master pode criar um deal para OUTRA empresa (override via body).
+  // Usuário comum fica sempre preso ao próprio tenant — evita cross-tenant (IDOR).
+  const canCrossCompany = req.scope.isAdmin || req.scope.isMaster;
+  const companyId = (canCrossCompany && req.body.companyId) ? req.body.companyId : req.scope.companyId;
   try {
     const [maxRow] = await db.query(
       `SELECT MAX(stage_order) AS max_order FROM deals WHERE stage_id = ? AND deleted_at IS NULL`,
@@ -126,10 +128,11 @@ router.patch('/:id', auth, resolveScope, async (req, res) => {
     const map = {
       title: 'title', value: 'value', stage: 'stage',
       stageId: 'stage_id', funnelId: 'funnel_id', ownerId: 'owner_id',
-      companyId: 'company_id',
       probability: 'probability', expectedCloseDate: 'expected_close_date',
       closingReason: 'closing_reason', notes: 'notes',
     };
+    // Mover um deal para OUTRA empresa só é permitido a admin/master (anti cross-tenant).
+    if (req.scope.isAdmin || req.scope.isMaster) map.companyId = 'company_id';
     const sets = [], vals = [];
     for (const [jsKey, col] of Object.entries(map)) {
       if (req.body[jsKey] !== undefined) { sets.push(`${col} = ?`); vals.push(req.body[jsKey]); }

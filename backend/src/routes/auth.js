@@ -1,12 +1,27 @@
 const router  = require('express').Router();
 const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const db      = require('../db');
 const authMw  = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/acl');
 const { audit } = require('../services/auditLog');
 const finance = require('./finance');
 const { trialStatus } = require('../services/trial');
+
+// Anti brute-force no login: 10 tentativas por IP a cada 15 min (conta só as que falham).
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: 'Muitas tentativas de login. Tente novamente em alguns minutos.' },
+});
+
+// Hash dummy (bcrypt de string aleatória) para uniformizar o tempo de resposta
+// quando o e-mail não existe — evita enumeração de usuários por timing.
+const DUMMY_HASH = '$2b$10$CwTycUXWue0Thq9StjUM0uJ8DkQ4r1pQ8m3K1uVbY1z2K3l4m5n6O';
 
 const COMPANY_BLOCKED_MSG = 'Existe uma cobrança em aberto, entre em contato com nosso setor financeiro para resolver.';
 const TRIAL_EXPIRED_MSG = 'Seu período de teste foi encerrado. Entre em contato com o setor financeiro para continuar utilizando o sistema.';
@@ -57,7 +72,7 @@ async function loadPermissions(u) {
 }
 
 // POST /api/auth/login — autentica por email/senha, valida bloqueio da empresa e retorna token + usuário
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios' });
   try {
@@ -67,7 +82,11 @@ router.post('/login', async (req, res) => {
        WHERE u.email = ? AND u.is_active = 1 LIMIT 1`, [email]
     );
     const user = rows[0];
-    if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
+    if (!user) {
+      // Compara contra um hash dummy p/ igualar o timing (anti-enumeração).
+      await bcrypt.compare(password, DUMMY_HASH);
+      return res.status(401).json({ error: 'Credenciais inválidas' });
+    }
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ error: 'Credenciais inválidas' });
 

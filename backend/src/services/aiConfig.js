@@ -15,9 +15,15 @@ const MASTER_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 // provedor). Então guardamos CIFRADA: ninguém lê a chave olhando o banco, e ela
 // só é decifrada na hora de usar. O segredo vem do ambiente (estável no deploy).
 const ENC_PREFIX = 'enc:v1:';
-const ENC_KEY = crypto.createHash('sha256')
-  .update(String(process.env.AI_KEY_SECRET || process.env.JWT_SECRET || 'crm-br4-ai-secret'))
-  .digest(); // 32 bytes
+// Segredo de cripto vindo SÓ do ambiente — nunca um literal hardcoded (com dump do
+// banco + literal público, qualquer um decifraria a chave). Preferimos AI_KEY_SECRET;
+// caímos em JWT_SECRET por compatibilidade (chaves já cifradas com ele continuam
+// decifráveis). Se nenhum existir, é erro de configuração.
+const ENC_SECRET = process.env.AI_KEY_SECRET || process.env.JWT_SECRET;
+if (!ENC_SECRET) {
+  throw new Error('aiConfig: defina AI_KEY_SECRET (ou JWT_SECRET) para cifrar a chave de IA em repouso.');
+}
+const ENC_KEY = crypto.createHash('sha256').update(String(ENC_SECRET)).digest(); // 32 bytes
 
 function encryptSecret(plain) {
   if (plain == null || plain === '') return null;

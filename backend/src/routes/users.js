@@ -76,7 +76,7 @@ router.get('/:id', auth, resolveScope, async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'Usuário não encontrado' });
     const u = rows[0];
     // Consultants can only see themselves
-    if (scope.role === 'consultant' && u.id !== req.scope.userId)
+    if (req.scope.role === 'consultant' && u.id !== req.scope.userId)
       return res.status(403).json({ error: 'Acesso negado' });
     // All others must be same company
     if (!req.scope.isAdmin && !req.scope.isMaster && u.company_id !== req.scope.companyId)

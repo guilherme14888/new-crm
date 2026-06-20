@@ -1,12 +1,36 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
+const helmet  = require('helmet');
 const path    = require('path');
 const fs      = require('fs');
 
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+// Em produção, segredos obrigatórios não podem faltar (senão tokens/cripto degradam).
+if (IS_PROD && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET é obrigatório em produção.');
+}
+
 /** Instância principal do app Express que monta middlewares globais, rotas da API e inicia o servidor HTTP. */
 const app = express();
-app.use(cors());
+
+// Headers de segurança. CSP/COEP desligados para não quebrar o SPA do Expo
+// (inline scripts/styles); mantém X-Content-Type-Options, X-Frame-Options, HSTS, etc.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+// CORS: em produção restringe a uma allowlist (CORS_ORIGINS, separado por vírgula);
+// requisições sem Origin (apps nativos, curl, mesmo domínio) sempre passam; em dev libera tudo.
+const CORS_ALLOW = (process.env.CORS_ORIGINS || 'https://sistema.br4licitacoes.com')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin || !IS_PROD) return cb(null, true);
+    return cb(null, CORS_ALLOW.includes(origin));
+  },
+  credentials: true,
+}));
+
 app.use(express.json({ limit: '5mb' }));
 
 // Trust proxy for accurate IP in audit logs
@@ -54,6 +78,15 @@ if (fs.existsSync(path.join(WEB_DIR, 'index.html'))) {
   });
   console.log(`[web] servindo frontend estático de ${WEB_DIR}`);
 }
+
+// Error-handler central: rede de segurança para erros não tratados. Loga o detalhe
+// no servidor e responde genérico ao cliente (não vaza stack/SQL). Handlers que já
+// respondem 500 com mensagem própria continuam funcionando; este pega o resto.
+app.use((err, req, res, _next) => {
+  console.error('[error]', req.method, req.path, '-', err && err.stack ? err.stack : err);
+  if (res.headersSent) return;
+  res.status(err.status || 500).json({ error: 'Erro interno do servidor' });
+});
 
 const PORT = process.env.PORT || 3001;
 // Inicia o servidor HTTP na porta configurada e agenda a ingestão automática diária de licitações.

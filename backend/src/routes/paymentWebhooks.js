@@ -15,18 +15,32 @@
  *   - Marcamos como paga (chamando os mesmos handlers internos do finance.js)
  */
 const router = require('express').Router();
+const crypto = require('crypto');
 const db     = require('../db');
 const finance = require('./finance');
 
-// Middleware que valida a chave compartilhada do webhook via header X-Webhook-Secret (liberado em dev sem secret)
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+// Comparação em tempo constante (evita timing attack na chave).
+function safeEqual(a, b) {
+  const ba = Buffer.from(String(a || ''), 'utf8');
+  const bb = Buffer.from(String(b || ''), 'utf8');
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+// Valida a chave compartilhada via header X-Webhook-Secret.
+// FAIL-CLOSED: em produção, sem PAYMENT_WEBHOOK_SECRET configurado, recusa tudo
+// (senão qualquer um marcaria faturas como pagas / liberaria licenças).
 function checkSecret(req, res, next) {
   const expected = process.env.PAYMENT_WEBHOOK_SECRET;
   if (!expected) {
-    // Em dev, sem secret configurado, aceitamos qualquer requisição
-    return next();
+    if (IS_PROD) return res.status(503).json({ error: 'Webhook não configurado' });
+    return next(); // só em dev liberamos sem secret
   }
-  const got = req.headers['x-webhook-secret'];
-  if (got !== expected) return res.status(401).json({ error: 'Invalid webhook secret' });
+  if (!safeEqual(req.headers['x-webhook-secret'], expected)) {
+    return res.status(401).json({ error: 'Invalid webhook secret' });
+  }
   next();
 }
 
