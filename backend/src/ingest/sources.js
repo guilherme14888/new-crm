@@ -36,6 +36,14 @@ const SOURCE_DEFS = [
     ],
   },
   {
+    key: 'compras_ce', name: 'Compras CE (TCE-CE)', mode: 'sweep', implemented: true,
+    note: 'Dados abertos do TCE-CE (SIM), API pública sem credenciais. ESCOPO MUNICIPAL: informe os códigos dos municípios (vazio = não coleta). Funde com o PNCP quando o registro traz o id PNCP.',
+    fields: [
+      { key: 'municipios', label: 'Códigos de municípios CE (ex.: 002,024,...)', placeholder: '024,053' },
+      { key: 'lookbackDays', label: 'Dias de janela (por autuação)', placeholder: '30' },
+    ],
+  },
+  {
     key: 'licitaja', name: 'Licitaja', mode: 'keyword', implemented: true,
     note: 'API REST oficial. Gere a API Key na sua conta Licitaja.',
     fields: [
