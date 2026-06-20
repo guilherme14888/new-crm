@@ -1,3 +1,10 @@
+## [1.27.2](https://github.com/guilherme14888/crm-br4/compare/v1.27.1...v1.27.2) (2026-06-20)
+
+
+### Performance Improvements
+
+* **db:** indices compostos por tenant (migration 034) + pool dimensionado ([7ed9d8b](https://github.com/guilherme14888/crm-br4/commit/7ed9d8bce17ec4e7ec5e4b5a713564c8d98d9820))
+
 ## [1.27.1](https://github.com/guilherme14888/crm-br4/compare/v1.27.0...v1.27.1) (2026-06-20)
 
 
