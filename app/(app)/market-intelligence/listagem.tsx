@@ -164,8 +164,15 @@ export default function MarketIntelligenceListagem() {
 
   useEffect(() => { loadRows(companyId); }, [companyId]);
 
-  // Busca ao vivo (aplicada imediatamente).
+  // Busca: `search` reflete o input na hora; `dSearch` é o valor "com atraso"
+  // (debounce 250ms) que de fato dispara o filtro — evita refiltrar milhares de
+  // linhas a cada tecla.
   const [search, setSearch] = useState('');
+  const [dSearch, setDSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // Página atual da listagem (20 registros por página).
   const [page, setPage] = useState(1);
@@ -276,9 +283,16 @@ export default function MarketIntelligenceListagem() {
     };
   }, [rows]);
 
+  // Blob de busca pré-computado UMA vez por linha (não a cada tecla/filtro).
+  const blobMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rows) m.set(r.id, searchBlob(r));
+    return m;
+  }, [rows]);
+
   // ── Linhas filtradas (busca + filtros aplicados) ────────────────────────────
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = dSearch.trim().toLowerCase();
     const { from, to, cidade, uf, orgao, proc, produto } = applied;
     return rows.filter((r) => {
       if (uf.size && !(r.uf && uf.has(r.uf))) return false;
@@ -295,10 +309,10 @@ export default function MarketIntelligenceListagem() {
         if (from && d < from) return false;
         if (to && d > to) return false;
       }
-      if (q && !searchBlob(r).includes(q)) return false;
+      if (q && !(blobMap.get(r.id) || '').includes(q)) return false;
       return true;
     });
-  }, [rows, search, applied]);
+  }, [rows, dSearch, applied, blobMap]);
 
   const activeFilterCount =
     (applied.from || applied.to ? 1 : 0) +
@@ -326,7 +340,7 @@ export default function MarketIntelligenceListagem() {
   // ── Paginação (20 por página) ────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   // volta à 1ª página sempre que a busca/filtros/ordem mudam o conjunto de resultados
-  useEffect(() => { setPage(1); }, [search, applied, sort]);
+  useEffect(() => { setPage(1); }, [dSearch, applied, sort]);
   // mantém a página dentro do intervalo válido se o total diminuir
   const safePage = Math.min(page, totalPages);
   const pageRows = useMemo(

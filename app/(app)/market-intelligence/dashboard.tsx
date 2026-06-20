@@ -662,7 +662,9 @@ function MultiSelect({ label, options, selected, onChange }: {
   const isOn = (o: string) => selected === null || selected.has(o);
   const allChecked = selected === null || options.every((o) => selected.has(o));
   const nrm = (x: string) => x.toLowerCase();
+  const CAP = 100; // não renderiza mais que isto de uma vez (100+ produtos/órgãos travam)
   const view = q.trim() ? options.filter((o) => nrm(o).includes(nrm(q.trim()))) : options;
+  const shown = view.slice(0, CAP);
   const toggle = (o: string) => {
     const base = selected === null ? new Set(options) : new Set(selected);
     base.has(o) ? base.delete(o) : base.add(o);
@@ -687,7 +689,7 @@ function MultiSelect({ label, options, selected, onChange }: {
             <Text style={[dr.itemTxt, { fontWeight: '700' }]}>Selecionar todos</Text>
           </Pressable>
           <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-            {view.map((o) => {
+            {shown.map((o) => {
               const on = isOn(o);
               return (
                 <Pressable key={o} style={dr.item} onPress={() => toggle(o)}>
@@ -696,6 +698,7 @@ function MultiSelect({ label, options, selected, onChange }: {
                 </Pressable>
               );
             })}
+            {view.length > CAP && <Text style={dr.msEmpty}>+{view.length - CAP} — refine a busca para ver os demais.</Text>}
             {view.length === 0 && <Text style={dr.msEmpty}>Nada encontrado.</Text>}
           </ScrollView>
         </View>
