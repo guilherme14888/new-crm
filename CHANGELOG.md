@@ -1,3 +1,10 @@
+# [1.31.0](https://github.com/guilherme14888/crm-br4/compare/v1.30.0...v1.31.0) (2026-06-20)
+
+
+### Features
+
+* **ingest:** conector Compras-ES (SIGA) — primeiro do subconjunto de dados abertos ([39cd3bb](https://github.com/guilherme14888/crm-br4/commit/39cd3bb726d4e2f449d7844efde99cc7582f6ce0))
+
 # [1.30.0](https://github.com/guilherme14888/crm-br4/compare/v1.29.0...v1.30.0) (2026-06-20)
 
 
