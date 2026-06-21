@@ -1,3 +1,10 @@
+# [1.39.0](https://github.com/guilherme14888/crm-br4/compare/v1.38.0...v1.39.0) (2026-06-21)
+
+
+### Features
+
+* **ingest:** sync automatico de oportunidades apos cada ingestao ([6559c7c](https://github.com/guilherme14888/crm-br4/commit/6559c7cc8d0f9f2135f9ed750ffe777a56a9bcae))
+
 # [1.38.0](https://github.com/guilherme14888/crm-br4/compare/v1.37.0...v1.38.0) (2026-06-21)
 
 
