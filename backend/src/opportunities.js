@@ -174,15 +174,86 @@ async function ensureLostStage() {
   return { funnelId, stageId: id };
 }
 
+/** Desfecho da licitação (vencedor/valor/situação) agregado por controle, lido do MI. */
+async function computeOutcome(companyId, controle) {
+  const [rows] = await db.query(
+    `SELECT encerramento, posicao, concorrente, cnpj_concorrente, preco_final_total, preco_estimado_total
+       FROM market_intelligence
+      WHERE company_id = ? AND pncp_controle COLLATE utf8mb4_unicode_ci = ?`,
+    [companyId, controle]
+  );
+  let estimated = 0, finalVal = 0, cancelled = false, hasWinner = false, anyOpen = false;
+  const winners = new Map();
+  for (const r of rows) {
+    estimated += Number(r.preco_estimado_total) || 0;
+    const enc = r.encerramento || '';
+    if (/cancelad|revogad|anulad|fracassad|desert/i.test(enc)) cancelled = true;
+    if (/recebendo/i.test(enc)) anyOpen = true;
+    if (Number(r.posicao) === 1 && r.concorrente) {
+      hasWinner = true;
+      const v = Number(r.preco_final_total) || 0;
+      finalVal += v;
+      const key = r.cnpj_concorrente || r.concorrente;
+      const cur = winners.get(key) || { nome: r.concorrente, cnpj: r.cnpj_concorrente, valor: 0 };
+      cur.valor += v; winners.set(key, cur);
+    }
+  }
+  let situacao;
+  if (hasWinner) situacao = 'Encerrada com vencedor';
+  else if (cancelled) situacao = 'Cancelada';
+  else if (anyOpen) situacao = 'Recebendo propostas';
+  else situacao = 'Encerrada sem vencedor (ou aguardando resultado)';
+  return { situacao, hasWinner, cancelled, finalVal, estimated, winners: [...winners.values()] };
+}
+
+/** Atualiza o deal com o desfecho (valor fechado, vencedor, situação) + grava no
+ *  histórico (1 atividade por deal, atualizada). Idempotente. Best-effort. */
+async function enrichDealOutcome(companyId, deal) {
+  const o = await computeOutcome(companyId, deal.mi_controle);
+  const winnerTxt = o.winners.map((w) => `${w.nome}${w.cnpj ? ` (${w.cnpj})` : ''} — R$ ${fmtBRL(w.valor)}`).join('; ');
+  const valueCent = o.hasWinner ? Math.round(o.finalVal * 100) : Math.round((o.estimated || 0) * 100);
+  const reason = (o.hasWinner ? `${o.situacao}: ${winnerTxt}` : o.situacao).slice(0, 250);
+  try {
+    await db.query('UPDATE deals SET value = ?, closing_reason = ? WHERE id = ?', [valueCent, reason, deal.id]);
+    await ensureAndSaveCustomFields(companyId, deal.id, {
+      'Situação final': o.situacao,
+      'Vencedor': o.hasWinner ? winnerTxt : (o.cancelled ? '—' : ''),
+      'CNPJ vencedor': o.winners.map((w) => w.cnpj).filter(Boolean).join(', '),
+      'Valor fechado': o.hasWinner ? `R$ ${fmtBRL(o.finalVal)}` : '',
+      'Valor estimado': `R$ ${fmtBRL(o.estimated)}`,
+    });
+    const desc = [
+      `Situação: ${o.situacao}`,
+      o.hasWinner ? `Vencedor(es): ${winnerTxt}` : null,
+      o.hasWinner ? `Valor fechado: R$ ${fmtBRL(o.finalVal)}` : null,
+      `Valor estimado: R$ ${fmtBRL(o.estimated)}`,
+    ].filter(Boolean).join('\n');
+    // 1 atividade "Resultado da licitação" por deal (substitui a anterior).
+    if (deal.contact_id) {
+      await db.query("DELETE FROM activities WHERE deal_id = ? AND title = 'Resultado da licitação'", [deal.id]);
+      await db.query(
+        'INSERT INTO activities (id, deal_id, contact_id, type, title, description, occurred_at) VALUES (?,?,?,?,?,?,NOW())',
+        [uuidv4(), deal.id, deal.contact_id, 'note', 'Resultado da licitação', desc.slice(0, 2000)]
+      );
+    }
+  } catch { /* best-effort */ }
+  return o;
+}
+
 /**
- * Move para "Perdido" as oportunidades AINDA BLOQUEADAS (locked=1, não participadas)
- * cuja licitação NÃO está mais "Recebendo propostas" — ou seja, encerrou e o tenant
- * não participou. Chamado automaticamente após cada ingestão. Idempotente.
+ * (1) Move para "Perdido" as oportunidades AINDA travadas (locked=1, não participadas)
+ *     cuja licitação saiu de "Recebendo propostas" (encerrou sem participação).
+ * (2) ENRIQUECE as oportunidades em Perdido ainda não finalizadas com o desfecho da
+ *     licitação (vencedor, valor fechado, situação) + histórico — o resultado pode
+ *     chegar depois (homologação), então re-checamos a cada ingestão até finalizar.
+ * Chamado automaticamente após cada ingestão. Idempotente.
  */
 async function closeStaleOpportunities(scope) {
   const companyId = scope.companyId;
   const lost = await ensureLostStage();
-  if (!lost) return { closed: 0 };
+  if (!lost) return { closed: 0, enriched: 0 };
+
+  // (1) move as travadas que encerraram
   const [stale] = await db.query(
     `SELECT d.id FROM deals d
       WHERE d.company_id = ? AND d.locked = 1 AND d.deleted_at IS NULL AND d.mi_controle IS NOT NULL
@@ -197,14 +268,21 @@ async function closeStaleOpportunities(scope) {
     try {
       const [maxRow] = await db.query('SELECT MAX(stage_order) m FROM deals WHERE stage_id = ? AND deleted_at IS NULL', [lost.stageId]);
       const order = (maxRow[0].m ?? 0) + 1;
-      await db.query(
-        'UPDATE deals SET stage_id = ?, stage_order = ?, locked = 0, stage_changed_at = NOW(), closing_reason = ? WHERE id = ?',
-        [lost.stageId, order, 'Licitação encerrada sem participação (automático)', d.id]
-      );
+      await db.query('UPDATE deals SET stage_id = ?, stage_order = ?, locked = 0, stage_changed_at = NOW() WHERE id = ?', [lost.stageId, order, d.id]);
       closed++;
-    } catch { /* ignora 1 */ }
+    } catch { /* ignora */ }
   }
-  return { closed };
+
+  // (2) enriquece as em Perdido ainda NÃO finalizadas (sem vencedor e não cancelada)
+  const [perd] = await db.query(
+    `SELECT id, mi_controle, contact_id FROM deals
+      WHERE company_id = ? AND stage_id = ? AND deleted_at IS NULL AND mi_controle IS NOT NULL
+        AND (closing_reason IS NULL OR (closing_reason NOT LIKE 'Encerrada com vencedor%' AND closing_reason NOT LIKE 'Cancelada%'))`,
+    [companyId, lost.stageId]
+  );
+  let enriched = 0;
+  for (const d of perd) { await enrichDealOutcome(companyId, d); enriched++; }
+  return { closed, enriched };
 }
 
 /** Participar: desbloqueia o deal, move p/ a próxima etapa e copia os documentos. */

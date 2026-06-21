@@ -206,9 +206,9 @@ async function runIngest(opts = {}) {
         if (owner) {
           const sy = await syncOpportunities({ companyId, userId: owner });
           if (sy.created) console.log(`[ingest] tenant ${companyId} → ${sy.created} oportunidade(s) nova(s) no CRM`);
-          // Encerrou sem participação? Move as oportunidades travadas p/ Perdido.
+          // Encerrou sem participação? Move p/ Perdido + grava o desfecho (vencedor/valor).
           const cl = await closeStaleOpportunities({ companyId, userId: owner });
-          if (cl.closed) console.log(`[ingest] tenant ${companyId} → ${cl.closed} oportunidade(s) encerrada(s) → Perdido`);
+          if (cl.closed || cl.enriched) console.log(`[ingest] tenant ${companyId} → ${cl.closed} → Perdido, ${cl.enriched} com desfecho atualizado`);
         }
       } catch (e) { console.error(`[ingest] sync de oportunidades falhou: ${e.message}`); }
 
