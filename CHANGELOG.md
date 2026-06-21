@@ -1,3 +1,10 @@
+# [1.38.0](https://github.com/guilherme14888/crm-br4/compare/v1.37.0...v1.38.0) (2026-06-21)
+
+
+### Features
+
+* **market-intel:** Listagem ordena por ingestao desc (mais novos primeiro) ([4476fc3](https://github.com/guilherme14888/crm-br4/commit/4476fc316f1bb6a9e83fddd187a33329d3a4b299))
+
 # [1.37.0](https://github.com/guilherme14888/crm-br4/compare/v1.36.0...v1.37.0) (2026-06-21)
 
 
