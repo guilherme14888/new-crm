@@ -144,7 +144,7 @@ async function syncOpportunities(scope) {
             SUM(mi.preco_estimado_total) AS valor
        FROM market_intelligence mi
       WHERE mi.company_id = ? AND mi.encerramento = 'Recebendo propostas' AND mi.pncp_controle IS NOT NULL
-        AND mi.pncp_controle COLLATE utf8mb4_unicode_ci NOT IN (
+        AND mi.pncp_controle NOT IN (
           SELECT mi_controle FROM deals WHERE mi_controle IS NOT NULL AND deleted_at IS NULL AND company_id = ?
         )
       GROUP BY mi.pncp_controle
@@ -179,7 +179,7 @@ async function computeOutcome(companyId, controle) {
   const [rows] = await db.query(
     `SELECT encerramento, posicao, concorrente, cnpj_concorrente, preco_final_total, preco_estimado_total
        FROM market_intelligence
-      WHERE company_id = ? AND pncp_controle COLLATE utf8mb4_unicode_ci = ?`,
+      WHERE company_id = ? AND pncp_controle = ?`,
     [companyId, controle]
   );
   let estimated = 0, finalVal = 0, cancelled = false, hasWinner = false, anyOpen = false;
@@ -257,7 +257,7 @@ async function closeStaleOpportunities(scope) {
   const [stale] = await db.query(
     `SELECT d.id FROM deals d
       WHERE d.company_id = ? AND d.locked = 1 AND d.deleted_at IS NULL AND d.mi_controle IS NOT NULL
-        AND d.mi_controle COLLATE utf8mb4_unicode_ci NOT IN (
+        AND d.mi_controle NOT IN (
           SELECT pncp_controle FROM market_intelligence
            WHERE company_id = ? AND encerramento = 'Recebendo propostas' AND pncp_controle IS NOT NULL
         )`,
