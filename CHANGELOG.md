@@ -1,3 +1,10 @@
+# [1.37.0](https://github.com/guilherme14888/crm-br4/compare/v1.36.0...v1.37.0) (2026-06-21)
+
+
+### Features
+
+* **deploy:** stack 4 servicos pronto p/ Portainer (dados reais BR4) ([1a41078](https://github.com/guilherme14888/crm-br4/commit/1a41078a35e202892ba2a6f24366e0fc52d2723f))
+
 # [1.36.0](https://github.com/guilherme14888/crm-br4/compare/v1.35.0...v1.36.0) (2026-06-20)
 
 
