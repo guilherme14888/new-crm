@@ -1,3 +1,10 @@
+## [1.41.1](https://github.com/guilherme14888/crm-br4/compare/v1.41.0...v1.41.1) (2026-06-21)
+
+
+### Performance Improvements
+
+* **db:** tuning de indices + collation (migration 037) ([e6795ea](https://github.com/guilherme14888/crm-br4/commit/e6795eab85f4f49dfcd37f00838496ccc9285cf0))
+
 # [1.41.0](https://github.com/guilherme14888/crm-br4/compare/v1.40.0...v1.41.0) (2026-06-21)
 
 
