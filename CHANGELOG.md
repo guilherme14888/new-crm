@@ -1,3 +1,10 @@
+# [1.41.0](https://github.com/guilherme14888/crm-br4/compare/v1.40.0...v1.41.0) (2026-06-21)
+
+
+### Features
+
+* **opportunities:** grava desfecho da licitacao no deal Perdido (vencedor/valor/historico) ([0d3e98f](https://github.com/guilherme14888/crm-br4/commit/0d3e98f17d267f6c4b2472ef37b7e427d7241df3))
+
 # [1.40.0](https://github.com/guilherme14888/crm-br4/compare/v1.39.0...v1.40.0) (2026-06-21)
 
 
