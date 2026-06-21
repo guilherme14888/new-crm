@@ -10,6 +10,17 @@ const { sleep, httpStats } = require('./http');
 const { clearSweepCache } = require('./connectors/pncp-sweep');
 const { loadAll } = require('./sources');
 const { filterRelevant } = require('./relevance');
+const { syncOpportunities } = require('../opportunities');
+
+const MASTER_COMPANY = '00000000-0000-0000-0000-000000000001';
+// Dono do deal de oportunidade: usuário da própria empresa; senão um admin da
+// master (operador) — os tenants normalmente não têm usuário próprio.
+async function ownerForCompany(companyId) {
+  let [u] = await db.query("SELECT id FROM users WHERE company_id=? AND is_active=1 ORDER BY (role='admin') DESC, created_at ASC LIMIT 1", [companyId]);
+  if (u.length) return u[0].id;
+  [u] = await db.query("SELECT id FROM users WHERE company_id=? AND is_active=1 AND role='admin' ORDER BY created_at ASC LIMIT 1", [MASTER_COMPANY]);
+  return u.length ? u[0].id : null;
+}
 
 let running = false; // trava anti-sobreposição (scheduler + chamada manual)
 
@@ -186,6 +197,17 @@ async function runIngest(opts = {}) {
 
       // registra a execução do dia para este tenant (para o catch-up reconhecer)
       try { await logRun(companyId, runDate, opts.logStatus || 'ok', st.inserted, st.updated); } catch { /* não bloqueia */ }
+
+      // Sincroniza AUTOMATICAMENTE as licitações ABERTAS ("Recebendo propostas")
+      // deste tenant para o CRM como oportunidades — sem depender de um usuário
+      // abrir a aba. Idempotente (não duplica o que já está no CRM). Best-effort.
+      try {
+        const owner = await ownerForCompany(companyId);
+        if (owner) {
+          const sy = await syncOpportunities({ companyId, userId: owner });
+          if (sy.created) console.log(`[ingest] tenant ${companyId} → ${sy.created} oportunidade(s) nova(s) no CRM`);
+        }
+      } catch (e) { console.error(`[ingest] sync de oportunidades falhou: ${e.message}`); }
 
       perTenant[companyId] = st;
       for (const k of Object.keys(grand)) if (st[k] !== undefined) grand[k] += st[k];
