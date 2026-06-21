@@ -19,11 +19,12 @@ const { closeBrowser } = require('./lib/browser');
 const ADAPTERS = {
   bec_sp: require('./adapters/bec-sp'),
 };
+const { genericSweep } = require('./adapters/generic');
 
 const todayBRT = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 
 // Portais-alvo do scraping = os portais SEM API (mode 'login') do catálogo.
-const scrapeTargets = () => SOURCE_DEFS.filter((s) => s.mode === 'login').map((s) => ({ key: s.key, name: s.name }));
+const scrapeTargets = () => SOURCE_DEFS.filter((s) => s.mode === 'login').map((s) => ({ key: s.key, name: s.name, url: s.url }));
 
 async function tenantsWithKeywords() {
   const [r] = await db.query("SELECT DISTINCT company_id FROM market_intelligence_keywords WHERE ativo = 1 AND company_id IS NOT NULL");
@@ -58,14 +59,7 @@ async function run({ dry = false, only = null } = {}) {
   console.log(`[scrape] início — ${tenants.length} tenant(s), ${targets.length} portal(is)${dry ? ' (DRY)' : ''}`);
 
   for (const portal of targets) {
-    const adapter = ADAPTERS[portal.key];
-
-    // Portal ainda sem conector de scraping → registra status e segue.
-    if (!adapter) {
-      console.log(`[scrape] ${portal.key} → sem conector`);
-      if (!dry) await logScrape(runDate, '', portal.key, portal.name, 'sem_conector', 'Conector de scraping ainda não implementado.');
-      continue;
-    }
+    const specific = ADAPTERS[portal.key];   // adapter dedicado, se houver; senão o robô genérico
 
     for (const companyId of tenants) {
       const keywords = await loadKeywords(companyId);
@@ -74,11 +68,13 @@ async function run({ dry = false, only = null } = {}) {
         continue;
       }
       try {
-        const groups = await adapter.sweep(keywords, { runDate });
+        const groups = specific
+          ? await specific.sweep(keywords, { runDate })
+          : await genericSweep(portal, keywords, { runDate });   // ENTRA no portal via robô de tela
         const recs = groups.flatMap((g) => g.records).map((r) => ({ ...r, companyId, firstSeenDate: runDate }));
         let res = { inserted: 0, updated: 0, errors: 0 };
         if (!dry && recs.length) res = await upsertRecords(recs);
-        if (!dry) await logScrape(runDate, companyId, portal.key, portal.name, 'ok', `${recs.length} registro(s) coletado(s)`, res);
+        if (!dry) await logScrape(runDate, companyId, portal.key, portal.name, 'ok', `${recs.length} registro(s) coletado(s)${specific ? '' : ' (genérico)'}`, res);
         console.log(`[scrape] ${portal.key} · ${companyId.slice(0, 8)} → ${recs.length} (ok)`);
       } catch (e) {
         const msg = String(e && e.message ? e.message : e);

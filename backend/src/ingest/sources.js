@@ -50,7 +50,7 @@ const PORTAIS_LOGIN = [
   ['compras_se',      'Portal de Compras Sergipe',             'http://www.comprasnet.se.gov.br'],
   ['compras_ms',      'Portal de Compras Mato Grosso do Sul',  'http://www.centraldecompras.ms.gov.br'],
 ].map(([key, name, url]) => ({
-  key, name, mode: 'login', implemented: false,
+  key, name, url, mode: 'login', implemented: false,
   note: `${url} — guarde o login aqui. Coleta por conector dedicado ou pelo scrape-worker (sob demanda).`,
   fields: [
     { key: 'username', label: 'Usuário / Login' },
