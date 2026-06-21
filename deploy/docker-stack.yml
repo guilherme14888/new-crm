@@ -1,94 +1,154 @@
 # ════════════════════════════════════════════════════════════════════════════
-#  Stack do Sistema BR4 — 4 serviços SEPARADOS (nada pesa um no outro):
-#    web           → SPA estática (nginx)            — leve
-#    api           → API do CRM (Node/Express)       — sem agendador, sem browser
-#    ingest-worker → varredura PNCP (isolado)        — 1 réplica
+#  Stack Docker Swarm — Sistema BR4 (SEPARADO em 4 serviços)
+#    web           → SPA estática (nginx)             — leve
+#    api           → API do CRM (Node)                — sem agendador, sem browser
+#    ingest-worker → varredura PNCP isolada           — 1 réplica
 #    scrape-worker → coleta por navegador (Playwright)— pesado, isolado
 #
-#  Deploy:  docker stack deploy -c deploy/docker-stack.yml crm
-#  Build/push das imagens: ver deploy/README.md (Swarm não builda, só roda imagem).
+#  COMO SUBIR NO PORTAINER (igual ao seu stack atual):
+#   1. Portainer → Stacks → Add stack → Name: br4-sistema  (ou atualize o existente)
+#   2. Build method: Web editor → cole TODO este arquivo.
+#   3. Environment variables → crie (os MESMOS valores que você já usa hoje):
+#        DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, JWT_SECRET
+#   4. Deploy the stack.
+#
+#  Pré-requisitos:
+#   - As imagens guilherme1488/crm-web, crm-api e crm-scrape-worker são publicadas
+#     pelo CI no próximo release. (Aguarde o GitHub Actions concluir antes de subir.)
+#   - Traefik no swarm com entrypoint `websecure` + certresolver `letsencryptresolver`,
+#     conectado à rede overlay externa `network_public`.
+#   - MariaDB EXTERNO já populado (migrations 018–036 aplicadas).
+#   - DNS: A de `sistema.br4licitacoes.com` → IP do swarm.
 # ════════════════════════════════════════════════════════════════════════════
 version: "3.8"
 
-x-db-env: &db-env
-  NODE_ENV: production
-  DB_HOST: ${DB_HOST}
-  DB_PORT: ${DB_PORT:-3306}
-  DB_USER: ${DB_USER}
-  DB_PASSWORD: ${DB_PASSWORD}
-  DB_NAME: ${DB_NAME}
-  JWT_SECRET: ${JWT_SECRET}
-  AI_KEY_SECRET: ${AI_KEY_SECRET}
-
 services:
+  # ── Frontend (SPA estática via nginx) — Traefik roteia "/" ──────────────────
   web:
-    image: ${REGISTRY}/crm-web:${TAG:-latest}
-    networks: [traefik-public]
+    image: guilherme1488/crm-web:latest
+    networks:
+      - network_public
     deploy:
+      mode: replicated
       replicas: 1
-      restart_policy: { condition: any }
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
       resources:
-        limits: { cpus: "0.50", memory: 256M }
+        limits:
+          memory: 256M
       labels:
         - traefik.enable=true
-        - traefik.docker.network=traefik-public
-        - traefik.http.routers.crmweb.rule=Host(`${DOMAIN}`)
-        - traefik.http.routers.crmweb.entrypoints=websecure
-        - traefik.http.routers.crmweb.tls.certresolver=${CERT_RESOLVER:-le}
-        - traefik.http.routers.crmweb.priority=1
-        - traefik.http.services.crmweb.loadbalancer.server.port=80
+        - traefik.docker.network=network_public
+        - traefik.http.routers.br4_web.rule=Host(`sistema.br4licitacoes.com`)
+        - traefik.http.routers.br4_web.entrypoints=websecure
+        - traefik.http.routers.br4_web.priority=1
+        - traefik.http.routers.br4_web.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.br4_web.service=br4_web
+        - traefik.http.services.br4_web.loadbalancer.server.port=80
 
+  # ── API do CRM — Traefik roteia "/api" e "/health" (prioridade > web) ───────
   api:
-    image: ${REGISTRY}/crm-api:${TAG:-latest}
+    image: guilherme1488/crm-api:latest
     environment:
-      <<: *db-env
-      RUN_SCHEDULER: "false"           # a ingestão roda no ingest-worker, não aqui
-      CORS_ORIGINS: https://${DOMAIN}
-    networks: [traefik-public, internal]
+      - PORT=3001
+      - TZ=America/Sao_Paulo
+      - NODE_ENV=production
+      - RUN_SCHEDULER=false                 # ingestão roda no ingest-worker
+      - CORS_ORIGINS=https://sistema.br4licitacoes.com
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=3306
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}            # cifra também IA/2Captcha (fallback AI_KEY_SECRET)
+      - JWT_EXPIRES_IN=7d
+    networks:
+      - network_public
     deploy:
-      replicas: 2                       # escala horizontal do tráfego de usuários
-      restart_policy: { condition: any }
+      mode: replicated
+      replicas: 2                           # escala o tráfego de usuários (stateless)
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
       resources:
-        limits: { cpus: "1.00", memory: 512M }
+        limits:
+          memory: 512M
       labels:
         - traefik.enable=true
-        - traefik.docker.network=traefik-public
-        # /api e /health vão para a API (prioridade > web); o resto vai p/ a web.
-        - traefik.http.routers.crmapi.rule=Host(`${DOMAIN}`) && (PathPrefix(`/api`) || Path(`/health`))
-        - traefik.http.routers.crmapi.entrypoints=websecure
-        - traefik.http.routers.crmapi.tls.certresolver=${CERT_RESOLVER:-le}
-        - traefik.http.routers.crmapi.priority=10
-        - traefik.http.services.crmapi.loadbalancer.server.port=3001
+        - traefik.docker.network=network_public
+        - traefik.http.routers.br4_api.rule=Host(`sistema.br4licitacoes.com`) && (PathPrefix(`/api`) || Path(`/health`))
+        - traefik.http.routers.br4_api.entrypoints=websecure
+        - traefik.http.routers.br4_api.priority=10
+        - traefik.http.routers.br4_api.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.br4_api.service=br4_api
+        - traefik.http.services.br4_api.loadbalancer.server.port=3001
+        - traefik.http.services.br4_api.loadbalancer.passHostHeader=1
 
+  # ── Worker de ingestão (MESMA imagem da API, outro comando, sem Traefik) ────
   ingest-worker:
-    image: ${REGISTRY}/crm-api:${TAG:-latest}    # MESMA imagem da API, outro comando
-    command: ["node", "src/jobs/worker.js"]
+    image: guilherme1488/crm-api:latest
+    command: node src/jobs/worker.js
+    healthcheck:
+      test: ["NONE"]                        # worker não sobe HTTP
     environment:
-      <<: *db-env
-    networks: [internal]
+      - TZ=America/Sao_Paulo
+      - NODE_ENV=production
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=3306
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - INGEST_ENABLED=true
+      - INGEST_HOUR_BRT=9
+      - INGEST_PAGES=10
+      - INGEST_CATCHUP_ON_BOOT=true
+      - INGEST_MAX_BACKFILL_DAYS=14
+    networks:
+      - network_public
     deploy:
-      replicas: 1                       # SEMPRE 1 (agendador in-process)
-      restart_policy: { condition: any }
+      mode: replicated
+      replicas: 1                           # NUNCA aumente (agendador in-process)
+      restart_policy:
+        condition: on-failure
       resources:
-        limits: { cpus: "1.00", memory: 512M }
+        limits:
+          memory: 512M
 
+  # ── Worker de scraping (navegador Playwright) — pesado, isolado ─────────────
   scrape-worker:
-    image: ${REGISTRY}/crm-scrape-worker:${TAG:-latest}
+    image: guilherme1488/crm-scrape-worker:latest
+    healthcheck:
+      test: ["NONE"]
     environment:
-      <<: *db-env
-      SCRAPE_INTERVAL_HOURS: ${SCRAPE_INTERVAL_HOURS:-12}
-      # CAPTCHA_API_KEY é OPCIONAL aqui — a chave 2Captcha também é lida do banco
+      - TZ=America/Sao_Paulo
+      - NODE_ENV=production
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=3306
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - SCRAPE_INTERVAL_HOURS=12
+      # CAPTCHA_API_KEY é OPCIONAL — a chave 2Captcha também é lida do banco
       # (Configurações → IA → Resolução de CAPTCHA).
-      CAPTCHA_API_KEY: ${CAPTCHA_API_KEY:-}
-    networks: [internal]
+    networks:
+      - network_public
     deploy:
+      mode: replicated
       replicas: 1
-      restart_policy: { condition: any }
+      restart_policy:
+        condition: on-failure
       resources:
-        limits: { cpus: "1.50", memory: 1536M }   # Chromium é pesado → isolado
+        limits:
+          memory: 1536M                     # Chromium é pesado → isolado dos demais
 
 networks:
-  traefik-public:
-    external: true                      # rede do Traefik (já existente no cluster)
-  internal:
-    driver: overlay
+  network_public:
+    external: true
+    name: network_public

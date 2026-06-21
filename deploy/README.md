@@ -53,23 +53,27 @@ O Portainer/Swarm **não builda** imagem — só roda imagem já publicada. As 3
 (GitHub Actions `release.yml`) a cada release, no DockerHub `guilherme1488/...`. Então
 no Portainer você só sobe/atualiza a stack:
 
-1. **Rede**: em *Networks*, confirme que existe a overlay `traefik-public` (a mesma do
-   Traefik). Se não, crie (Driver: overlay, Attachable).
-2. **Stacks → Add stack** → nome `crm`.
-3. **Build method = Repository** (ideal): aponte para este repositório Git e o caminho
-   `deploy/docker-stack.yml`. (Ou **Web editor** e cole o conteúdo do arquivo.)
-4. **Environment variables** (seção abaixo do editor) — adicione:
-   `REGISTRY=guilherme1488`, `TAG=latest` (ou a versão), `DOMAIN=sistema.br4licitacoes.com`,
-   `CERT_RESOLVER=<seu resolver>`, `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`,
-   `JWT_SECRET`, `AI_KEY_SECRET` (os MESMOS de hoje), `SCRAPE_INTERVAL_HOURS=12`,
-   `CAPTCHA_API_KEY` (opcional).
-5. **Deploy the stack**. O Portainer cria `crm_web`, `crm_api`, `crm_ingest-worker`,
-   `crm_scrape-worker`.
-6. **Atualizar versão**: edite a stack, troque `TAG` (ou marque *Re-pull image* se usar
-   `latest`) e **Update the stack** — o Swarm faz rolling update.
+O `deploy/docker-stack.yml` já vem com **seus dados** (domínio, `network_public`,
+`websecure`, `letsencryptresolver`, imagens `guilherme1488/*`). Você só informa os
+segredos — **igual ao stack atual**:
 
-> Multi-node: como as imagens vêm do DockerHub, qualquer nó do cluster as baixa. Não
-> precisa buildar nos nós.
+1. **Aguarde o CI** publicar as imagens (`crm-web`, `crm-api`, `crm-scrape-worker`) —
+   o GitHub Actions faz isso no release. (Ou builde manual: `docker compose -f
+   deploy/docker-compose.build.yml build && push`.)
+2. **Networks**: confirme a overlay `network_public` (a do seu Traefik).
+3. **Stacks → Add stack** → nome `br4-sistema` (ou edite o existente).
+4. **Web editor**: cole o conteúdo de `deploy/docker-stack.yml`.
+5. **Environment variables** → crie (os MESMOS de hoje): `DB_HOST`, `DB_USER`,
+   `DB_PASSWORD`, `DB_NAME`, `JWT_SECRET`.
+6. **Deploy the stack** → cria `br4-sistema_web`, `_api`, `_ingest-worker`, `_scrape-worker`.
+7. **Atualizar versão**: edite a stack e marque *Re-pull image* (usa `:latest`) →
+   **Update the stack** (rolling update `start-first`, zero-downtime).
+
+> Não precisa setar `AI_KEY_SECRET`: sem ela, a cripto de IA/2Captcha usa o
+> `JWT_SECRET` (mesmo comportamento de hoje). Se um dia definir, use o MESMO valor,
+> senão as chaves já cifradas param de decifrar.
+>
+> Multi-node: as imagens vêm do DockerHub — qualquer nó as baixa, sem buildar.
 
 ## Notas
 

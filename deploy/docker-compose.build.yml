@@ -1,20 +1,20 @@
-# Build das 3 imagens (a api e o ingest-worker compartilham a mesma imagem crm-api).
+# Build manual das 3 imagens (normalmente o CI faz isso a cada release).
 #   cd deploy && docker compose -f docker-compose.build.yml build
-#   docker compose -f docker-compose.build.yml push     # após `docker login`
-# Variáveis: REGISTRY (ex.: docker.io/seuusuario) e TAG (ex.: v1.30.0).
+#   docker login && docker compose -f docker-compose.build.yml push
+# A api e o ingest-worker compartilham a mesma imagem crm-api.
 services:
   web:
-    image: ${REGISTRY}/crm-web:${TAG:-latest}
+    image: ${REGISTRY:-guilherme1488}/crm-web:${TAG:-latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
   api:
-    image: ${REGISTRY}/crm-api:${TAG:-latest}
+    image: ${REGISTRY:-guilherme1488}/crm-api:${TAG:-latest}
     build:
       context: ../backend
       dockerfile: Dockerfile
   scrape-worker:
-    image: ${REGISTRY}/crm-scrape-worker:${TAG:-latest}
+    image: ${REGISTRY:-guilherme1488}/crm-scrape-worker:${TAG:-latest}
     build:
       context: ..
       dockerfile: backend/scrape-worker/Dockerfile
