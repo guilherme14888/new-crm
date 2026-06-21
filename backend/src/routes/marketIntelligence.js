@@ -48,7 +48,7 @@ router.get('/', auth, resolveScope, requirePermission('market_intelligence_acces
          FROM market_intelligence mi
          LEFT JOIN companies c ON c.id = mi.company_id
         WHERE ${where}
-        ORDER BY mi.data_hora_certame DESC, mi.processo_key, mi.lote, mi.item`,
+        ORDER BY mi.first_seen_date DESC, mi.ingested_at DESC, mi.id`,
       params
     );
     res.json(rows.map(fmt));
