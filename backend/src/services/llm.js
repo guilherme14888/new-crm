@@ -13,7 +13,9 @@ const OPENAI_COMPAT_BASE = {
   deepseek: 'https://api.deepseek.com/v1',
 };
 
-const TIMEOUT_MS = 40000;
+// Timeout curto o bastante para o app devolver o erro REAL (chave inválida /
+// provedor fora do ar) antes do proxy/Traefik cortar com um 502 de gateway.
+const TIMEOUT_MS = 15000;
 
 async function getJson(url, headers = {}) {
   const ctrl = new AbortController();

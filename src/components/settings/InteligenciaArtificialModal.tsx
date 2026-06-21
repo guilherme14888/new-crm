@@ -70,6 +70,7 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
   const [saving, setSaving]     = useState(false);
   const [testing, setTesting]   = useState(false);
   const [testMsg, setTestMsg]   = useState<{ ok: boolean; text: string } | null>(null);
+  const [saveMsg, setSaveMsg]   = useState<{ ok: boolean; text: string } | null>(null);
 
   const providers = cfg?.providers || [];
   const selDef = providers.find((p) => p.key === provider);
@@ -116,11 +117,17 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
   };
 
   const handleSave = async () => {
-    setSaving(true); setTestMsg(null);
+    setSaving(true); setTestMsg(null); setSaveMsg(null);
     try {
       await save({ provider, apiKey: apiKey.trim() || undefined, model: model.trim() || undefined });
+      // O "Salvar" principal também grava a chave do 2Captcha, se você a digitou
+      // (evita confundir com o botão Salvar da seção de CAPTCHA).
+      if (captchaKey.trim()) { try { await saveCaptcha(captchaKey.trim()); setCaptchaKey(''); } catch { /* toast */ } }
       setApiKey('');
-    } catch { /* toast já exibido */ } finally { setSaving(false); }
+      setSaveMsg({ ok: true, text: 'Configuração salva ✓ — a chave foi gravada no servidor (criptografada).' });
+    } catch (e: any) {
+      setSaveMsg({ ok: false, text: e?.message || 'Erro ao salvar a configuração.' });
+    } finally { setSaving(false); }
   };
 
   const handleTest = async () => {
@@ -204,7 +211,8 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
 
                 {!!statusTxt && <Text style={st.statusTxt}>{statusTxt}</Text>}
                 {!!testMsg && <Text style={[st.testTxt, testMsg.ok ? st.testOk : st.testErr]}>{testMsg.ok ? '✓ ' : '⛔ '}{testMsg.text}</Text>}
-                <Text style={st.foot}>A chave é gravada no servidor e nunca é devolvida à tela. O “Testar conexão” usa a configuração já salva.</Text>
+                {!!saveMsg && <Text style={[st.testTxt, saveMsg.ok ? st.testOk : st.testErr]}>{saveMsg.ok ? '✓ ' : '⛔ '}{saveMsg.text}</Text>}
+                <Text style={st.foot}>Cole a chave e clique em “Salvar” (botão azul, embaixo). A chave é gravada no servidor (criptografada) e nunca volta à tela. “Testar conexão” e a lista de modelos usam a configuração JÁ salva — então salve primeiro, depois teste.</Text>
 
                 {/* ── CAPTCHA (2Captcha) — para portais com reCAPTCHA (ex.: BEC-SP) ── */}
                 <View style={st.divider} />
