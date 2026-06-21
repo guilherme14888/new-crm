@@ -159,6 +159,54 @@ async function syncOpportunities(scope) {
   return { created };
 }
 
+/** Garante a etapa "Perdido" (type='lost') no funil default e devolve o id. */
+async function ensureLostStage() {
+  const [f] = await db.query("SELECT id FROM funnels WHERE company_id = ? AND is_default = 1 ORDER BY name LIMIT 1", [MASTER]);
+  if (!f.length) return null;
+  const funnelId = f[0].id;
+  const [s] = await db.query("SELECT id FROM funnel_stages WHERE funnel_id = ? AND (type = 'lost' OR name = 'Perdido') LIMIT 1", [funnelId]);
+  if (s.length) return { funnelId, stageId: s[0].id };
+  const id = uuidv4();
+  await db.query(
+    'INSERT INTO funnel_stages (id, funnel_id, company_id, name, color, order_index, probability, type) VALUES (?,?,?,?,?,?,?,?)',
+    [id, funnelId, MASTER, 'Perdido', '#ef4444', 1000, 0, 'lost']
+  );
+  return { funnelId, stageId: id };
+}
+
+/**
+ * Move para "Perdido" as oportunidades AINDA BLOQUEADAS (locked=1, não participadas)
+ * cuja licitação NÃO está mais "Recebendo propostas" — ou seja, encerrou e o tenant
+ * não participou. Chamado automaticamente após cada ingestão. Idempotente.
+ */
+async function closeStaleOpportunities(scope) {
+  const companyId = scope.companyId;
+  const lost = await ensureLostStage();
+  if (!lost) return { closed: 0 };
+  const [stale] = await db.query(
+    `SELECT d.id FROM deals d
+      WHERE d.company_id = ? AND d.locked = 1 AND d.deleted_at IS NULL AND d.mi_controle IS NOT NULL
+        AND d.mi_controle COLLATE utf8mb4_unicode_ci NOT IN (
+          SELECT pncp_controle FROM market_intelligence
+           WHERE company_id = ? AND encerramento = 'Recebendo propostas' AND pncp_controle IS NOT NULL
+        )`,
+    [companyId, companyId]
+  );
+  let closed = 0;
+  for (const d of stale) {
+    try {
+      const [maxRow] = await db.query('SELECT MAX(stage_order) m FROM deals WHERE stage_id = ? AND deleted_at IS NULL', [lost.stageId]);
+      const order = (maxRow[0].m ?? 0) + 1;
+      await db.query(
+        'UPDATE deals SET stage_id = ?, stage_order = ?, locked = 0, stage_changed_at = NOW(), closing_reason = ? WHERE id = ?',
+        [lost.stageId, order, 'Licitação encerrada sem participação (automático)', d.id]
+      );
+      closed++;
+    } catch { /* ignora 1 */ }
+  }
+  return { closed };
+}
+
 /** Participar: desbloqueia o deal, move p/ a próxima etapa e copia os documentos. */
 async function participate(scope, dealId) {
   const [d] = await db.query('SELECT * FROM deals WHERE id = ? AND company_id = ? AND deleted_at IS NULL', [dealId, scope.companyId]);
@@ -180,4 +228,4 @@ async function participate(scope, dealId) {
   return { ok: true, stageId: nextStageId, docs };
 }
 
-module.exports = { ensureOpportunityStage, syncOpportunities, participate };
+module.exports = { ensureOpportunityStage, syncOpportunities, closeStaleOpportunities, participate };

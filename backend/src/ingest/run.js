@@ -10,7 +10,7 @@ const { sleep, httpStats } = require('./http');
 const { clearSweepCache } = require('./connectors/pncp-sweep');
 const { loadAll } = require('./sources');
 const { filterRelevant } = require('./relevance');
-const { syncOpportunities } = require('../opportunities');
+const { syncOpportunities, closeStaleOpportunities } = require('../opportunities');
 
 const MASTER_COMPANY = '00000000-0000-0000-0000-000000000001';
 // Dono do deal de oportunidade: usuário da própria empresa; senão um admin da
@@ -206,6 +206,9 @@ async function runIngest(opts = {}) {
         if (owner) {
           const sy = await syncOpportunities({ companyId, userId: owner });
           if (sy.created) console.log(`[ingest] tenant ${companyId} → ${sy.created} oportunidade(s) nova(s) no CRM`);
+          // Encerrou sem participação? Move as oportunidades travadas p/ Perdido.
+          const cl = await closeStaleOpportunities({ companyId, userId: owner });
+          if (cl.closed) console.log(`[ingest] tenant ${companyId} → ${cl.closed} oportunidade(s) encerrada(s) → Perdido`);
         }
       } catch (e) { console.error(`[ingest] sync de oportunidades falhou: ${e.message}`); }
 

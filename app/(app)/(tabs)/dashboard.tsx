@@ -163,17 +163,18 @@ export default function DashboardScreen() {
   const monthStart = useMemo(() => startOfMonth(), []);
 
   const {
-    pipelineValue, inProgressCount,
+    pipelineValue, inProgressCount, awaitingCount,
     wonCount, wonValue, wonThisMonth, wonValueThisMonth,
     lostCount, lostValue, lostThisMonth, lostValueThisMonth,
     conversionRate, dealsByStageId,
   } = useMemo(() => {
-    let pipelineValue = 0, inProgressCount = 0;
+    let pipelineValue = 0, inProgressCount = 0, awaitingCount = 0;
     let wonCount = 0, wonValue = 0, wonThisMonth = 0, wonValueThisMonth = 0;
     let lostCount = 0, lostValue = 0, lostThisMonth = 0, lostValueThisMonth = 0;
     const byStage: Record<string, { count: number; value: number }> = {};
 
     for (const d of active) {
+      if (d.locked) awaitingCount++;   // oportunidade aberta aguardando participação
       const stageType = stageTypeMap[d.stageId] ?? null;
       const isWon  = d.stage === 'closed_won'  || stageType === 'won';
       const isLost = d.stage === 'closed_lost' || stageType === 'lost';
@@ -200,7 +201,7 @@ export default function DashboardScreen() {
     const conversionRate = closed > 0 ? (wonCount / closed) * 100 : 0;
 
     return {
-      pipelineValue, inProgressCount,
+      pipelineValue, inProgressCount, awaitingCount,
       wonCount, wonValue, wonThisMonth, wonValueThisMonth,
       lostCount, lostValue, lostThisMonth, lostValueThisMonth,
       conversionRate, dealsByStageId: byStage,
@@ -216,6 +217,17 @@ export default function DashboardScreen() {
       <Text style={styles.heading}>Dashboard</Text>
       {companyName && <Text style={styles.companyLabel}>🏢 {companyName}</Text>}
       {funnel && <Text style={styles.funnelLabel}>{funnel.name}</Text>}
+
+      {/* Oportunidades aguardando participação (licitações abertas no CRM) */}
+      <View style={styles.row}>
+        <MetricCard
+          label="Oportunidades aguardando participação"
+          value={String(awaitingCount)}
+          sub="licitações abertas no CRM — clique em Participar"
+          accent="#7b2d8e"
+          bg="#faf5ff"
+        />
+      </View>
 
       {/* Top metrics */}
       <View style={styles.row}>
