@@ -49,8 +49,8 @@ async function resolverCaptcha(page) {
 
 async function sweep(keywords, opts = {}) {
   if (!(await hasKey())) {
-    console.warn('[bec-sp] CAPTCHA_API_KEY ausente — BEC-SP exige reCAPTCHA; pulando. Configure a chave 2Captcha p/ habilitar.');
-    return [];
+    // Lança (não retorna vazio) p/ o runner registrar a FALHA com o motivo no log.
+    throw new Error('CAPTCHA ausente — BEC-SP exige reCAPTCHA. Configure a chave 2Captcha em Configurações → IA.');
   }
   const page = await newPage();
   const byKw = new Map();
