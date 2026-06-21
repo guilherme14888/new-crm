@@ -1,3 +1,15 @@
+# [1.40.0](https://github.com/guilherme14888/crm-br4/compare/v1.39.0...v1.40.0) (2026-06-21)
+
+
+### Bug Fixes
+
+* **ai-config:** save a prova de confusao + 502 mostra erro real ([f0b1ab3](https://github.com/guilherme14888/crm-br4/commit/f0b1ab3efa6036b6fd038467da00775c2778f06c))
+
+
+### Features
+
+* card de oportunidades aguardando participacao + auto-Perdido ([c891eb0](https://github.com/guilherme14888/crm-br4/commit/c891eb0cf26b99393a824df8e959ec13d70e4d57))
+
 # [1.39.0](https://github.com/guilherme14888/crm-br4/compare/v1.38.0...v1.39.0) (2026-06-21)
 
 
