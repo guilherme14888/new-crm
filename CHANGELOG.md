@@ -1,3 +1,10 @@
+# [1.43.0](https://github.com/guilherme14888/crm-br4/compare/v1.42.0...v1.43.0) (2026-06-21)
+
+
+### Features
+
+* **scrape:** robo generico (Playwright) entra em TODOS os portais ([7561186](https://github.com/guilherme14888/crm-br4/commit/7561186b7db92e0b99b7628122128965281d6347))
+
 # [1.42.0](https://github.com/guilherme14888/crm-br4/compare/v1.41.1...v1.42.0) (2026-06-21)
 
 
