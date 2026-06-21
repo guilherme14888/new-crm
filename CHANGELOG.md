@@ -1,3 +1,10 @@
+# [1.42.0](https://github.com/guilherme14888/crm-br4/compare/v1.41.1...v1.42.0) (2026-06-21)
+
+
+### Features
+
+* **scrape:** log diario de execucao por portal + percorre todos + remove mock ([d985be6](https://github.com/guilherme14888/crm-br4/commit/d985be68d7a7d6a18a9f6f6e85077da13930abf5))
+
 ## [1.41.1](https://github.com/guilherme14888/crm-br4/compare/v1.41.0...v1.41.1) (2026-06-21)
 
 
