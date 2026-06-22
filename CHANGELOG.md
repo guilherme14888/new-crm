@@ -1,3 +1,10 @@
+# [1.46.0](https://github.com/guilherme14888/crm-br4/compare/v1.45.0...v1.46.0) (2026-06-22)
+
+
+### Features
+
+* **teams:** atribuir Tenants por Equipe — visualizacao restrita na Default ([bb74fbd](https://github.com/guilherme14888/crm-br4/commit/bb74fbd8a7f4cc2ee10a1501bafc9d8d7469f61e))
+
 # [1.45.0](https://github.com/guilherme14888/crm-br4/compare/v1.44.0...v1.45.0) (2026-06-22)
 
 
