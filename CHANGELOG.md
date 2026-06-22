@@ -1,3 +1,10 @@
+# [1.48.0](https://github.com/guilherme14888/crm-br4/compare/v1.47.3...v1.48.0) (2026-06-22)
+
+
+### Features
+
+* **theme:** tema (cores) personalizavel por tenant — sidebar + sistema ([40a4097](https://github.com/guilherme14888/crm-br4/commit/40a409727ef94787394324e1d873750e693fa8f2))
+
 ## [1.47.3](https://github.com/guilherme14888/crm-br4/compare/v1.47.2...v1.47.3) (2026-06-22)
 
 
