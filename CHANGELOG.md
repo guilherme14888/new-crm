@@ -1,3 +1,10 @@
+## [1.43.2](https://github.com/guilherme14888/crm-br4/compare/v1.43.1...v1.43.2) (2026-06-22)
+
+
+### Bug Fixes
+
+* **mining-history:** seletor de tenant persiste na Default ao escolher empresa ([d280573](https://github.com/guilherme14888/crm-br4/commit/d280573bb1811d892db67b0ead3ed794e20a0f84))
+
 ## [1.43.1](https://github.com/guilherme14888/crm-br4/compare/v1.43.0...v1.43.1) (2026-06-22)
 
 
