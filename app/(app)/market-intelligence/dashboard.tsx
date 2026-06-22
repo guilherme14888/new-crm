@@ -107,8 +107,8 @@ const sel = StyleSheet.create({
   wrap:        { minWidth: 170, flex: 1 },
   label:       { fontSize: FONTS.sm, color: COLORS.gray[500], fontWeight: '600', marginBottom: 4 },
   anchor:      { position: 'relative' as any, zIndex: 50 },
-  trigger:     { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.gray[50], borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
-  triggerTxt:  { flex: 1, fontSize: FONTS.base, color: COLORS.gray[600] },
+  trigger:     { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.gray[50], borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, overflow: 'hidden', minWidth: 0 },
+  triggerTxt:  { flex: 1, minWidth: 0, fontSize: FONTS.base, color: COLORS.gray[600] },
   chevron:     { fontSize: 9, color: COLORS.gray[400], marginLeft: SPACING.sm },
   backdrop:    { position: 'fixed' as any, inset: 0, zIndex: 98 } as any,
   flyout:      { position: 'absolute' as any, top: '100%' as any, left: 0, right: 0, marginTop: 4, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[100], shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, zIndex: 99 },
@@ -991,7 +991,7 @@ export default function MarketIntelligenceScreen() {
             </View>
             <View style={s.headerRight}>
               {showEmpresa && (
-                <View style={{ minWidth: 200 }}>
+                <View style={{ minWidth: 200, maxWidth: 360, flexShrink: 1 }}>
                   <Select id="empresa" label="Empresa" value={empresa} options={empresaOpts} onChange={setEmpresa} openId={openId} setOpenId={setOpenId} />
                 </View>
               )}
