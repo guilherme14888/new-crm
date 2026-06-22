@@ -80,6 +80,7 @@ async function safeUser(u, activeCompanyId, companyName = null, trialSrc = u, pe
     companyId:   cid,
     companyName: companyName ?? u.company_name ?? null,
     isMasterCompany: cid === MASTER_COMPANY_ID,
+    isDefaultTenantUser: u.company_id === MASTER_COMPANY_ID,   // criado na Default (home, estável ao trocar)
     canMiningHistory,
     companyLogo,            // logo da empresa ativa (url ou data URL base64)
     masterLogo,            // logo da Default (miniatura sobreposta nas filhas)

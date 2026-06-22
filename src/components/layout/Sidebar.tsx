@@ -44,10 +44,18 @@ function CompanySwitcherModal({ visible, onClose }: { visible: boolean; onClose:
   const [switching, setSwitching] = useState<string | null>(null);
   const [error, setError]         = useState('');
 
+  const MASTER_ID = '00000000-0000-0000-0000-000000000001';
   useEffect(() => {
     if (!visible) return;
     setError('');
-    listCompanies().then(setCompanies).catch((e) => setError(e?.message ?? 'Erro ao carregar empresas'));
+    listCompanies()
+      .then((list) => {
+        // A tenant Default fica SEMPRE em primeiro; as demais por nome.
+        const sorted = [...list].sort((a, b) =>
+          a.id === MASTER_ID ? -1 : b.id === MASTER_ID ? 1 : a.name.localeCompare(b.name));
+        setCompanies(sorted);
+      })
+      .catch((e) => setError(e?.message ?? 'Erro ao carregar empresas'));
   }, [visible]);
 
   // Troca a empresa ativa, recarrega funis/deals/contatos e navega para o dashboard.
@@ -253,10 +261,12 @@ export function Sidebar() {
       ? { ...it, children: [...(it.children ?? []), { label: 'Histórico de Mineração', icon: '⛏️', href: '/(app)/market-intelligence/historico' }] }
       : it
   );
+  // Só usuários criados na tenant Default podem trocar de empresa (filhas: nunca aparece).
+  const canSwitchCompany = !!user?.isDefaultTenantUser;
   const NAV_ITEMS = [
     ...baseItems,
-    SETTINGS_NAV,                       // sempre visível (configurações por tenant)
     ...(canFinance ? [FINANCE_NAV] : []),
+    SETTINGS_NAV,                       // Configurações é SEMPRE o último da lista
   ].filter((item) => menuVisible(item.menuKey));
 
   const [menuOpen, setMenuOpen]                   = useState(false);
@@ -344,11 +354,15 @@ export function Sidebar() {
             <Text style={st.dropIcon}>👤</Text>
             <Text style={st.dropLabel}>Meu Perfil</Text>
           </Pressable>
-          <View style={st.dropDivider} />
-          <Pressable style={st.dropItem} onPress={() => { setMenuOpen(false); setShowCompanySwitcher(true); }}>
-            <Text style={st.dropIcon}>🏢</Text>
-            <Text style={st.dropLabel}>Trocar Empresa</Text>
-          </Pressable>
+          {canSwitchCompany && (
+            <>
+              <View style={st.dropDivider} />
+              <Pressable style={st.dropItem} onPress={() => { setMenuOpen(false); setShowCompanySwitcher(true); }}>
+                <Text style={st.dropIcon}>🏢</Text>
+                <Text style={st.dropLabel}>Trocar Empresa</Text>
+              </Pressable>
+            </>
+          )}
           <View style={st.dropDivider} />
           <Pressable style={[st.dropItem, { paddingBottom: SPACING.sm }]} onPress={handleSignOut}>
             <Text style={st.dropIcon}>🚪</Text>
@@ -363,9 +377,11 @@ export function Sidebar() {
           <Pressable style={st.collapsedActionBtn} onPress={() => { setShowProfile(true); }}>
             <Text style={st.collapsedActionIcon}>👤</Text>
           </Pressable>
-          <Pressable style={st.collapsedActionBtn} onPress={() => { setShowCompanySwitcher(true); }}>
-            <Text style={st.collapsedActionIcon}>🏢</Text>
-          </Pressable>
+          {canSwitchCompany && (
+            <Pressable style={st.collapsedActionBtn} onPress={() => { setShowCompanySwitcher(true); }}>
+              <Text style={st.collapsedActionIcon}>🏢</Text>
+            </Pressable>
+          )}
           <Pressable style={st.collapsedActionBtn} onPress={handleSignOut}>
             <Text style={st.collapsedActionIcon}>🚪</Text>
           </Pressable>

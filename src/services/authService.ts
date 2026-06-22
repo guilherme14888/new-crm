@@ -12,6 +12,7 @@ type AuthUserResponse = {
   companyId: string;
   companyName: string | null;
   isMasterCompany?: boolean;
+  isDefaultTenantUser?: boolean;
   canMiningHistory?: boolean;
   companyLogo?: string | null;
   masterLogo?: string | null;
@@ -34,6 +35,7 @@ function mapUser(u: AuthUserResponse): User {
     companyId: u.companyId,
     companyName: u.companyName ?? null,
     isMasterCompany: u.isMasterCompany ?? false,
+    isDefaultTenantUser: u.isDefaultTenantUser ?? false,
     canMiningHistory: u.canMiningHistory ?? false,
     companyLogo: u.companyLogo ?? null,
     masterLogo: u.masterLogo ?? null,
