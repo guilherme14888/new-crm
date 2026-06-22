@@ -32,7 +32,7 @@ export function Avatar({ name, uri, size = 36 }: AvatarProps) {
 
 /** Helper que gera deterministicamente uma cor da paleta a partir de uma string (hash do nome). */
 function stringToColor(str: string): string {
-  const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f97316'];
+  const colors = ['#3C50E0', '#6577F3', '#8155FF', '#0FADCF', '#10B981', '#F59E0B'];
   let hash = 0;
   for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];

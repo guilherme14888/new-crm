@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, ActivityIndicator, StyleSheet, ViewStyle } from 'react-native';
+import { Pressable, Text, ActivityIndicator, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { COLORS, RADIUS, SPACING, FONTS } from '../../constants/theme';
 
 interface ButtonProps {
@@ -48,6 +48,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transitionProperty: 'opacity, transform', transitionDuration: '150ms' } as any : {}),
     minHeight: 44,
   },
   label: {
