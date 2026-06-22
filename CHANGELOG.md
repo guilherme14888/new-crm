@@ -1,3 +1,10 @@
+# [1.45.0](https://github.com/guilherme14888/crm-br4/compare/v1.44.0...v1.45.0) (2026-06-22)
+
+
+### Features
+
+* **acl:** Historico de Mineracao travado ate admins de filha via ACL ([935e0ae](https://github.com/guilherme14888/crm-br4/commit/935e0ae7ba7355c3064e4dd6080fa6792f146e84))
+
 # [1.44.0](https://github.com/guilherme14888/crm-br4/compare/v1.43.2...v1.44.0) (2026-06-22)
 
 
