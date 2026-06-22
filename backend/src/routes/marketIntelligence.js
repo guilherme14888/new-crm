@@ -163,14 +163,18 @@ router.get('/mining-history', auth, resolveScope, async (req, res) => {
     return res.status(403).json({ error: 'Sem permissão para ver o Histórico de Mineração.' });
   }
   try {
+    const MASTER = '00000000-0000-0000-0000-000000000001';
     const companyParam = req.query.company;
+    // O seletor "Todas as empresas" é da EMPRESA DO USUÁRIO (Default/master) e NÃO
+    // muda quando ele escolhe uma tenant — por isso o filtro persiste na Default e
+    // não aparece nas filhas. Os DADOS seguem a tenant selecionada (companyParam).
+    const userIsMaster = req.user.company_id === MASTER && req.user.role === 'admin';
+    const targetCompany = userIsMaster
+      ? ((companyParam && companyParam !== 'all') ? companyParam : null)   // null = todas
+      : req.user.company_id;                                              // filha: só a própria
     let where = 'mi.first_seen_date IS NOT NULL';
     const params = [];
-    if (req.scope.isMaster) {
-      if (companyParam && companyParam !== 'all') { where += ' AND mi.company_id = ?'; params.push(companyParam); }
-    } else {
-      where += ' AND mi.company_id = ?'; params.push(req.scope.companyId);
-    }
+    if (targetCompany) { where += ' AND mi.company_id = ?'; params.push(targetCompany); }
     const [rows] = await db.query(
       `SELECT DATE_FORMAT(mi.first_seen_date,'%Y-%m-%d') d,
               COALESCE(NULLIF(mi.termo_busca,''),'(varredura)') termo,
@@ -183,7 +187,7 @@ router.get('/mining-history', auth, resolveScope, async (req, res) => {
       params
     );
     let companies = [];
-    if (req.scope.isMaster) {
+    if (userIsMaster) {
       const [cs] = await db.query(
         `SELECT mi.company_id id, c.name name
            FROM market_intelligence mi LEFT JOIN companies c ON c.id = mi.company_id
@@ -199,9 +203,7 @@ router.get('/mining-history', auth, resolveScope, async (req, res) => {
     // coleta aparecem como "sem execução" (para o usuário enxergar as lacunas).
     const DAYS = 30;
     const cWhere = []; const cParams = [];
-    if (req.scope.isMaster) {
-      if (companyParam && companyParam !== 'all') { cWhere.push('company_id = ?'); cParams.push(companyParam); }
-    } else { cWhere.push('company_id = ?'); cParams.push(req.scope.companyId); }
+    if (targetCompany) { cWhere.push('company_id = ?'); cParams.push(targetCompany); }
     const cFilter = cWhere.length ? `AND ${cWhere.join(' AND ')}` : '';
     const [cov] = await db.query(
       `SELECT DATE_FORMAT(run_date,'%Y-%m-%d') d,
@@ -236,7 +238,7 @@ router.get('/mining-history', auth, resolveScope, async (req, res) => {
     }
 
     res.json({
-      isMaster: !!req.scope.isMaster,
+      isMaster: userIsMaster,
       companies,
       daily,
       rows: rows.map((r) => ({ date: r.d, termo: r.termo, companyId: r.companyId, companyName: r.companyName || r.companyId, count: Number(r.n) })),
