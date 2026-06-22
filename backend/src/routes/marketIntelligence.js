@@ -588,26 +588,35 @@ router.post('/ai/models', auth, resolveScope, requireMasterAdmin, async (req, re
     let prov = provider;
     if (!key) {
       const ai = await loadAiConfig(req.scope.companyId);
+      // Chave salva existe mas o segredo mudou → não dá p/ usar. Responde rápido e claro.
+      if (ai.source === 'unreadable') {
+        return res.status(400).json({ error: 'A chave salva não pôde ser lida pelo servidor (o segredo de criptografia mudou no deploy). Cole a chave novamente e clique em Salvar.' });
+      }
       key = ai.apiKey;
       prov = provider || ai.provider;
     }
-    if (!key) return res.status(503).json({ error: 'Informe a chave para listar os modelos.' });
-    const models = await listModels({ provider: prov, apiKey: key });
+    if (!key) return res.status(400).json({ error: 'Cole a chave (ou salve-a primeiro) para listar os modelos.' });
+    const models = await listModels({ provider: prov, apiKey: key, timeoutMs: 9000 });
     res.json({ models });
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 // POST /ai/test — valida a config fazendo uma chamada mínima ao provedor.
+// Sempre responde 200 com { ok, error } — assim a UI mostra o MOTIVO real (chave
+// ilegível / inválida / timeout) em vez de um "HTTP 502" opaco de gateway.
 router.post('/ai/test', auth, resolveScope, requireMasterAdmin, async (req, res) => {
   try {
     const ai = await loadAiConfig();
-    if (!ai.apiKey) return res.status(503).json({ ok: false, error: 'Nenhuma chave configurada (nem no .env).' });
+    if (ai.source === 'unreadable') {
+      return res.json({ ok: false, error: 'A chave salva não pôde ser lida pelo servidor (o segredo de criptografia mudou no deploy). Cole a chave novamente e clique em Salvar.' });
+    }
+    if (!ai.apiKey) return res.json({ ok: false, error: 'Nenhuma chave configurada. Cole a chave e clique em Salvar.' });
     const txt = await chat({
       provider: ai.provider, apiKey: ai.apiKey, model: ai.model,
-      system: 'Responda apenas com a palavra OK.', user: 'teste de conexão', maxTokens: 8,
+      system: 'Responda apenas com a palavra OK.', user: 'teste de conexão', maxTokens: 8, timeoutMs: 9000,
     });
     res.json({ ok: true, provider: ai.provider, model: ai.model, source: ai.source, reply: (txt || '').trim().slice(0, 40) });
-  } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+  } catch (e) { res.json({ ok: false, error: e.message }); }
 });
 
 module.exports = router;

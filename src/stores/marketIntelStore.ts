@@ -116,7 +116,8 @@ export interface AiConfig {
   provider: string;
   model: string;
   hasKey: boolean;
-  source: 'tenant' | 'env' | 'none';
+  keyStatus?: 'ok' | 'unreadable' | 'env' | 'none';   // 'unreadable' = chave salva mas segredo mudou
+  source: 'tenant' | 'env' | 'unreadable' | 'none';
   updatedAt?: string | null;
   providers: AiProviderOpt[];
 }

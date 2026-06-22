@@ -86,7 +86,8 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
   useEffect(() => {
     if (!cfg) return;
     setProvider(cfg.provider); setModel(cfg.model || ''); setApiKey(''); setTestMsg(null); setModelsErr(null); setModels([]);
-    if (cfg.hasKey) doFetchModels(cfg.provider, '');
+    // Não busca modelos se a chave salva está ilegível (segredo mudou) — orientamos recadastrar.
+    if (cfg.hasKey && cfg.keyStatus !== 'unreadable') doFetchModels(cfg.provider, '');
   }, [cfg]);
 
   // ao digitar/colar a chave, busca os modelos automaticamente (com debounce)
@@ -149,7 +150,9 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
   // (trocar de provedor exige nova chave — a antiga é limpa ao salvar).
   const savedHere = !!cfg?.hasKey && provider === cfg?.provider;
 
+  const keyUnreadable = cfg?.keyStatus === 'unreadable';
   const statusTxt = !cfg ? ''
+    : keyUnreadable ? '⚠️ A chave salva NÃO pôde ser lida pelo servidor (o segredo de criptografia AI_KEY_SECRET/JWT_SECRET mudou no deploy). Cole a chave novamente e clique em Salvar.'
     : (cfg.hasKey && provider !== cfg.provider) ? 'Você trocou de provedor — cole a chave deste provedor e clique em Salvar (a chave anterior será substituída).'
     : savedHere && cfg.source === 'tenant' ? 'Ativo: usando a chave salva aqui (criptografada no servidor).'
     : cfg.source === 'env'    ? 'Usando a chave do ambiente (.env) como fallback.'
@@ -209,7 +212,7 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
                 />
                 {!!modelsErr && <Text style={st.testErr}>⛔ {modelsErr}</Text>}
 
-                {!!statusTxt && <Text style={st.statusTxt}>{statusTxt}</Text>}
+                {!!statusTxt && <Text style={[st.statusTxt, keyUnreadable && st.statusWarn]}>{statusTxt}</Text>}
                 {!!testMsg && <Text style={[st.testTxt, testMsg.ok ? st.testOk : st.testErr]}>{testMsg.ok ? '✓ ' : '⛔ '}{testMsg.text}</Text>}
                 {!!saveMsg && <Text style={[st.testTxt, saveMsg.ok ? st.testOk : st.testErr]}>{saveMsg.ok ? '✓ ' : '⛔ '}{saveMsg.text}</Text>}
                 <Text style={st.foot}>Cole a chave e clique em “Salvar” (botão azul, embaixo). A chave é gravada no servidor (criptografada) e nunca volta à tela. “Testar conexão” e a lista de modelos usam a configuração JÁ salva — então salve primeiro, depois teste.</Text>
@@ -281,6 +284,7 @@ const st = StyleSheet.create({
   ddItemTxtOn:{ color: COLORS.primary, fontWeight: '700' },
 
   statusTxt:  { fontSize: FONTS.sm, color: COLORS.gray[500], marginTop: SPACING.md, lineHeight: 18 },
+  statusWarn: { color: '#b45309', fontWeight: '700' },
   testTxt:    { fontSize: FONTS.sm, marginTop: SPACING.sm, fontWeight: '700' },
   testOk:     { color: '#16a34a' },
   testErr:    { color: '#dc2626', fontSize: FONTS.sm, marginTop: 4, fontWeight: '600' },
