@@ -205,4 +205,29 @@ router.patch('/:id/logo', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// PATCH /api/companies/:id/theme  { theme } — define o tema (cores) da empresa.
+// Admin da empresa ATIVA. theme = { sidebarBg, sidebarText, primary } (hex) ou null (padrão).
+const THEME_KEYS = ['sidebarBg', 'sidebarText', 'primary'];
+const isHex = (v) => typeof v === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v.trim());
+router.patch('/:id/theme', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' || req.user.company_id !== req.params.id) {
+      return res.status(403).json({ error: 'Apenas o admin da empresa ativa pode alterar o tema.' });
+    }
+    const input = req.body && req.body.theme;
+    let theme = null;
+    if (input && typeof input === 'object') {
+      const clean = {};
+      for (const k of THEME_KEYS) {
+        if (input[k] == null || input[k] === '') continue;
+        if (!isHex(input[k])) return res.status(400).json({ error: `Cor inválida em "${k}" (use hex, ex.: #1e293b).` });
+        clean[k] = String(input[k]).trim();
+      }
+      theme = Object.keys(clean).length ? clean : null;
+    }
+    await db.query('UPDATE companies SET theme = ? WHERE id = ?', [theme ? JSON.stringify(theme) : null, req.params.id]);
+    res.json({ ok: true, theme });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

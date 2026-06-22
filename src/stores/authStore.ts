@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { User } from '../types/models';
 import { tokenStorage } from '../services/api';
 import { fetchCurrentUser } from '../services/authService';
+import { applyTenantTheme } from '../constants/theme';
 
 interface AuthState {
   user: User | null;
@@ -46,6 +47,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         const user = await fetchCurrentUser();
         if (user) {
           set({ user, isLoading: false });
+          applyTenantTheme(user.theme);   // aplica o tema do tenant (recarrega se mudou)
           return;
         }
         // Token inválido/expirado — limpa o armazenamento

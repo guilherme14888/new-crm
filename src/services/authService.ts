@@ -1,6 +1,7 @@
 import { useAuthStore } from '../stores/authStore';
 import { apiFetch, tokenStorage } from './api';
 import { User } from '../types/models';
+import { applyTenantTheme } from '../constants/theme';
 
 type AuthUserResponse = {
   id: string;
@@ -14,6 +15,7 @@ type AuthUserResponse = {
   isMasterCompany?: boolean;
   isDefaultTenantUser?: boolean;
   canMiningHistory?: boolean;
+  theme?: { sidebarBg?: string; sidebarText?: string; primary?: string } | null;
   companyLogo?: string | null;
   masterLogo?: string | null;
   teamId: string | null;
@@ -37,6 +39,7 @@ function mapUser(u: AuthUserResponse): User {
     isMasterCompany: u.isMasterCompany ?? false,
     isDefaultTenantUser: u.isDefaultTenantUser ?? false,
     canMiningHistory: u.canMiningHistory ?? false,
+    theme: u.theme ?? null,
     companyLogo: u.companyLogo ?? null,
     masterLogo: u.masterLogo ?? null,
     teamId: u.teamId ?? null,
@@ -58,7 +61,9 @@ export async function signIn(email: string, password: string): Promise<void> {
       { method: 'POST', body: JSON.stringify({ email, password }) }
     );
     await tokenStorage.set(data.token);
-    store.setUser(mapUser(data.user));
+    const u = mapUser(data.user);
+    store.setUser(u);
+    applyTenantTheme(u.theme);
   } catch (e: unknown) {
     store.setError(e instanceof Error ? e.message : 'Login failed');
     throw e;
@@ -78,7 +83,9 @@ export async function signUp(email: string, password: string, displayName: strin
       { method: 'POST', body: JSON.stringify({ email, password, displayName }) }
     );
     await tokenStorage.set(data.token);
-    store.setUser(mapUser(data.user));
+    const u = mapUser(data.user);
+    store.setUser(u);
+    applyTenantTheme(u.theme);
   } catch (e: unknown) {
     store.setError(e instanceof Error ? e.message : 'Falha no cadastro');
     throw e;
@@ -112,10 +119,12 @@ export async function switchCompany(companyId: string): Promise<void> {
   );
   await tokenStorage.set(data.token);
   if (data.user) {
-    store.setUser(mapUser(data.user));
+    const u = mapUser(data.user);
+    store.setUser(u);
+    applyTenantTheme(u.theme);
   } else {
     const user = await fetchCurrentUser();
-    if (user) store.setUser(user);
+    if (user) { store.setUser(user); applyTenantTheme(user.theme); }
   }
 }
 
@@ -129,6 +138,16 @@ export async function setCompanyLogo(companyId: string, logoUrl: string | null):
   await apiFetch(`/api/companies/${companyId}/logo`, { method: 'PATCH', body: JSON.stringify({ logoUrl }) });
   const user = await fetchCurrentUser();
   if (user) useAuthStore.getState().setUser(user);
+}
+
+/** Define (ou reseta, com null) o tema (cores) da empresa ativa e aplica (recarrega a página). */
+export async function setCompanyTheme(
+  companyId: string,
+  theme: { sidebarBg?: string; sidebarText?: string; primary?: string } | null,
+): Promise<void> {
+  const res = await apiFetch<{ ok: boolean; theme: typeof theme }>(
+    `/api/companies/${companyId}/theme`, { method: 'PATCH', body: JSON.stringify({ theme }) });
+  applyTenantTheme(res.theme ?? null);   // persiste + recarrega para regenerar os estilos
 }
 
 /** Update own profile (displayName, avatarUrl and/or password) */

@@ -220,6 +220,7 @@ export interface User {
   isMasterCompany?: boolean;          // empresa ativa é a Default/master
   isDefaultTenantUser?: boolean;      // usuário foi criado na tenant Default (home) — habilita troca de empresa
   canMiningHistory?: boolean;         // pode ver o Histórico de Mineração (operador Default ou grant ACL)
+  theme?: { sidebarBg?: string; sidebarText?: string; primary?: string } | null;  // tema (cores) da empresa ativa
   companyLogo?: string | null;        // logo da empresa ativa (url ou data URL)
   masterLogo?: string | null;         // logo da Default (miniatura sobreposta nas filhas)
   teamId: string | null;

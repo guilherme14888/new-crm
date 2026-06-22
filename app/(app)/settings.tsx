@@ -23,6 +23,7 @@ import { ApiExternaModal } from '../../src/components/settings/ApiExternaModal';
 import { PalavrasChaveModal } from '../../src/components/settings/PalavrasChaveModal';
 import { InteligenciaArtificialModal } from '../../src/components/settings/InteligenciaArtificialModal';
 import { CompanyLogoModal } from '../../src/components/settings/CompanyLogoModal';
+import { AparenciaModal } from '../../src/components/settings/AparenciaModal';
 import { Button } from '../../src/components/ui/Button';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../src/constants/theme';
 import { Funnel, FunnelStage, CustomField, CustomFieldType, Product, CRMUser, UserRole, WinLossReason } from '../../src/types/models';
@@ -1280,6 +1281,7 @@ export default function SettingsScreen() {
   const [palavrasChaveVisible, setPalavrasChaveVisible] = useState(false);
   const [aiConfigVisible, setAiConfigVisible] = useState(false);
   const [logoVisible, setLogoVisible] = useState(false);
+  const [aparenciaVisible, setAparenciaVisible] = useState(false);
   const [funnelModal, setFunnelModal] = useState(false);
   const [editingFunnel, setEditingFunnel] = useState<Funnel | null>(null);
   const [stageModal, setStageModal] = useState(false);
@@ -1626,6 +1628,23 @@ export default function SettingsScreen() {
           </Pressable>
         )}
 
+        {/* Aparência (tema) — admin de qualquer empresa personaliza as cores da interface */}
+        {user?.role === 'admin' && (
+          <Pressable onPress={() => setAparenciaVisible(true)}>
+            <Card style={styles.card}>
+              <View style={styles.menuItem}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+                  <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Aparência (tema)</Text>
+                  <View style={styles.companyBadge}>
+                    <Text style={styles.companyBadgeText}>cores</Text>
+                  </View>
+                </View>
+                <Text style={styles.menuItemChevron}>›</Text>
+              </View>
+            </Card>
+          </Pressable>
+        )}
+
         {/* Inteligência Artificial — config GLOBAL: só admin da empresa Default */}
         {user?.role === 'admin' && user?.companyId === '00000000-0000-0000-0000-000000000001' && (
           <Pressable onPress={() => setAiConfigVisible(true)}>
@@ -1649,6 +1668,7 @@ export default function SettingsScreen() {
       <PalavrasChaveModal visible={palavrasChaveVisible} onClose={() => setPalavrasChaveVisible(false)} />
       <InteligenciaArtificialModal visible={aiConfigVisible} onClose={() => setAiConfigVisible(false)} />
       <CompanyLogoModal visible={logoVisible} onClose={() => setLogoVisible(false)} />
+      <AparenciaModal visible={aparenciaVisible} onClose={() => setAparenciaVisible(false)} />
 
       {/* Funnels Manager Modal */}
       <Modal

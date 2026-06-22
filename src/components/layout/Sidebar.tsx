@@ -7,7 +7,7 @@ import { signOut, switchCompany, listCompanies, updateProfile } from '../../serv
 import { useFunnelStore } from '../../stores/funnelStore';
 import { useDealStore } from '../../stores/dealStore';
 import { useContactStore } from '../../stores/contactStore';
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme';
+import { COLORS, FONTS, SPACING, RADIUS, THEME } from '../../constants/theme';
 
 export const SIDEBAR_W  = 220;
 export const SIDEBAR_COL = 64;
@@ -465,24 +465,24 @@ const st = StyleSheet.create({
 
   backdrop: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 99 } as any,
 
-  sidebar:          { backgroundColor: COLORS.gray[900], height: '100%' as any, flexDirection: 'column', overflow: 'hidden' as any },
+  sidebar:          { backgroundColor: THEME.sidebarBg, height: '100%' as any, flexDirection: 'column', overflow: 'hidden' as any },
   sidebarCollapsed: {},
 
-  header:           { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xl, borderBottomWidth: 1, borderBottomColor: COLORS.gray[700] },
+  header:           { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xl, borderBottomWidth: 1, borderBottomColor: THEME.sidebarBorder },
   headerCollapsed:  { justifyContent: 'center', paddingHorizontal: SPACING.sm },
 
   logo:    { flex: 1 },
   logoText:{ fontSize: FONTS['2xl'], fontWeight: '900', color: COLORS.primary, letterSpacing: 2 },
-  logoSub: { fontSize: FONTS.sm, color: COLORS.gray[400], marginTop: 2 },
+  logoSub: { fontSize: FONTS.sm, color: THEME.sidebarTextFaint, marginTop: 2 },
   logoWrap:{ position: 'relative', alignSelf: 'flex-start', maxWidth: 170 },
   logoImg: { width: 160, height: 46 },
   // Miniatura da Default (canto sup. ESQUERDO), SEM fundo — mescla com a cor da sidebar
   // (um PNG transparente fica sobre o navy; sem caixa branca).
   logoBadge:{ position: 'absolute', top: -7, left: -7, width: 30, height: 30, backgroundColor: 'transparent' },
 
-  toggleBtn:         { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.gray[700], alignItems: 'center', justifyContent: 'center' },
+  toggleBtn:         { width: 28, height: 28, borderRadius: 14, backgroundColor: THEME.sidebarBorder, alignItems: 'center', justifyContent: 'center' },
   toggleBtnCollapsed:{ },
-  toggleIcon:        { fontSize: 16, color: COLORS.gray[300], fontWeight: '700', lineHeight: 20 },
+  toggleIcon:        { fontSize: 16, color: THEME.sidebarTextDim, fontWeight: '700', lineHeight: 20 },
 
   nav:           { flex: 1, paddingTop: SPACING.md },
   navItem:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm + 2, marginHorizontal: SPACING.sm, marginVertical: 2, borderRadius: RADIUS.md, gap: SPACING.sm },
@@ -490,36 +490,36 @@ const st = StyleSheet.create({
   navItemCollapsed: { justifyContent: 'center', paddingHorizontal: 0, marginHorizontal: SPACING.xs },
   navIcon:          { fontSize: 18, width: 24, textAlign: 'center' },
   navIconCollapsed: { fontSize: 20, width: 'auto' as any },
-  navLabel:         { fontSize: FONTS.base, color: COLORS.gray[300], fontWeight: '400', flex: 1 },
+  navLabel:         { fontSize: FONTS.base, color: THEME.sidebarTextDim, fontWeight: '400', flex: 1 },
   navLabelActive:   { color: COLORS.primary, fontWeight: '600' },
-  navCaret:         { fontSize: 11, color: COLORS.gray[400] },
+  navCaret:         { fontSize: 11, color: THEME.sidebarTextFaint },
 
   subItem:        { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, paddingLeft: SPACING.xl + SPACING.md, paddingRight: SPACING.lg, marginHorizontal: SPACING.sm, marginVertical: 1, borderRadius: RADIUS.md },
   subItemActive:  { backgroundColor: COLORS.primary + '22' },
   subIcon:        { fontSize: 13, width: 18, textAlign: 'center', opacity: 0.7 },
-  subLabel:       { fontSize: FONTS.sm, color: COLORS.gray[400], fontWeight: '400' },
+  subLabel:       { fontSize: FONTS.sm, color: THEME.sidebarTextFaint, fontWeight: '400' },
   subLabelActive: { color: COLORS.primary, fontWeight: '600' },
 
-  collapsedActions:    { borderTopWidth: 1, borderTopColor: COLORS.gray[700], paddingVertical: SPACING.sm },
+  collapsedActions:    { borderTopWidth: 1, borderTopColor: THEME.sidebarBorder, paddingVertical: SPACING.sm },
   collapsedActionBtn:  { alignItems: 'center', paddingVertical: SPACING.sm },
   collapsedActionIcon: { fontSize: 18 },
 
-  dropMenu:    { backgroundColor: COLORS.gray[800], borderTopWidth: 1, borderTopColor: COLORS.gray[700] },
+  dropMenu:    { backgroundColor: THEME.sidebarHover, borderTopWidth: 1, borderTopColor: THEME.sidebarBorder },
   dropItem:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
   dropIcon:    { fontSize: 14, width: 20, textAlign: 'center' },
-  dropLabel:   { fontSize: FONTS.sm, color: COLORS.gray[200], fontWeight: '500' },
-  dropDivider: { height: 1, backgroundColor: COLORS.gray[700], marginHorizontal: SPACING.lg },
+  dropLabel:   { fontSize: FONTS.sm, color: THEME.sidebarTextDim, fontWeight: '500' },
+  dropDivider: { height: 1, backgroundColor: THEME.sidebarBorder, marginHorizontal: SPACING.lg },
 
-  footer:       { padding: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.gray[700] },
-  footerActive: { backgroundColor: COLORS.gray[800] },
+  footer:       { padding: SPACING.md, borderTopWidth: 1, borderTopColor: THEME.sidebarBorder },
+  footerActive: { backgroundColor: THEME.sidebarHover },
   userRow:      { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   avatar:       { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   avatarImg:    { width: 36, height: 36, borderRadius: 18, flexShrink: 0 },
   avatarText:   { color: COLORS.white, fontWeight: '700', fontSize: FONTS.base },
   userInfo:     { flex: 1, overflow: 'hidden' as any },
-  userName:     { fontSize: FONTS.sm, fontWeight: '600', color: COLORS.gray[100] },
-  userEmail:    { fontSize: 11, color: COLORS.gray[400] },
-  chevron:      { fontSize: 10, color: COLORS.gray[500] },
+  userName:     { fontSize: FONTS.sm, fontWeight: '600', color: THEME.sidebarText },
+  userEmail:    { fontSize: 11, color: THEME.sidebarTextFaint },
+  chevron:      { fontSize: 10, color: THEME.sidebarTextFaint },
 });
 
 // Modal styles

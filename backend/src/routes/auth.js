@@ -47,15 +47,19 @@ const MASTER_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 async function safeUser(u, activeCompanyId, companyName = null, trialSrc = u, permissions = null) {
   const t = trialStatus(trialSrc || {});
   const cid = activeCompanyId ?? u.company_id;
-  // Logo da empresa ATIVA + logo da Default (p/ a miniatura sobreposta na sidebar).
-  let companyLogo = null, masterLogo = null;
+  // Logo da empresa ATIVA + logo da Default (p/ a miniatura sobreposta na sidebar) +
+  // tema (cores) da empresa ATIVA — cada tenant pode personalizar a interface.
+  let companyLogo = null, masterLogo = null, theme = null;
   try {
-    const [rows] = await db.query('SELECT id, logo_url FROM companies WHERE id IN (?, ?)', [cid, MASTER_COMPANY_ID]);
+    const [rows] = await db.query('SELECT id, logo_url, theme FROM companies WHERE id IN (?, ?)', [cid, MASTER_COMPANY_ID]);
     for (const r of rows) {
-      if (r.id === cid) companyLogo = r.logo_url || null;
+      if (r.id === cid) {
+        companyLogo = r.logo_url || null;
+        if (r.theme) { try { theme = typeof r.theme === 'string' ? JSON.parse(r.theme) : r.theme; } catch { theme = null; } }
+      }
       if (r.id === MASTER_COMPANY_ID) masterLogo = r.logo_url || null;
     }
-  } catch { /* sem logo */ }
+  } catch { /* sem logo/tema */ }
   // Acesso ao Histórico de Mineração: SÓ o operador Default (empresa REAL do usuário =
   // master + admin) sempre vê; demais (inclusive admin de filha) só com o grant
   // mining_history_view no perfil ACL. Usa u.company_id (home), não a empresa ativa.
@@ -81,6 +85,7 @@ async function safeUser(u, activeCompanyId, companyName = null, trialSrc = u, pe
     companyName: companyName ?? u.company_name ?? null,
     isMasterCompany: cid === MASTER_COMPANY_ID,
     isDefaultTenantUser: u.company_id === MASTER_COMPANY_ID,   // criado na Default (home, estável ao trocar)
+    theme,                 // tema (cores) da empresa ativa — { sidebarBg, sidebarText, primary }
     canMiningHistory,
     companyLogo,            // logo da empresa ativa (url ou data URL base64)
     masterLogo,            // logo da Default (miniatura sobreposta nas filhas)
