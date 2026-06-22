@@ -144,9 +144,12 @@ function resolveScope(req, res, next) {
   let activeCompanyId = company_id;
 
   if (isAdmin) {
-    // Admin pode trocar via header ou parâmetro de query
+    // Admin pode trocar via header ou parâmetro de query. ATENÇÃO: "all" NÃO é uma
+    // empresa — é o valor "Todas" de filtros (ex.: Histórico de Mineração que manda
+    // ?company=all). Sem isto, activeCompanyId virava a string 'all', quebrava o
+    // isMaster e filtrava por company_id='all' → tudo aparecia como "sem execução".
     const headerCompany = req.headers['x-company-id'];
-    const queryCompany  = req.query.company;
+    const queryCompany  = req.query.company === 'all' ? undefined : req.query.company;
     activeCompanyId = headerCompany || queryCompany || company_id;
   }
 
