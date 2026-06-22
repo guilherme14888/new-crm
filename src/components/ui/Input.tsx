@@ -27,7 +27,7 @@ const styles = StyleSheet.create({
   label: { fontSize: FONTS.sm, color: COLORS.gray[600], marginBottom: SPACING.xs, fontWeight: '500' },
   input: {
     borderWidth: 1,
-    borderColor: COLORS.gray[300],
+    borderColor: COLORS.gray[200],
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,

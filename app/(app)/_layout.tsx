@@ -84,9 +84,11 @@ const styles = StyleSheet.create({
   main: {
     flex: 1,
     flexDirection: 'column',
+    backgroundColor: COLORS.gray[100],   // canvas cinza-claro (NextAdmin)
   },
   content: {
     flex: 1,
+    backgroundColor: COLORS.gray[100],
   },
   mobileTopBar: {
     flexDirection: 'row',

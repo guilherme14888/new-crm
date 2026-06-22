@@ -1,24 +1,26 @@
-/** Paleta de cores do aplicativo — tons de azul como principal, com estados danger/success/warning */
+/** Paleta de cores do aplicativo — alinhada ao visual NextAdmin/TailAdmin:
+ *  primária índigo (#3C50E0), escala de cinzas "slate" e estados danger/success/warning.
+ *  Como todo o app consome COLORS.gray[x]/COLORS.primary, mudar aqui desloca o sistema inteiro. */
 export const COLORS = {
-  primary: '#3b82f6',        // Azul primário
-  primaryDark: '#1d4ed8',    // Azul primário escuro para hover
-  danger: '#ef4444',         // Vermelho para erros e ações perigosas
-  success: '#16a34a',        // Verde para sucesso
-  warning: '#f59e0b',        // Âmbar para avisos
+  primary: '#3C50E0',        // Índigo primário (NextAdmin)
+  primaryDark: '#2A3BB7',    // Hover/pressed
+  danger: '#FB5454',         // Vermelho (erros / ações perigosas)
+  success: '#10B981',        // Verde (sucesso)
+  warning: '#F59E0B',        // Âmbar (avisos)
   gray: {
-    50: '#f8fafc',           // Cinza muito claro (backgrounds)
-    100: '#f1f5f9',
-    200: '#e2e8f0',
-    300: '#cbd5e1',
-    400: '#94a3b8',
-    500: '#64748b',
-    600: '#475569',
-    700: '#334155',
-    800: '#1e293b',
-    900: '#0f172a',          // Cinza muito escuro (textos)
+    50:  '#F7F9FC',          // Fundo mais claro (gray-2)
+    100: '#F1F5F9',          // Fundo do app (whiten)
+    200: '#E2E8F0',          // Bordas/divisórias (stroke)
+    300: '#DEE4EE',          // Bordas suaves / disabled (bodydark1)
+    400: '#AEB7C0',          // Texto muted / placeholder (bodydark)
+    500: '#8A99AF',          // Texto terciário (bodydark2)
+    600: '#64748B',          // Texto secundário
+    700: '#475569',          // Texto forte secundário
+    800: '#24303F',          // Superfícies escuras (boxdark)
+    900: '#1C2434',          // Texto primário / sidebar escura (black)
   },
   white: '#ffffff',
-  black: '#000000',
+  black: '#1C2434',
 };
 
 /** Tamanhos de fonte em pixels — escala tipográfica baseada em Tailwind */
@@ -61,8 +63,8 @@ export type ThemeColors = { sidebarBg?: string; sidebarText?: string; primary?: 
 
 const THEME_KEY = 'ui_theme_v1';
 export const THEME_DEFAULTS = {
-  sidebarBg:   COLORS.gray[900],
-  sidebarText: COLORS.white,
+  sidebarBg:   COLORS.gray[900],   // #1C2434 — sidebar escura NextAdmin
+  sidebarText: '#DEE4EE',          // texto da sidebar (bodydark1)
   primary:     COLORS.primary,
 };
 
