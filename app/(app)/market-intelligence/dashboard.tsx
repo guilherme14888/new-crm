@@ -974,10 +974,6 @@ export default function MarketIntelligenceScreen() {
         <View style={s.canvas}>
           {/* ─── Header ───────────────────────────────────────────────────── */}
           <View style={s.header}>
-            <View style={s.brandBox}>
-              <Text style={s.brandMark}>BR4</Text>
-              <Text style={s.brandSub}>LICITAÇÕES</Text>
-            </View>
             <View style={s.titleBlock}>
               <Text style={s.kicker}>STATUS REPORT / INTELIGÊNCIA DE MERCADO</Text>
               <Text style={s.title}>Portfólio de Compras Governamentais</Text>
