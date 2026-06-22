@@ -1,3 +1,10 @@
+## [1.47.2](https://github.com/guilherme14888/crm-br4/compare/v1.47.1...v1.47.2) (2026-06-22)
+
+
+### Bug Fixes
+
+* **ai:** chave de IA em texto puro (sem cifra) — elimina o 502 por mismatch de segredo ([d8dad99](https://github.com/guilherme14888/crm-br4/commit/d8dad993dd41122c23d241170c596893341e9f27))
+
 ## [1.47.1](https://github.com/guilherme14888/crm-br4/compare/v1.47.0...v1.47.1) (2026-06-22)
 
 
