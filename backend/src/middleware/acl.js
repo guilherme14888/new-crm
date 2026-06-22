@@ -135,7 +135,7 @@ function requireMasterPermission(...keys) {
  * Admin pode passar ?company=<id> ou X-Company-Id header para trocar de contexto.
  * Outras funções ficam limitadas à sua própria empresa.
  */
-function resolveScope(req, res, next) {
+async function resolveScope(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Não autenticado' });
 
   const { id: userId, company_id, team_id, role } = req.user;
@@ -155,6 +155,17 @@ function resolveScope(req, res, next) {
 
   const isMaster = activeCompanyId === MASTER_COMPANY_ID;
 
+  // allowedTenants: usuário da Default (isMaster) NÃO-admin que pertence a uma EQUIPE
+  // com tenants atribuídos passa a enxergar SOMENTE esses tenants (em vez de TODAS as
+  // empresas). Admin (operador) e quem não tem equipe/atribuição → null = sem restrição.
+  let allowedTenants = null;
+  if (isMaster && !isAdmin && team_id) {
+    try {
+      const [rows] = await db.query('SELECT company_id FROM team_tenants WHERE team_id = ?', [team_id]);
+      if (rows.length) allowedTenants = rows.map((r) => r.company_id);
+    } catch { /* fail-open: sem restrição */ }
+  }
+
   req.scope = {
     companyId: activeCompanyId,
     teamId:    team_id ?? null,
@@ -162,6 +173,7 @@ function resolveScope(req, res, next) {
     role,
     isAdmin,
     isMaster,
+    allowedTenants,
   };
 
   next();
@@ -179,10 +191,15 @@ function resolveScope(req, res, next) {
  */
 function buildScopeFilter(scope, tableAlias = '') {
   const col = (name) => tableAlias ? `${tableAlias}.${name}` : name;
-  const { role, companyId, teamId, userId, isAdmin, isMaster } = scope;
+  const { role, companyId, teamId, userId, isAdmin, isMaster, allowedTenants } = scope;
 
-  // Empresa master vê todos os dados de todas as empresas
+  // Empresa master vê todos os dados de todas as empresas — salvo se a equipe do
+  // usuário restringir a tenants específicos (allowedTenants).
   if (isMaster) {
+    if (allowedTenants && allowedTenants.length) {
+      const ph = allowedTenants.map(() => '?').join(',');
+      return { where: `${col('company_id')} IN (${ph})`, params: [...allowedTenants] };
+    }
     return { where: '1=1', params: [] };
   }
 
@@ -232,10 +249,15 @@ function buildScopeFilter(scope, tableAlias = '') {
  */
 function buildCompanyFilter(scope, tableAlias = '') {
   const col = (name) => tableAlias ? `${tableAlias}.${name}` : name;
-  const { role, companyId, teamId, userId, isAdmin, isMaster } = scope;
+  const { role, companyId, teamId, userId, isAdmin, isMaster, allowedTenants } = scope;
 
-  // Empresa master vê todos os dados de todas as empresas
+  // Empresa master vê todos os dados de todas as empresas — salvo se a equipe do
+  // usuário restringir a tenants específicos (allowedTenants).
   if (isMaster) {
+    if (allowedTenants && allowedTenants.length) {
+      const ph = allowedTenants.map(() => '?').join(',');
+      return { where: `${col('company_id')} IN (${ph})`, params: [...allowedTenants] };
+    }
     return { where: '1=1', params: [] };
   }
 
@@ -259,10 +281,15 @@ function buildCompanyFilter(scope, tableAlias = '') {
  * @returns true se permitido, false se negado
  */
 function canAccess(scope, record) {
-  const { role, companyId, teamId, userId, isAdmin, isMaster } = scope;
+  const { role, companyId, teamId, userId, isAdmin, isMaster, allowedTenants } = scope;
 
-  // Empresa master tem acesso a qualquer registro
-  if (isMaster) return true;
+  // Empresa master tem acesso a qualquer registro — salvo restrição por equipe (allowedTenants).
+  if (isMaster) {
+    if (allowedTenants && allowedTenants.length) {
+      return !record.company_id || allowedTenants.includes(record.company_id);
+    }
+    return true;
+  }
 
   if (isAdmin) return true;
 

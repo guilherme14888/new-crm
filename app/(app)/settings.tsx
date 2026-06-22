@@ -391,14 +391,38 @@ const TEAM_PRESET_COLORS = [
 
 /** Modal de gestão de uma equipe: edita nome/cor, lista membros atuais e usuários disponíveis para adicionar/remover. */
 function TeamMembersModal({ team, users, onClose }: { team: Team; users: CRMUser[]; onClose: () => void }) {
-  const { teamMembers, loadMembers, addMember, removeMember, updateMemberRole, updateTeam } = useTeamStore();
+  const { teamMembers, loadMembers, addMember, removeMember, updateMemberRole, updateTeam, setTeamTenants } = useTeamStore();
+  const authUser = useAuthStore((s) => s.user);
+  const allCompanies = useCompanyStore((s) => s.companies);
+  const loadCompanies = useCompanyStore((s) => s.loadCompanies);
   const members = teamMembers[team.id] ?? [];
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(team.name);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState('');
 
+  // Atribuição de tenants à equipe — só o operador Default configura.
+  const MASTER_ID = '00000000-0000-0000-0000-000000000001';
+  const canAssignTenants = !!authUser?.isMasterCompany;
+  const tenantList = allCompanies.filter((c) => c.id !== MASTER_ID);
+  const [selTenants, setSelTenants] = useState<string[]>(team.tenantIds ?? []);
+  const [savingTenants, setSavingTenants] = useState(false);
+  const [tenantsMsg, setTenantsMsg] = useState<string | null>(null);
+
   useEffect(() => { loadMembers(team.id); }, [team.id]);
+  useEffect(() => { if (canAssignTenants && allCompanies.length === 0) loadCompanies(); }, [canAssignTenants]);
+  useEffect(() => { setSelTenants(team.tenantIds ?? []); }, [team.id, team.tenantIds]);
+
+  const toggleTenant = (id: string) => {
+    setTenantsMsg(null);
+    setSelTenants((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+  const handleSaveTenants = async () => {
+    setSavingTenants(true); setTenantsMsg(null);
+    await setTeamTenants(team.id, selTenants);
+    setSavingTenants(false);
+    setTenantsMsg('Tenants atribuídos. Vale no próximo login dos membros.');
+  };
 
   const nonMembers = users.filter((u) => u.isActive && !members.some((m) => m.userId === u.id));
 
@@ -554,6 +578,35 @@ function TeamMembersModal({ team, users, onClose }: { team: Team; users: CRMUser
               </ScrollView>
             </View>
           </View>
+
+          {/* Tenants visíveis para a equipe (só o operador Default configura) */}
+          {canAssignTenants && (
+            <View style={tm.tenantsSection}>
+              <Text style={tm.colTitle}>Tenants visíveis para esta equipe</Text>
+              <Text style={tm.tenantsHint}>
+                Os membros desta equipe (na Default) verão SOMENTE os dados das empresas marcadas.
+                Sem nenhuma marcação = enxergam todas. Vale no próximo login dos membros.
+              </Text>
+              <ScrollView style={{ maxHeight: 170, marginTop: SPACING.sm }} showsVerticalScrollIndicator={false}>
+                {tenantList.length === 0 && <Text style={tm.empty}>Nenhuma empresa cadastrada.</Text>}
+                {tenantList.map((c) => {
+                  const on = selTenants.includes(c.id);
+                  return (
+                    <Pressable key={c.id} style={tm.tenantRow} onPress={() => toggleTenant(c.id)}>
+                      <View style={[tm.checkbox, on && tm.checkboxOn]}>{on && <Text style={tm.checkTxt}>✓</Text>}</View>
+                      <Text style={tm.tenantName} numberOfLines={1}>{c.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <View style={tm.tenantsFooter}>
+                {tenantsMsg ? <Text style={tm.tenantsMsg}>{tenantsMsg}</Text> : <View style={{ flex: 1 }} />}
+                <Pressable style={[tm.saveTenantsBtn, savingTenants && { opacity: 0.6 }]} onPress={handleSaveTenants} disabled={savingTenants}>
+                  <Text style={tm.saveTenantsTxt}>{savingTenants ? 'Salvando…' : 'Salvar tenants'}</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         </Pressable>
       </Pressable>
     </Modal>
@@ -575,6 +628,17 @@ const tm = StyleSheet.create({
   customColorInput: { fontSize: FONTS.sm, color: COLORS.gray[800], borderWidth: 1, borderColor: COLORS.gray[200], borderRadius: RADIUS.md, paddingHorizontal: SPACING.sm, paddingVertical: 4, width: 90, outlineStyle: 'none' } as any,
   title:        { fontSize: FONTS.xl, fontWeight: '700', color: COLORS.gray[900], flex: 1 },
   titleInput:   { borderBottomWidth: 2, borderBottomColor: COLORS.primary, paddingVertical: 2, outlineStyle: 'none' } as any,
+  tenantsSection: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.gray[100], backgroundColor: COLORS.gray[50] },
+  tenantsHint:  { fontSize: FONTS.xs, color: COLORS.gray[500], marginTop: 2 },
+  tenantRow:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: 6 },
+  checkbox:     { width: 20, height: 20, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.gray[300], alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  checkboxOn:   { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  checkTxt:     { color: '#fff', fontSize: FONTS.xs, fontWeight: '900' },
+  tenantName:   { fontSize: FONTS.sm, color: COLORS.gray[800], flex: 1 },
+  tenantsFooter:{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.sm },
+  tenantsMsg:   { flex: 1, fontSize: FONTS.xs, color: COLORS.success },
+  saveTenantsBtn:{ backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
+  saveTenantsTxt:{ color: '#fff', fontWeight: '700', fontSize: FONTS.sm },
   memberLabel:  { fontSize: FONTS.xs, color: COLORS.gray[500] },
   closeBtn:     { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.gray[100], alignItems: 'center', justifyContent: 'center' },
   closeTxt:     { fontSize: 12, color: COLORS.gray[600], fontWeight: '700' },

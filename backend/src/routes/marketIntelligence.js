@@ -178,12 +178,25 @@ router.get('/mining-history', auth, resolveScope, async (req, res) => {
     // O seletor "Todas as empresas" só aparece p/ o operador Default (userIsMaster) e NÃO
     // muda quando ele escolhe uma tenant — por isso persiste na Default e não aparece nas
     // filhas. Os DADOS seguem a tenant selecionada (companyParam); filha vê só a própria.
-    const targetCompany = userIsMaster
-      ? ((companyParam && companyParam !== 'all') ? companyParam : null)   // null = todas
-      : u0.company_id;                                                     // filha: só a própria
+    // Conjunto de empresas a exibir (null = todas). Operador Default: uma tenant ou todas;
+    // membro de equipe da Default: só os tenants da equipe (allowedTenants); demais: a própria.
+    const allowedTenants = req.scope.allowedTenants;
+    let filterCompanies = null;
+    if (userIsMaster) {
+      filterCompanies = (companyParam && companyParam !== 'all') ? [companyParam] : null;
+    } else if (allowedTenants && allowedTenants.length) {
+      filterCompanies = allowedTenants;
+    } else {
+      filterCompanies = [u0.company_id];
+    }
+    const inClause = (alias) => {
+      if (!filterCompanies) return { sql: '', params: [] };
+      const ph = filterCompanies.map(() => '?').join(',');
+      return { sql: `${alias}company_id IN (${ph})`, params: [...filterCompanies] };
+    };
     let where = 'mi.first_seen_date IS NOT NULL';
     const params = [];
-    if (targetCompany) { where += ' AND mi.company_id = ?'; params.push(targetCompany); }
+    { const f = inClause('mi.'); if (f.sql) { where += ` AND ${f.sql}`; params.push(...f.params); } }
     const [rows] = await db.query(
       `SELECT DATE_FORMAT(mi.first_seen_date,'%Y-%m-%d') d,
               COALESCE(NULLIF(mi.termo_busca,''),'(varredura)') termo,
@@ -212,7 +225,7 @@ router.get('/mining-history', auth, resolveScope, async (req, res) => {
     // coleta aparecem como "sem execução" (para o usuário enxergar as lacunas).
     const DAYS = 30;
     const cWhere = []; const cParams = [];
-    if (targetCompany) { cWhere.push('company_id = ?'); cParams.push(targetCompany); }
+    { const f = inClause(''); if (f.sql) { cWhere.push(f.sql); cParams.push(...f.params); } }
     const cFilter = cWhere.length ? `AND ${cWhere.join(' AND ')}` : '';
     const [cov] = await db.query(
       `SELECT DATE_FORMAT(run_date,'%Y-%m-%d') d,

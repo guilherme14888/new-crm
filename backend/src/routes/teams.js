@@ -36,7 +36,17 @@ router.get('/', auth, resolveScope, async (req, res) => {
        ORDER BY t.name`,
       params
     );
-    res.json(rows.map(fmtTeam));
+    const teams = rows.map(fmtTeam);
+    // Anexa os tenants atribuídos a cada equipe (visualização restrita por equipe).
+    if (teams.length) {
+      const ids = teams.map((t) => t.id);
+      const [tt] = await db.query(
+        `SELECT team_id, company_id FROM team_tenants WHERE team_id IN (${ids.map(() => '?').join(',')})`, ids);
+      const byTeam = {};
+      for (const r of tt) (byTeam[r.team_id] = byTeam[r.team_id] || []).push(r.company_id);
+      teams.forEach((t) => { t.tenantIds = byTeam[t.id] || []; });
+    }
+    res.json(teams);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -127,6 +137,43 @@ router.post('/:id/members', auth, resolveScope, requirePermission('teams_manage'
       WHERE tm.team_id = ? AND tm.user_id = ?
     `, [req.params.id, userId]);
     res.status(201).json(fmtMember(rows[0]));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/teams/:id/tenants — ids dos tenants atribuídos à equipe
+router.get('/:id/tenants', auth, resolveScope, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT company_id FROM team_tenants WHERE team_id = ?', [req.params.id]);
+    res.json({ tenantIds: rows.map((r) => r.company_id) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/teams/:id/tenants  { tenantIds: [] } — define quais tenants a equipe enxerga.
+// Só o operador Default (master/admin) atribui tenants — é um conceito da empresa Default:
+// os membros da equipe passam a ver SOMENTE os dados desses tenants.
+router.put('/:id/tenants', auth, resolveScope, requirePermission('teams_manage'), async (req, res) => {
+  if (!req.scope.isMaster && !req.scope.isAdmin) {
+    return res.status(403).json({ error: 'Apenas o operador Default pode atribuir tenants a equipes.' });
+  }
+  const teamId = req.params.id;
+  const tenantIds = Array.isArray(req.body && req.body.tenantIds) ? req.body.tenantIds.filter(Boolean) : [];
+  try {
+    const [tr] = await db.query('SELECT id FROM teams WHERE id = ?', [teamId]);
+    if (!tr.length) return res.status(404).json({ error: 'Equipe não encontrada' });
+    // Valida que os tenants informados existem de fato.
+    let valid = [];
+    if (tenantIds.length) {
+      const [cs] = await db.query(
+        `SELECT id FROM companies WHERE id IN (${tenantIds.map(() => '?').join(',')})`, tenantIds);
+      valid = cs.map((c) => c.id);
+    }
+    await db.query('DELETE FROM team_tenants WHERE team_id = ?', [teamId]);
+    if (valid.length) {
+      const values = valid.map(() => '(?,?)').join(',');
+      const flat = valid.flatMap((cid) => [teamId, cid]);
+      await db.query(`INSERT INTO team_tenants (team_id, company_id) VALUES ${values}`, flat);
+    }
+    res.json({ ok: true, tenantIds: valid });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

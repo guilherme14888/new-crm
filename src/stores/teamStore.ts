@@ -8,6 +8,7 @@ export interface Team {
   description: string | null;
   color: string;
   memberCount: number;
+  tenantIds?: string[];          // empresas (tenants) que a equipe visualiza
   createdAt: string;
   updatedAt: string;
 }
@@ -31,6 +32,7 @@ interface TeamState {
   createTeam: (data: { name: string; description?: string; color?: string }) => Promise<Team | null>;
   updateTeam: (id: string, patch: Partial<Pick<Team, 'name' | 'description' | 'color'>>) => Promise<void>;
   deleteTeam: (id: string) => Promise<void>;
+  setTeamTenants: (teamId: string, tenantIds: string[]) => Promise<void>;
   loadMembers: (teamId: string) => Promise<void>;
   addMember: (teamId: string, userId: string, role?: string) => Promise<TeamMember | null>;
   removeMember: (teamId: string, userId: string) => Promise<void>;
@@ -84,6 +86,19 @@ export const useTeamStore = create<TeamState>((set, get) => ({
       set((s) => ({ teams: s.teams.filter((t) => t.id !== id) }));
     } catch {
       useUIStore.getState().showToast('Erro ao excluir equipe');
+    }
+  },
+
+  /** Define quais tenants (empresas) a equipe visualiza e reflete no estado. */
+  setTeamTenants: async (teamId, tenantIds) => {
+    try {
+      const res = await apiFetch<{ ok: boolean; tenantIds: string[] }>(`/api/teams/${teamId}/tenants`, {
+        method: 'PUT', body: JSON.stringify({ tenantIds }),
+      });
+      const saved = res?.tenantIds ?? tenantIds;
+      set((s) => ({ teams: s.teams.map((t) => t.id === teamId ? { ...t, tenantIds: saved } : t) }));
+    } catch {
+      useUIStore.getState().showToast('Erro ao atribuir tenants à equipe');
     }
   },
 
