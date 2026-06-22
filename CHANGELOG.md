@@ -1,3 +1,10 @@
+# [1.47.0](https://github.com/guilherme14888/crm-br4/compare/v1.46.0...v1.47.0) (2026-06-22)
+
+
+### Features
+
+* **sidebar:** troca de empresa so p/ usuarios da Default + Default 1o + Config por ultimo ([9edbb4c](https://github.com/guilherme14888/crm-br4/commit/9edbb4c1e6425fc166b3ff6d3ee05c437ba81ef3))
+
 # [1.46.0](https://github.com/guilherme14888/crm-br4/compare/v1.45.0...v1.46.0) (2026-06-22)
 
 
