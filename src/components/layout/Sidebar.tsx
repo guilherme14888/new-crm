@@ -308,7 +308,16 @@ export function Sidebar() {
             )}
           </View>
         )}
-        <Pressable style={[st.toggleBtn, collapsed && st.toggleBtnCollapsed]} onPress={toggleSidebar}>
+        <Pressable
+          onPress={toggleSidebar}
+          hitSlop={8}
+          style={({ hovered, pressed }: any) => [
+            st.toggleBtn,
+            hovered && st.toggleBtnHover,
+            pressed && st.toggleBtnPressed,
+          ]}
+          {...(Platform.OS === 'web' ? { 'aria-label': collapsed ? 'Expandir menu' : 'Recolher menu', title: collapsed ? 'Expandir menu' : 'Recolher menu' } as any : {})}
+        >
           <Text style={st.toggleIcon}>{collapsed ? '›' : '‹'}</Text>
         </Pressable>
       </View>
@@ -480,9 +489,18 @@ const st = StyleSheet.create({
   // (um PNG transparente fica sobre o navy; sem caixa branca).
   logoBadge:{ position: 'absolute', top: -7, left: -7, width: 30, height: 30, backgroundColor: 'transparent' },
 
-  toggleBtn:         { width: 28, height: 28, borderRadius: 14, backgroundColor: THEME.sidebarBorder, alignItems: 'center', justifyContent: 'center' },
-  toggleBtnCollapsed:{ },
-  toggleIcon:        { fontSize: 16, color: THEME.sidebarTextDim, fontWeight: '700', lineHeight: 20 },
+  toggleBtn: {
+    width: 32, height: 32, borderRadius: RADIUS.full,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: THEME.sidebarHover,
+    borderWidth: 1, borderColor: THEME.sidebarBorder,
+    ...(Platform.OS === 'web'
+      ? { cursor: 'pointer', transitionProperty: 'background-color, border-color, transform', transitionDuration: '160ms', transitionTimingFunction: 'ease' } as any
+      : {}),
+  },
+  toggleBtnHover:   { backgroundColor: THEME.sidebarBorder, borderColor: THEME.sidebarTextFaint, transform: [{ scale: 1.06 }] },
+  toggleBtnPressed: { transform: [{ scale: 0.9 }], opacity: 0.85 },
+  toggleIcon:       { fontSize: 18, lineHeight: 18, color: THEME.sidebarText, fontWeight: '600', textAlign: 'center', marginTop: -1, includeFontPadding: false as any },
 
   nav:           { flex: 1, paddingTop: SPACING.md },
   navItem:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm + 2, marginHorizontal: SPACING.sm, marginVertical: 2, borderRadius: RADIUS.md, gap: SPACING.sm },
