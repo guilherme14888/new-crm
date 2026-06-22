@@ -217,6 +217,9 @@ export interface User {
   aclProfileId: string | null;
   companyId: string;
   companyName: string | null;
+  isMasterCompany?: boolean;          // empresa ativa é a Default/master
+  companyLogo?: string | null;        // logo da empresa ativa (url ou data URL)
+  masterLogo?: string | null;         // logo da Default (miniatura sobreposta nas filhas)
   teamId: string | null;
   // Período de teste do tenant ativo (preenchido por /auth/me e login)
   onTrial?: boolean;

@@ -281,8 +281,20 @@ export function Sidebar() {
       <View style={[st.header, collapsed && st.headerCollapsed]}>
         {!collapsed && (
           <View style={st.logo}>
-            <Text style={st.logoText}>CRM</Text>
-            <Text style={st.logoSub}>Workspace</Text>
+            {user?.companyLogo ? (
+              <View style={st.logoWrap}>
+                <Image source={{ uri: user.companyLogo }} style={st.logoImg} resizeMode="contain" />
+                {/* Miniatura do logo da Default sobreposta no canto sup. direito (só nas filhas). */}
+                {!user.isMasterCompany && user.masterLogo ? (
+                  <Image source={{ uri: user.masterLogo }} style={st.logoBadge} resizeMode="contain" />
+                ) : null}
+              </View>
+            ) : (
+              <>
+                <Text style={st.logoText}>CRM</Text>
+                <Text style={st.logoSub} numberOfLines={1}>{user?.companyName || 'Workspace'}</Text>
+              </>
+            )}
           </View>
         )}
         <Pressable style={[st.toggleBtn, collapsed && st.toggleBtnCollapsed]} onPress={toggleSidebar}>
@@ -445,6 +457,11 @@ const st = StyleSheet.create({
   logo:    { flex: 1 },
   logoText:{ fontSize: FONTS['2xl'], fontWeight: '900', color: COLORS.primary, letterSpacing: 2 },
   logoSub: { fontSize: FONTS.sm, color: COLORS.gray[400], marginTop: 2 },
+  logoWrap:{ position: 'relative', alignSelf: 'flex-start', maxWidth: 170 },
+  logoImg: { width: 160, height: 46 },
+  logoBadge:{ position: 'absolute', top: -7, right: -7, width: 30, height: 30, borderRadius: 8,
+              backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.gray[200],
+              shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
 
   toggleBtn:         { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.gray[700], alignItems: 'center', justifyContent: 'center' },
   toggleBtnCollapsed:{ },

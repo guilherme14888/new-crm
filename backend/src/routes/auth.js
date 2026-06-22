@@ -42,8 +42,20 @@ function makeToken(user, activeCompanyId) {
 }
 
 /** Serializa um usuário para o cliente, expondo apenas campos seguros (sem hash de senha). */
-function safeUser(u, activeCompanyId, companyName = null, trialSrc = u, permissions = null) {
+const MASTER_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+
+async function safeUser(u, activeCompanyId, companyName = null, trialSrc = u, permissions = null) {
   const t = trialStatus(trialSrc || {});
+  const cid = activeCompanyId ?? u.company_id;
+  // Logo da empresa ATIVA + logo da Default (p/ a miniatura sobreposta na sidebar).
+  let companyLogo = null, masterLogo = null;
+  try {
+    const [rows] = await db.query('SELECT id, logo_url FROM companies WHERE id IN (?, ?)', [cid, MASTER_COMPANY_ID]);
+    for (const r of rows) {
+      if (r.id === cid) companyLogo = r.logo_url || null;
+      if (r.id === MASTER_COMPANY_ID) masterLogo = r.logo_url || null;
+    }
+  } catch { /* sem logo */ }
   return {
     id:          u.id,
     email:       u.email,
@@ -51,8 +63,11 @@ function safeUser(u, activeCompanyId, companyName = null, trialSrc = u, permissi
     avatarUrl:   u.avatar_url,
     role:        u.role,
     aclProfileId: u.acl_profile_id ?? null,
-    companyId:   activeCompanyId ?? u.company_id,
+    companyId:   cid,
     companyName: companyName ?? u.company_name ?? null,
+    isMasterCompany: cid === MASTER_COMPANY_ID,
+    companyLogo,            // logo da empresa ativa (url ou data URL base64)
+    masterLogo,            // logo da Default (miniatura sobreposta nas filhas)
     teamId:      u.team_id ?? null,
     onTrial:       t.onTrial,
     trialDaysLeft: t.trialDaysLeft,
@@ -115,7 +130,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     const token = makeToken(user, user.company_id);
     audit(req, { action: 'login', resource: 'users', resourceId: user.id });
     const permissions = await loadPermissions(user);
-    res.json({ token, user: safeUser(user, user.company_id, null, user, permissions) });
+    res.json({ token, user: await safeUser(user, user.company_id, null, user, permissions) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -132,7 +147,7 @@ router.get('/me', authMw, async (req, res) => {
     );
     if (!rows[0]) return res.status(404).json({ error: 'Usuário não encontrado' });
     const permissions = await loadPermissions(rows[0]);
-    res.json(safeUser(rows[0], req.user.company_id, null, rows[0], permissions));
+    res.json(await safeUser(rows[0], req.user.company_id, null, rows[0], permissions));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -164,7 +179,7 @@ router.post('/switch-company', authMw, async (req, res) => {
       activeCompanyId: companyId,
       company: { id: companies[0].id, name: companies[0].name },
       // trial reflete a empresa para a qual trocou (companies[0] tem as colunas trial_*)
-      user: safeUser(userRows[0], companyId, companies[0].name, companies[0], permissions),
+      user: await safeUser(userRows[0], companyId, companies[0].name, companies[0], permissions),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -215,7 +230,7 @@ router.patch('/me', authMw, async (req, res) => {
     await db.query(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, vals);
     const [rows] = await db.query('SELECT * FROM users WHERE id = ?', [req.user.id]);
     const permissions = await loadPermissions(rows[0]);
-    res.json(safeUser(rows[0], req.user.company_id, null, rows[0], permissions));
+    res.json(await safeUser(rows[0], req.user.company_id, null, rows[0], permissions));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

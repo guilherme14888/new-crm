@@ -11,6 +11,9 @@ type AuthUserResponse = {
   aclProfileId?: string | null;
   companyId: string;
   companyName: string | null;
+  isMasterCompany?: boolean;
+  companyLogo?: string | null;
+  masterLogo?: string | null;
   teamId: string | null;
   onTrial?: boolean;
   trialDaysLeft?: number | null;
@@ -29,6 +32,9 @@ function mapUser(u: AuthUserResponse): User {
     aclProfileId: u.aclProfileId ?? null,
     companyId: u.companyId,
     companyName: u.companyName ?? null,
+    isMasterCompany: u.isMasterCompany ?? false,
+    companyLogo: u.companyLogo ?? null,
+    masterLogo: u.masterLogo ?? null,
     teamId: u.teamId ?? null,
     onTrial: u.onTrial ?? false,
     trialDaysLeft: u.trialDaysLeft ?? null,
@@ -112,6 +118,13 @@ export async function switchCompany(companyId: string): Promise<void> {
 /** List companies the current user can access */
 export async function listCompanies(): Promise<{ id: string; name: string; slug: string; plan: string; isActive: boolean }[]> {
   return apiFetch('/api/auth/companies');
+}
+
+/** Define (ou remove, com null) o logo da empresa ativa e recarrega o user → sidebar. */
+export async function setCompanyLogo(companyId: string, logoUrl: string | null): Promise<void> {
+  await apiFetch(`/api/companies/${companyId}/logo`, { method: 'PATCH', body: JSON.stringify({ logoUrl }) });
+  const user = await fetchCurrentUser();
+  if (user) useAuthStore.getState().setUser(user);
 }
 
 /** Update own profile (displayName, avatarUrl and/or password) */

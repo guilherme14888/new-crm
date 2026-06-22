@@ -183,4 +183,26 @@ router.delete('/:id', auth, requireMasterPermission('companies_manage'), async (
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// PATCH /api/companies/:id/logo  { logoUrl } — define o logo da empresa.
+// Permite o admin da empresa ATIVA (req.user.company_id == :id). O operador Default
+// troca o contexto de empresa (switch-company) p/ ajustar o logo de cada tenant.
+// logoUrl: URL http(s) OU data URL base64 (limite ~6MB p/ caber no MEDIUMTEXT).
+router.patch('/:id/logo', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' || req.user.company_id !== req.params.id) {
+      return res.status(403).json({ error: 'Apenas o admin da empresa ativa pode alterar o logo.' });
+    }
+    let { logoUrl } = req.body || {};
+    if (logoUrl != null) {
+      logoUrl = String(logoUrl).trim();
+      if (logoUrl.length > 4_500_000) return res.status(413).json({ error: 'Logo muito grande (máx. ~3MB). Use uma imagem menor ou uma URL.' });
+      if (logoUrl && !/^(https?:\/\/|data:image\/)/i.test(logoUrl)) {
+        return res.status(400).json({ error: 'logoUrl deve ser uma URL http(s) ou um data URL de imagem.' });
+      }
+    }
+    await db.query('UPDATE companies SET logo_url = ? WHERE id = ?', [logoUrl || null, req.params.id]);
+    res.json({ ok: true, logoUrl: logoUrl || null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
