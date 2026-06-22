@@ -125,7 +125,7 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
       // (evita confundir com o botão Salvar da seção de CAPTCHA).
       if (captchaKey.trim()) { try { await saveCaptcha(captchaKey.trim()); setCaptchaKey(''); } catch { /* toast */ } }
       setApiKey('');
-      setSaveMsg({ ok: true, text: 'Configuração salva ✓ — a chave foi gravada no servidor (criptografada).' });
+      setSaveMsg({ ok: true, text: 'Configuração salva ✓ — a chave foi gravada no servidor.' });
     } catch (e: any) {
       setSaveMsg({ ok: false, text: e?.message || 'Erro ao salvar a configuração.' });
     } finally { setSaving(false); }
@@ -154,7 +154,7 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
   const statusTxt = !cfg ? ''
     : keyUnreadable ? '⚠️ A chave salva NÃO pôde ser lida pelo servidor (o segredo de criptografia AI_KEY_SECRET/JWT_SECRET mudou no deploy). Cole a chave novamente e clique em Salvar.'
     : (cfg.hasKey && provider !== cfg.provider) ? 'Você trocou de provedor — cole a chave deste provedor e clique em Salvar (a chave anterior será substituída).'
-    : savedHere && cfg.source === 'tenant' ? 'Ativo: usando a chave salva aqui (criptografada no servidor).'
+    : savedHere && cfg.source === 'tenant' ? 'Ativo: usando a chave salva aqui (no servidor).'
     : cfg.source === 'env'    ? 'Usando a chave do ambiente (.env) como fallback.'
     : 'Nenhuma chave configurada — a IA está desligada (a captação ainda funciona, mas sem filtro de contexto por IA).';
 
@@ -186,7 +186,7 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
                 />
 
                 <Text style={[st.label, { marginTop: SPACING.md }]}>Chave da API</Text>
-                <Text style={st.hint}>{savedHere ? 'Já existe uma chave salva (criptografada). Preencha apenas se quiser substituir.' : 'Cole a chave deste provedor — os modelos serão buscados automaticamente.'}</Text>
+                <Text style={st.hint}>{savedHere ? 'Já existe uma chave salva. Preencha apenas se quiser substituir.' : 'Cole a chave deste provedor — os modelos serão buscados automaticamente.'}</Text>
                 <TextInput
                   style={st.input}
                   value={apiKey}
@@ -215,7 +215,7 @@ export function InteligenciaArtificialModal({ visible, onClose }: { visible: boo
                 {!!statusTxt && <Text style={[st.statusTxt, keyUnreadable && st.statusWarn]}>{statusTxt}</Text>}
                 {!!testMsg && <Text style={[st.testTxt, testMsg.ok ? st.testOk : st.testErr]}>{testMsg.ok ? '✓ ' : '⛔ '}{testMsg.text}</Text>}
                 {!!saveMsg && <Text style={[st.testTxt, saveMsg.ok ? st.testOk : st.testErr]}>{saveMsg.ok ? '✓ ' : '⛔ '}{saveMsg.text}</Text>}
-                <Text style={st.foot}>Cole a chave e clique em “Salvar” (botão azul, embaixo). A chave é gravada no servidor (criptografada) e nunca volta à tela. “Testar conexão” e a lista de modelos usam a configuração JÁ salva — então salve primeiro, depois teste.</Text>
+                <Text style={st.foot}>Cole a chave e clique em “Salvar” (botão azul, embaixo). A chave é gravada no servidor e nunca volta à tela. “Testar conexão” e a lista de modelos usam a configuração JÁ salva — então salve primeiro, depois teste.</Text>
 
                 {/* ── CAPTCHA (2Captcha) — para portais com reCAPTCHA (ex.: BEC-SP) ── */}
                 <View style={st.divider} />

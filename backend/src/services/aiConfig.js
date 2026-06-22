@@ -127,12 +127,14 @@ async function saveAiConfig(_companyId, { provider, apiKey, model }) {
   const row = await readRow();
   const finalProvider = provider || (row && row.provider) || DEFAULT_PROVIDER;
   const providerChanged = !!(provider && row && row.provider && provider !== row.provider);
-  // chave: nova → cifra; sem nova mas trocou de provedor → LIMPA (não usa chave de
-  // outro provedor); senão mantém a existente (já cifrada). Evita o mismatch que
-  // gerava HTTP 502 (ex.: provedor Groq com chave xAI).
+  // chave: a chave de IA é gravada em TEXTO PURO (sem cifra), por opção do operador —
+  // a cifra dependia de um segredo (AI_KEY_SECRET/JWT_SECRET) que, ao mudar entre
+  // deploys/réplicas, tornava a chave indecifrável e gerava o "HTTP 502". Em texto
+  // puro ela é sempre legível. Trade-off: quem tiver acesso ao banco lê a chave.
+  // Regra: nova → grava; sem nova mas trocou de provedor → LIMPA; senão mantém.
   let finalKey;
   if (apiKey !== undefined && apiKey !== null && String(apiKey).trim() !== '') {
-    finalKey = encryptSecret(String(apiKey).trim());
+    finalKey = String(apiKey).trim();
   } else if (providerChanged) {
     finalKey = null;
   } else {
