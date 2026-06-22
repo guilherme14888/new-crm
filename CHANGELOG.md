@@ -1,3 +1,10 @@
+## [1.47.3](https://github.com/guilherme14888/crm-br4/compare/v1.47.2...v1.47.3) (2026-06-22)
+
+
+### Bug Fixes
+
+* **branding:** miniatura da Default a ESQUERDA + sem caixa branca (mescla na sidebar) ([d0c2b3b](https://github.com/guilherme14888/crm-br4/commit/d0c2b3bfe5e49a8c2e4bb9f8e75212b07866a627))
+
 ## [1.47.2](https://github.com/guilherme14888/crm-br4/compare/v1.47.1...v1.47.2) (2026-06-22)
 
 
