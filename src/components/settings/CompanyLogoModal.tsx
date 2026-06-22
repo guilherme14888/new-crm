@@ -177,11 +177,12 @@ const st = StyleSheet.create({
   closeBtn:  { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   closeTxt:  { fontSize: FONTS.lg, color: COLORS.gray[500] },
 
-  previewBox:  { minHeight: 96, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[200],
-                 backgroundColor: COLORS.gray[50], alignItems: 'center', justifyContent: 'center', padding: SPACING.md },
+  // Fundo na MESMA cor da sidebar (navy) — assim o preview mostra o resultado real:
+  // um PNG transparente mescla; um PNG com fundo branco aparece com a caixa branca.
+  previewBox:  { minHeight: 96, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.gray[700],
+                 backgroundColor: COLORS.gray[900], alignItems: 'center', justifyContent: 'center', padding: SPACING.md },
   previewImg:  { width: 200, height: 64 },
-  previewBadge:{ position: 'absolute', top: -8, right: -8, width: 34, height: 34, borderRadius: 8,
-                 backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.gray[200] },
+  previewBadge:{ position: 'absolute', top: -8, left: -8, width: 34, height: 34, backgroundColor: 'transparent' },
   previewEmpty:{ fontSize: FONTS.sm, color: COLORS.gray[400] },
   hint:        { fontSize: FONTS.xs, color: COLORS.gray[400], marginTop: SPACING.xs },
 
