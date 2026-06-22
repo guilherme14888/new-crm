@@ -1,3 +1,10 @@
+## [1.48.1](https://github.com/guilherme14888/crm-br4/compare/v1.48.0...v1.48.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* **sidebar:** publica ajustes do botao de recolher (chevron sem circulo, cor da fonte) ([dc814ba](https://github.com/guilherme14888/crm-br4/commit/dc814ba3dbd39ac9a14c7037d6e97aac9e7bd8eb))
+
 # [1.48.0](https://github.com/guilherme14888/crm-br4/compare/v1.47.3...v1.48.0) (2026-06-22)
 
 
