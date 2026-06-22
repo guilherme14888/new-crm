@@ -1,3 +1,10 @@
+# [1.44.0](https://github.com/guilherme14888/crm-br4/compare/v1.43.2...v1.44.0) (2026-06-22)
+
+
+### Features
+
+* **branding:** logo por empresa na sidebar + miniatura da Default sobreposta ([ba74e62](https://github.com/guilherme14888/crm-br4/commit/ba74e62ab492654e379beab6fc99d3d0be12d96e))
+
 ## [1.43.2](https://github.com/guilherme14888/crm-br4/compare/v1.43.1...v1.43.2) (2026-06-22)
 
 
