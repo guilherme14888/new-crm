@@ -1,3 +1,10 @@
+## [1.47.1](https://github.com/guilherme14888/crm-br4/compare/v1.47.0...v1.47.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* **ai:** chave nao decifravel (502 opaco) — multi-segredo, fail-fast e status claro ([458676f](https://github.com/guilherme14888/crm-br4/commit/458676f83b3ecfc8ca64b65982d1b11cbcaa41a3))
+
 # [1.47.0](https://github.com/guilherme14888/crm-br4/compare/v1.46.0...v1.47.0) (2026-06-22)
 
 
