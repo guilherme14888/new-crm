@@ -245,8 +245,9 @@ export function Sidebar() {
   // Visibilidade por perfil ACL: menu aparece a menos que explicitamente desligado.
   const perms = user?.permissions;
   const menuVisible = (key?: string) => !key || !perms || perms[key] !== false;
-  // Histórico de Mineração: acesso só p/ admin ou perfil com a permissão (grant).
-  const canMining = isAdmin || perms?.mining_history_view === true;
+  // Histórico de Mineração: SÓ o operador Default (empresa master + admin) ou quem tem
+  // o grant mining_history_view no perfil — admin de filha NÃO fura (booleano do servidor).
+  const canMining = !!user?.canMiningHistory;
   const baseItems = BASE_NAV_ITEMS.map((it) =>
     (it.menuKey === 'menu_market_intelligence' && canMining)
       ? { ...it, children: [...(it.children ?? []), { label: 'Histórico de Mineração', icon: '⛏️', href: '/(app)/market-intelligence/historico' }] }

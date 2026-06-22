@@ -56,6 +56,20 @@ async function safeUser(u, activeCompanyId, companyName = null, trialSrc = u, pe
       if (r.id === MASTER_COMPANY_ID) masterLogo = r.logo_url || null;
     }
   } catch { /* sem logo */ }
+  // Acesso ao Histórico de Mineração: SÓ o operador Default (empresa REAL do usuário =
+  // master + admin) sempre vê; demais (inclusive admin de filha) só com o grant
+  // mining_history_view no perfil ACL. Usa u.company_id (home), não a empresa ativa.
+  const isDefaultAdmin = u.company_id === MASTER_COMPANY_ID && u.role === 'admin';
+  let canMiningHistory = isDefaultAdmin;
+  if (!canMiningHistory && u.acl_profile_id) {
+    try {
+      const [pr] = await db.query('SELECT permissions FROM acl_profiles WHERE id = ?', [u.acl_profile_id]);
+      if (pr.length) {
+        const perms = typeof pr[0].permissions === 'string' ? JSON.parse(pr[0].permissions) : (pr[0].permissions || {});
+        canMiningHistory = !!(perms && perms.mining_history_view === true);
+      }
+    } catch { /* sem perfil */ }
+  }
   return {
     id:          u.id,
     email:       u.email,
@@ -66,6 +80,7 @@ async function safeUser(u, activeCompanyId, companyName = null, trialSrc = u, pe
     companyId:   cid,
     companyName: companyName ?? u.company_name ?? null,
     isMasterCompany: cid === MASTER_COMPANY_ID,
+    canMiningHistory,
     companyLogo,            // logo da empresa ativa (url ou data URL base64)
     masterLogo,            // logo da Default (miniatura sobreposta nas filhas)
     teamId:      u.team_id ?? null,

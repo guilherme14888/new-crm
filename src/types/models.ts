@@ -218,6 +218,7 @@ export interface User {
   companyId: string;
   companyName: string | null;
   isMasterCompany?: boolean;          // empresa ativa é a Default/master
+  canMiningHistory?: boolean;         // pode ver o Histórico de Mineração (operador Default ou grant ACL)
   companyLogo?: string | null;        // logo da empresa ativa (url ou data URL)
   masterLogo?: string | null;         // logo da Default (miniatura sobreposta nas filhas)
   teamId: string | null;

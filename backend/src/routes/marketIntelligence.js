@@ -159,19 +159,28 @@ router.get('/coverage', auth, resolveScope, requirePermission('coverage_view'), 
 // NOVO por dia (first_seen_date × termo_busca). Acesso gated por mining_history_view
 // (somente admin ou perfil com a permissão). Master vê todos os tenants (?company).
 router.get('/mining-history', auth, resolveScope, async (req, res) => {
-  if (!(await hasPermission(req, 'mining_history_view'))) {
-    return res.status(403).json({ error: 'Sem permissão para ver o Histórico de Mineração.' });
-  }
   try {
     const MASTER = '00000000-0000-0000-0000-000000000001';
+    // Gate (ACL): operador Default (empresa REAL = master + admin) sempre vê; demais
+    // (inclusive admin de filha) só com o grant mining_history_view no perfil.
+    const [urow] = await db.query('SELECT company_id, role, acl_profile_id FROM users WHERE id = ?', [req.user.id]);
+    const u0 = urow[0] || {};
+    const userIsMaster = u0.company_id === MASTER && u0.role === 'admin';   // operador Default (home)
+    let allowed = userIsMaster;
+    if (!allowed && u0.acl_profile_id) {
+      const [pr] = await db.query('SELECT permissions FROM acl_profiles WHERE id = ?', [u0.acl_profile_id]);
+      const perms = pr.length ? (typeof pr[0].permissions === 'string' ? JSON.parse(pr[0].permissions) : (pr[0].permissions || {})) : {};
+      allowed = !!(perms && perms.mining_history_view === true);
+    }
+    if (!allowed) return res.status(403).json({ error: 'Sem permissão para ver o Histórico de Mineração.' });
+
     const companyParam = req.query.company;
-    // O seletor "Todas as empresas" é da EMPRESA DO USUÁRIO (Default/master) e NÃO
-    // muda quando ele escolhe uma tenant — por isso o filtro persiste na Default e
-    // não aparece nas filhas. Os DADOS seguem a tenant selecionada (companyParam).
-    const userIsMaster = req.user.company_id === MASTER && req.user.role === 'admin';
+    // O seletor "Todas as empresas" só aparece p/ o operador Default (userIsMaster) e NÃO
+    // muda quando ele escolhe uma tenant — por isso persiste na Default e não aparece nas
+    // filhas. Os DADOS seguem a tenant selecionada (companyParam); filha vê só a própria.
     const targetCompany = userIsMaster
       ? ((companyParam && companyParam !== 'all') ? companyParam : null)   // null = todas
-      : req.user.company_id;                                              // filha: só a própria
+      : u0.company_id;                                                     // filha: só a própria
     let where = 'mi.first_seen_date IS NOT NULL';
     const params = [];
     if (targetCompany) { where += ' AND mi.company_id = ?'; params.push(targetCompany); }

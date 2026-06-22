@@ -12,6 +12,7 @@ type AuthUserResponse = {
   companyId: string;
   companyName: string | null;
   isMasterCompany?: boolean;
+  canMiningHistory?: boolean;
   companyLogo?: string | null;
   masterLogo?: string | null;
   teamId: string | null;
@@ -33,6 +34,7 @@ function mapUser(u: AuthUserResponse): User {
     companyId: u.companyId,
     companyName: u.companyName ?? null,
     isMasterCompany: u.isMasterCompany ?? false,
+    canMiningHistory: u.canMiningHistory ?? false,
     companyLogo: u.companyLogo ?? null,
     masterLogo: u.masterLogo ?? null,
     teamId: u.teamId ?? null,
