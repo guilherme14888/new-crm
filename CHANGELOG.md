@@ -1,3 +1,10 @@
+## [1.43.1](https://github.com/guilherme14888/crm-br4/compare/v1.43.0...v1.43.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* **acl:** resolveScope ignora ?company=all (corrige monitor 'sem execucao') ([c3c6e91](https://github.com/guilherme14888/crm-br4/commit/c3c6e91f974db5e2109603b4e8c3099ff2330801))
+
 # [1.43.0](https://github.com/guilherme14888/crm-br4/compare/v1.42.0...v1.43.0) (2026-06-21)
 
 
