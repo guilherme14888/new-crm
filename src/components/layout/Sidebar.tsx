@@ -489,18 +489,18 @@ const st = StyleSheet.create({
   // (um PNG transparente fica sobre o navy; sem caixa branca).
   logoBadge:{ position: 'absolute', top: -7, left: -7, width: 30, height: 30, backgroundColor: 'transparent' },
 
+  // Sem círculo: apenas o chevron. Pequena área de toque + micro-interação no hover/press.
   toggleBtn: {
-    width: 32, height: 32, borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.xs, paddingVertical: SPACING.xs,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: THEME.sidebarHover,
-    borderWidth: 1, borderColor: THEME.sidebarBorder,
     ...(Platform.OS === 'web'
-      ? { cursor: 'pointer', transitionProperty: 'background-color, border-color, transform', transitionDuration: '160ms', transitionTimingFunction: 'ease' } as any
+      ? { cursor: 'pointer', transitionProperty: 'opacity, transform', transitionDuration: '150ms', transitionTimingFunction: 'ease' } as any
       : {}),
   },
-  toggleBtnHover:   { backgroundColor: THEME.sidebarBorder, borderColor: THEME.sidebarTextFaint, transform: [{ scale: 1.06 }] },
-  toggleBtnPressed: { transform: [{ scale: 0.9 }], opacity: 0.85 },
-  toggleIcon:       { fontSize: 18, lineHeight: 18, color: THEME.sidebarText, fontWeight: '600', textAlign: 'center', marginTop: -1, includeFontPadding: false as any },
+  toggleBtnHover:   { opacity: 0.7, transform: [{ scale: 1.12 }] },
+  toggleBtnPressed: { opacity: 0.5, transform: [{ scale: 0.9 }] },
+  // Cor SEGUE a fonte da sidebar (THEME.sidebarText) → visível em qualquer tema.
+  toggleIcon:       { fontSize: 26, lineHeight: 26, color: THEME.sidebarText, fontWeight: '600', textAlign: 'center', includeFontPadding: false as any },
 
   nav:           { flex: 1, paddingTop: SPACING.md },
   navItem:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm + 2, marginHorizontal: SPACING.sm, marginVertical: 2, borderRadius: RADIUS.md, gap: SPACING.sm },
