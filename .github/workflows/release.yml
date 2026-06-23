@@ -1,104 +1,46 @@
-name: Release & Publish
+name: Build & Publish (new-crm)
 
-# A cada push na branch principal:
-#   1. semantic-release (dry-run) calcula a PRÓXIMA versão pelos Conventional Commits
-#      (feat→minor, fix/style→patch, BREAKING CHANGE→major). 1º release = v1.0.0.
-#   2. builda e publica UMA imagem no DockerHub (guilherme1488/new-crm:vX.Y.Z + :latest)
-#      — repo ISOLADO do redesign; NUNCA toca as imagens de producao do crm-br4.
-#   3. só então finaliza o release (tag git vX.Y.Z + GitHub Release + CHANGELOG),
-#      garantindo que um build quebrado NÃO deixe tag órfã.
+# Repo ISOLADO do redesign. A cada push na branch principal: builda e publica UMA
+# imagem all-in-one em guilherme1488/new-crm (:latest + :<sha>). SEM semantic-release
+# (sem commit de changelog / tags) — evita conflito de tag e o "erro no commit".
+# NUNCA usa os nomes de imagem de producao do crm-br4 (crm-web/crm-api/...).
 #
-# Secrets necessários (Settings → Secrets and variables → Actions):
-#   DOCKERHUB_USERNAME  · usuário/organização do DockerHub
-#   DOCKERHUB_TOKEN     · access token do DockerHub (Account Settings → Security)
-# (GITHUB_TOKEN é injetado automaticamente pelo Actions.)
+# Secrets necessarios (Settings → Secrets and variables → Actions):
+#   DOCKERHUB_USERNAME  · usuario do DockerHub
+#   DOCKERHUB_TOKEN     · access token do DockerHub
 
 on:
   push:
     branches: [main, master]
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: build-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write       # criar tag, commit do changelog e release
-      issues: write
-      pull-requests: write
     steps:
-      - name: Checkout (histórico completo p/ o semantic-release)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Instalar semantic-release
-        run: >
-          npm install --no-save
-          semantic-release
-          @semantic-release/commit-analyzer
-          @semantic-release/release-notes-generator
-          @semantic-release/changelog
-          @semantic-release/git
-          @semantic-release/github
-
-      - name: Calcular próxima versão (dry-run)
-        id: ver
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set +e
-          npx semantic-release --dry-run > sr.log 2>&1
-          cat sr.log
-          # 1º release: "There is no previous release, the next release version is X.Y.Z"
-          # demais:     "The next release version is X.Y.Z"  → grep case-insensitive cobre ambos
-          V=$(grep -oiP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' sr.log | head -1)
-          if [ -n "$V" ]; then
-            echo "released=true"  >> "$GITHUB_OUTPUT"
-            echo "version=$V"     >> "$GITHUB_OUTPUT"
-            echo "→ próxima versão: v$V"
-          else
-            echo "released=false" >> "$GITHUB_OUTPUT"
-            echo "→ nenhum release necessário para estes commits."
-          fi
 
       - name: Setup Docker Buildx
-        if: steps.ver.outputs.released == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Login no DockerHub
-        if: steps.ver.outputs.released == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ── REPO new-crm: publica UMA imagem (all-in-one) em guilherme1488/new-crm.
-      #    NUNCA usar os nomes de producao (crm-web/crm-api/...) aqui — este repo e
-      #    isolado p/ o redesign e nao deve tocar a producao do crm-br4.
       - name: Build & push — imagem unica (guilherme1488/new-crm)
-        if: steps.ver.outputs.released == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           platforms: linux/amd64
           tags: |
-            guilherme1488/new-crm:v${{ steps.ver.outputs.version }}
             guilherme1488/new-crm:latest
+            guilherme1488/new-crm:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Finalizar release (tag + GitHub Release + changelog)
-        if: steps.ver.outputs.released == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
