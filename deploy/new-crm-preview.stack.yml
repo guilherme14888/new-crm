@@ -1,53 +1,53 @@
-# Stack de PREVIEW do redesign (imagem all-in-one guilherme1488/new-crm).
-# Serve API + SPA na porta 3001. Isolada da produção.
+# Stack de PREVIEW do redesign — UM ÚNICO serviço (imagem all-in-one new-crm).
+# A imagem serve API + SPA na porta 3001 (NAO é nginx na 80). Isolada da produção.
 #
-# ⚠️ Preencha os valores entre <...>. Pontos críticos:
-#   - JWT_SECRET é OBRIGATÓRIO (sem ele o backend nem sobe — era o erro que você viu).
-#   - RUN_SCHEDULER=false → NÃO roda a ingestão neste container (não competir com a
-#     produção / não bater no PNCP em paralelo).
-#   - Use de preferência um BANCO DE TESTE. Se apontar para o banco de produção,
-#     mantenha RUN_SCHEDULER=false e ciente de que vê os mesmos dados.
+# ⚠️ NUNCA use aqui o domínio de produção (sistema.br4licitacoes.com) nem as imagens
+#    crm-api/crm-scrape-worker. Esta imagem ja contem tudo. E NAO suba ingest-worker:
+#    com RUN_SCHEDULER=false este container nao roda ingestao (nao competir com a prod).
+#
+# Preencha <...>. Se usar ${VAR}, defina a VAR na secao "Environment variables" da
+# stack no Portainer; ou troque por valor LITERAL entre aspas.
 version: "3.8"
 
 services:
   new-crm:
     image: guilherme1488/new-crm:latest
     environment:
-      NODE_ENV: "production"
-      PORT: "3001"
-
-      # Segredo dos tokens — OBRIGATÓRIO. Se usar o banco de produção e quiser que as
-      # sessões atuais continuem válidas, use o MESMO JWT_SECRET da produção; com banco
-      # de teste, qualquer valor estável serve.
-      JWT_SECRET: "<defina-um-segredo-estavel>"
-
-      # Banco (MariaDB)
-      DB_HOST: "<host-do-banco>"
-      DB_PORT: "3306"
-      DB_USER: "<usuario>"
-      DB_PASSWORD: "<senha>"
-      DB_NAME: "<nome-do-banco>"
-
-      # NÃO rodar o agendador de ingestão neste preview.
-      RUN_SCHEDULER: "false"
-
-      # Domínio(s) permitido(s) no CORS (separe por vírgula). Ajuste p/ o do preview.
-      CORS_ORIGINS: "https://preview.seudominio.com"
-
-      # Opcional — a chave de IA já é texto puro; AI_KEY_SECRET só afeta o 2Captcha.
-      AI_KEY_SECRET: ""
-    ports:
-      - "3001:3001"     # acesso direto. (Se usar Traefik, troque por labels — ver abaixo.)
+      - NODE_ENV=production
+      - PORT=3001
+      - TZ=America/Sao_Paulo
+      - JWT_SECRET=${JWT_SECRET}                 # OBRIGATORIO (defina no Portainer ou literal)
+      - JWT_EXPIRES_IN=7d
+      - RUN_SCHEDULER=false                      # NAO rodar ingestao no preview
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=3306
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - CORS_ORIGINS=https://preview.br4licitacoes.com   # <-- dominio do PREVIEW (nao o de prod)
+    networks:
+      - Br4Net
     deploy:
+      mode: replicated
       replicas: 1
-    # A imagem já traz healthcheck em /health.
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 768M
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=network_public
+        # Router/serviço com nome PROPRIO (newcrm) p/ nao colidir com os da producao.
+        - traefik.http.routers.newcrm.rule=Host(`preview.br4licitacoes.com`)   # <-- dominio do PREVIEW
+        - traefik.http.routers.newcrm.entrypoints=websecure
+        - traefik.http.routers.newcrm.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.newcrm.service=newcrm
+        - traefik.http.services.newcrm.loadbalancer.server.port=3001          # all-in-one escuta na 3001
 
-# ── Alternativa com Traefik (em vez de "ports") ──────────────────────────────
-# Remova o bloco "ports" acima e adicione, dentro de deploy:
-#   labels:
-#     - traefik.enable=true
-#     - traefik.http.routers.newcrm.rule=Host(`preview.seudominio.com`)
-#     - traefik.http.routers.newcrm.entrypoints=websecure
-#     - traefik.http.routers.newcrm.tls.certresolver=le
-#     - traefik.http.services.newcrm.loadbalancer.server.port=3001
-# e ligue o serviço à sua rede externa do Traefik (networks: [network_public]).
+networks:
+  Br4Net:
+    external: true
