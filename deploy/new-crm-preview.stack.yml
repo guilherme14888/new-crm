@@ -1,0 +1,53 @@
+# Stack de PREVIEW do redesign (imagem all-in-one guilherme1488/new-crm).
+# Serve API + SPA na porta 3001. Isolada da produção.
+#
+# ⚠️ Preencha os valores entre <...>. Pontos críticos:
+#   - JWT_SECRET é OBRIGATÓRIO (sem ele o backend nem sobe — era o erro que você viu).
+#   - RUN_SCHEDULER=false → NÃO roda a ingestão neste container (não competir com a
+#     produção / não bater no PNCP em paralelo).
+#   - Use de preferência um BANCO DE TESTE. Se apontar para o banco de produção,
+#     mantenha RUN_SCHEDULER=false e ciente de que vê os mesmos dados.
+version: "3.8"
+
+services:
+  new-crm:
+    image: guilherme1488/new-crm:latest
+    environment:
+      NODE_ENV: "production"
+      PORT: "3001"
+
+      # Segredo dos tokens — OBRIGATÓRIO. Se usar o banco de produção e quiser que as
+      # sessões atuais continuem válidas, use o MESMO JWT_SECRET da produção; com banco
+      # de teste, qualquer valor estável serve.
+      JWT_SECRET: "<defina-um-segredo-estavel>"
+
+      # Banco (MariaDB)
+      DB_HOST: "<host-do-banco>"
+      DB_PORT: "3306"
+      DB_USER: "<usuario>"
+      DB_PASSWORD: "<senha>"
+      DB_NAME: "<nome-do-banco>"
+
+      # NÃO rodar o agendador de ingestão neste preview.
+      RUN_SCHEDULER: "false"
+
+      # Domínio(s) permitido(s) no CORS (separe por vírgula). Ajuste p/ o do preview.
+      CORS_ORIGINS: "https://preview.seudominio.com"
+
+      # Opcional — a chave de IA já é texto puro; AI_KEY_SECRET só afeta o 2Captcha.
+      AI_KEY_SECRET: ""
+    ports:
+      - "3001:3001"     # acesso direto. (Se usar Traefik, troque por labels — ver abaixo.)
+    deploy:
+      replicas: 1
+    # A imagem já traz healthcheck em /health.
+
+# ── Alternativa com Traefik (em vez de "ports") ──────────────────────────────
+# Remova o bloco "ports" acima e adicione, dentro de deploy:
+#   labels:
+#     - traefik.enable=true
+#     - traefik.http.routers.newcrm.rule=Host(`preview.seudominio.com`)
+#     - traefik.http.routers.newcrm.entrypoints=websecure
+#     - traefik.http.routers.newcrm.tls.certresolver=le
+#     - traefik.http.services.newcrm.loadbalancer.server.port=3001
+# e ligue o serviço à sua rede externa do Traefik (networks: [network_public]).
